@@ -573,7 +573,7 @@ views.dashboard = () => {
       <div class="stat"><div class="v">${groups.tomorrow.length}</div><div class="l">demain${load(groups.tomorrow) ? ' · ' + fmtDur(load(groups.tomorrow)) : ''}</div></div>
       <div class="stat"><div class="v">${inbox}</div><div class="l">à ranger (boîte de réception)</div></div>
     </div>
-    ${isEmpty ? `<div class="card"><h3>Bienvenue 👋</h3><p>Ajoute une tâche ci-dessus, crée tes sujets dans l'onglet Sujets, ou charge un exemple pour voir à quoi ça ressemble. L'import de ton fichier Excel arrivera dès que je l'aurai.</p><button class="btn" data-act="demo">Charger un exemple</button></div>` : ''}
+    ${isEmpty ? `<div class="card"><h3>Bienvenue 👋</h3><p>Ajoute une tâche ci-dessus, crée tes sujets dans l'onglet Sujets, ou charge un exemple pour voir à quoi ça ressemble. Pour reprendre ton fichier Excel, va dans l'onglet Données.</p><button class="btn" data-act="demo">Charger un exemple</button></div>` : ''}
     ${sec('late', 'En retard', secOpen('late'))}
     ${sec('today', "Aujourd'hui", secOpen('today'))}
     ${sec('tomorrow', 'Demain', secOpen('tomorrow'))}
@@ -698,9 +698,7 @@ views.donnees = () => {
       <p>Remplace les données actuelles par celles d'un fichier de sauvegarde. Une copie de l'état actuel est gardée dans le navigateur au cas où.</p>
       <button class="btn" data-act="import">Importer un JSON…</button>
       ${localStorage.getItem(BACKUP_KEY) ? ' <button class="btn" data-act="undo-import">Revenir à l\'état d\'avant le dernier import</button>' : ''}</div>
-    <div class="card"><h3>Import depuis Excel</h3>
-      <p>Prévu : je l'écris sur mesure dès que j'ai ton fichier, pour reprendre tes sujets, tâches, deadlines et temps tels qu'ils sont dans tes colonnes.</p>
-      <button class="btn" disabled>Importer un fichier Excel (bientôt)</button></div>`;
+    <div id="excel-import-card"></div>`;
 };
 
 /* ---------- Panneau détails ---------- */
@@ -1046,5 +1044,6 @@ setInterval(() => { if (today() !== day) { day = today(); render(); } }, 60000);
 <script src="chrono-charge.js"></script>
 <script src="organisation.js"></script>
 <script src="sync.js"></script>
+<script src="excel-import.js"></script>
 </body>
 </html>
