@@ -95,7 +95,7 @@ function startTimer(t) {
   // Un seul chrono à la fois : démarrer une tâche arrête la précédente
   running().forEach(r => { if (r !== t) stopTimer(r, true); });
   t.timerStart = nowIso();
-  if (t.status === 'todo') A.setTaskField(t, 'status', 'doing');
+  if (t.status === 'todo' || t.status === 'waiting') A.setTaskField(t, 'status', 'doing');
   t.updatedAt = nowIso();
   A.save(); A.render();
 }
@@ -174,7 +174,7 @@ function forecast(n) {
   const unplanned = [], noEst = [];
   let after = 0;
   for (const t of db().tasks) {
-    if (!A.visible(t) || !A.isOpen(t)) continue;
+    if (!A.visible(t) || !A.isOpen(t) || !A.dimOk(t)) continue;
     if (!t.estimateMin) { noEst.push(t); continue; }
     const al = allocate(t, td);
     if (al.unplanned) { unplanned.push(t); continue; }
@@ -319,6 +319,7 @@ A.views.charge = () => {
     <div class="toolbar">
       <div class="chips">${[7, 14, 28].map(x => `<button class="chip ${x === n ? 'on' : ''}" data-act="cc-range" data-n="${x}">${x} jours</button>`).join('')}</div>
     </div>
+    ${A.dimsBar()}
     <div class="stats">
       <div class="stat ${td.load > td.cap ? 'late' : 'today'}"><div class="v">${fmtDur(td.load) || '0'}</div><div class="l">aujourd'hui${td.cap ? ' sur ' + fmtDur(td.cap) : ''}</div></div>
       <div class="stat"><div class="v">${fmtDur(sum(wk, 'load')) || '0'}</div><div class="l">sur 7 jours, capacité ${fmtDur(sum(wk, 'cap')) || '0'}${fixedWeek ? ` dont ${fmtDur(fixedWeek)} de fixe` : ''}</div></div>
@@ -391,7 +392,7 @@ document.addEventListener('click', e => {
       if (!min || Number.isNaN(min)) { toast('Indique une durée, par exemple 1h30 ou 45min'); return; }
       const date = box.querySelector('[data-cc-in="date"]').value || today();
       addLog(t, { date, min, kind: 'manual' });
-      if (t.status === 'todo') A.setTaskField(t, 'status', 'doing');
+      if (t.status === 'todo' || t.status === 'waiting') A.setTaskField(t, 'status', 'doing');
       A.save(); A.render();
       toast(`${fmtDur(min)} ajoutées`);
       break;

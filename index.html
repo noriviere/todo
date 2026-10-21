@@ -114,6 +114,7 @@ details.sec>summary .load{margin-left:auto;font-size:12px;color:var(--muted);fon
 .pill:hover{border-color:var(--border)}
 .s-todo{background:var(--surface-3);color:var(--muted)}
 .s-doing{background:var(--accent-bg);color:var(--accent)}
+.s-waiting{background:var(--warn-bg);color:var(--warn)}
 .s-done{background:var(--ok-bg);color:var(--ok)}
 .s-cancelled{background:var(--surface-3);color:var(--faint)}
 .s-empty{background:var(--surface-2);color:var(--faint)}
@@ -152,6 +153,16 @@ details.sec>summary .load{margin-left:auto;font-size:12px;color:var(--muted);fon
 .s-info{font-size:12px;color:var(--muted);display:inline-flex;gap:10px;align-items:center}
 .s-info .late{color:var(--danger);font-weight:600}
 .s-body{border-top:1px solid var(--border);background:var(--surface)}
+.dims-bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 14px}
+.dims-bar .lbl{font-size:12px;color:var(--muted);margin-right:2px}
+.dims-bar select{border:1px solid var(--border);background:var(--surface);border-radius:20px;padding:4px 10px;font-size:12px;outline:none;max-width:200px}
+.dims-bar select.on{border-color:var(--accent);background:var(--accent-bg);color:var(--accent);font-weight:600}
+.dims-bar .clear{border:0;background:none;color:var(--accent);font-size:12px;text-decoration:underline;cursor:pointer}
+.s-dims{display:flex;gap:8px;flex-wrap:wrap;padding:8px 14px 0;background:var(--surface-2)}
+.s-dims label{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted)}
+.s-dims input{border:1px solid var(--border);background:var(--surface);border-radius:6px;padding:3px 6px;font-size:12px;width:130px;outline:none}
+.s-dims input:focus{border-color:var(--accent)}
+.s-tags{font-size:11px;color:var(--faint);white-space:nowrap}
 .s-desc{width:100%;border:0;border-bottom:1px solid var(--border);background:var(--surface-2);padding:8px 14px;resize:vertical;min-height:34px;outline:none;font-size:13px;color:var(--muted)}
 .addrow{display:flex;gap:6px;align-items:center;padding:6px 10px 8px 12px;border-top:1px dashed var(--border);flex-wrap:wrap}
 .addrow input[type=text]{flex:1 1 200px;border:0;background:none;padding:6px;outline:none}
@@ -271,7 +282,9 @@ function longDate(d) {
   return parseYmd(d).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
-const STATUS = { todo: 'À faire', doing: 'En cours', done: 'Fait', cancelled: 'Annulé' };
+const STATUS = { todo: 'À faire', doing: 'En cours', waiting: 'En attente', done: 'Fait', cancelled: 'Annulé' };
+// Paramètres d'un sujet repris de l'Excel, utilisés pour filtrer partout (tableau de bord, sujets, charge)
+const DIMS = { projet: 'Projet', secteur: 'Secteur', produit: 'Produit fini' };
 const PRIO = {
   1: { short: 'P1', name: 'Variable', desc: 'Impacte ma rémunération variable' },
   2: { short: 'P2', name: 'Important', desc: 'Sujets importants' },
@@ -295,12 +308,12 @@ function blank() {
     subjects: [],
     tasks: [],
     settings: { theme: 'auto', workdayMin: 420, lastExport: null },
-    ui: { expanded: [], showClosed: false, search: '' }
+    ui: { expanded: [], showClosed: false, search: '', dims: { projet: '', secteur: '', produit: '' } }
   };
 }
 function normSubject(s) {
   return Object.assign({
-    id: uid(), title: '', priority: 3, description: '', archived: false, archivedAt: null,
+    id: uid(), title: '', priority: 3, description: '', projet: '', secteur: '', produit: '', archived: false, archivedAt: null,
     createdAt: nowIso(), updatedAt: nowIso(), source: null
   }, s);
 }
@@ -325,6 +338,7 @@ function migrate(d) {
   d = Object.assign(b, d);
   d.settings = Object.assign(blank().settings, d.settings);
   d.ui = Object.assign(blank().ui, d.ui);
+  d.ui.dims = Object.assign({ projet: '', secteur: '', produit: '' }, d.ui.dims);
   d.subjects = (d.subjects || []).map(normSubject);
   d.tasks = (d.tasks || []).map(normTask);
   return d;
@@ -351,11 +365,30 @@ window.addEventListener('storage', e => { if (e.key === KEY) { db = load(); rend
 
 const subj = id => id ? db.subjects.find(s => s.id === id) : null;
 const task = id => db.tasks.find(t => t.id === id);
-const isOpen = t => t.status === 'todo' || t.status === 'doing';
+const isOpen = t => t.status === 'todo' || t.status === 'doing' || t.status === 'waiting';
 // Une tâche est visible si elle n'est pas archivée et que son sujet ne l'est pas non plus
 const visible = t => !t.archived && !(subj(t.subjectId)?.archived);
 const activeSubjects = () => db.subjects.filter(s => !s.archived)
   .sort((a, b) => a.priority - b.priority || a.title.localeCompare(b.title, 'fr'));
+
+// Filtre Projet / Secteur / Produit fini, commun à toutes les pages
+const dimVal = (s, k) => (s && s[k] || '').trim();
+const dimsActive = () => Object.keys(DIMS).some(k => db.ui.dims[k]);
+const dimOkSubject = s => Object.keys(DIMS).every(k => !db.ui.dims[k] || dimVal(s, k) === db.ui.dims[k]);
+const dimOk = t => !dimsActive() || dimOkSubject(subj(t.subjectId));
+function dimValues(k) {
+  return [...new Set(db.subjects.filter(s => !s.archived).map(s => dimVal(s, k)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
+}
+function dimsBar() {
+  const sel = Object.entries(DIMS).map(([k, l]) => {
+    const vals = dimValues(k), v = db.ui.dims[k];
+    if (!vals.length && !v) return '';
+    return `<select data-dim="${k}" data-k="dim-${k}" class="${v ? 'on' : ''}" title="Filtrer par ${l.toLowerCase()}">
+      <option value="">${l} : tous</option>${vals.map(x => `<option value="${esc(x)}" ${x === v ? 'selected' : ''}>${l} : ${esc(x)}</option>`).join('')}</select>`;
+  }).join('');
+  if (!sel) return '';
+  return `<div class="dims-bar"><span class="lbl">Filtrer :</span>${sel}${dimsActive() ? '<button type="button" class="clear" data-act="dims-clear">Tout afficher</button>' : ''}</div>`;
+}
 
 function bucket(t) {
   if (!t.deadline) return 'nodate';
@@ -394,6 +427,7 @@ function subjectStats(s) {
     progress = Math.round(p / w);
     if (done === live.length) status = 'done';
     else if (done > 0 || live.some(t => t.status === 'doing')) status = 'doing';
+    else if (open.length && open.every(t => t.status === 'waiting')) status = 'waiting';
     else status = 'todo';
   }
   const td = today();
@@ -460,6 +494,7 @@ function setSubjectField(s, f, v) {
   if (f === 's-title') s.title = v.trim();
   else if (f === 's-priority') s.priority = +v;
   else if (f === 's-desc') s.description = v;
+  else if (f.startsWith('s-dim-') && DIMS[f.slice(6)]) s[f.slice(6)] = v.trim();
   else return false;
   s.updatedAt = nowIso();
   return true;
@@ -567,6 +602,7 @@ views.dashboard = () => {
     <p class="sub">${longDate(today()).replace(/^./, c => c.toUpperCase())}</p>
     ${quickAdd()}
     ${hooks.dashTop.map(f => f()).join('')}
+    ${dimsBar()}
     <div class="stats">
       <div class="stat late"><div class="v">${groups.late.length}</div><div class="l">en retard</div></div>
       <div class="stat today"><div class="v">${groups.today.length}</div><div class="l">aujourd'hui${load(groups.today) ? ' · ' + fmtDur(load(groups.today)) : ''}</div></div>
@@ -589,7 +625,7 @@ views.sujets = () => {
   const exp = new Set(db.ui.expanded);
   const match = s => !q || s.title.toLowerCase().includes(q) ||
     db.tasks.some(t => t.subjectId === s.id && !t.archived && t.title.toLowerCase().includes(q));
-  const list = activeSubjects().filter(match);
+  const list = activeSubjects().filter(match).filter(dimOkSubject);
   const withStats = list.map(s => ({ s, st: subjectStats(s) }));
   withStats.sort((a, b) => a.s.priority - b.s.priority
     || (a.s.order || 0) - (b.s.order || 0)
@@ -605,7 +641,9 @@ views.sujets = () => {
       <button class="btn" data-act="collapse-all">Tout replier</button>
       ${hooks.subjectsToolbar.map(f => f()).join('')}
       <button class="btn primary" data-act="add-subject">+ Nouveau sujet</button>
-    </div>`;
+    </div>
+    ${dimsBar()}
+    ${Object.keys(DIMS).map(k => `<datalist id="dl-${k}">${dimValues(k).map(x => `<option value="${esc(x)}">`).join('')}</datalist>`).join('')}`;
   if (!list.length) html += `<div class="card"><p>${q ? 'Aucun sujet ne correspond.' : 'Aucun sujet pour le moment.'}</p></div>`;
   for (const p of [1, 2, 3]) {
     const grp = withStats.filter(x => x.s.priority === p);
@@ -630,6 +668,7 @@ function subjectBlock(s, st, open) {
       </select>
       <input class="inline stitle" data-field="s-title" data-k="st-${s.id}" value="${esc(s.title)}" placeholder="Nom du sujet">
       <span class="s-info">
+        ${Object.keys(DIMS).some(k => dimVal(s, k)) ? `<span class="s-tags" title="Projet · Secteur · Produit fini">${Object.keys(DIMS).map(k => esc(dimVal(s, k))).filter(Boolean).join(' · ')}</span>` : ''}
         ${st.late ? `<span class="late">⚠ ${st.late} en retard</span>` : ''}
         ${st.next ? `<span title="Prochaine deadline">⏱ ${relDate(st.next)}</span>` : ''}
         ${st.remainMin ? `<span title="Temps estimé restant">${fmtDur(st.remainMin)}</span>` : ''}
@@ -640,6 +679,7 @@ function subjectBlock(s, st, open) {
       <button class="icon" data-act="archive-subject" title="Archiver le sujet">${ICON.archive}</button>
     </div>
     ${open ? `<div class="s-body">
+      <div class="s-dims">${Object.entries(DIMS).map(([k, l]) => `<label>${l} <input data-field="s-dim-${k}" data-k="sdim-${k}-${s.id}" value="${esc(dimVal(s, k))}" list="dl-${k}" placeholder="—"></label>`).join('')}</div>
       <textarea class="s-desc" data-field="s-desc" data-k="sd-${s.id}" rows="1" placeholder="Description / contexte du sujet (facultatif)">${esc(s.description)}</textarea>
       ${openT.map(t => taskRow(t)).join('')}
       ${!openT.length ? '<div class="empty">Aucune tâche ouverte.</div>' : ''}
@@ -822,6 +862,7 @@ document.addEventListener('change', e => {
     }
     return;
   }
+  if (el.dataset.dim) { db.ui.dims[el.dataset.dim] = el.value; save(); render(); return; }
   if (el.id === 'qa-subject') qaState.subject = el.value;
   if (el.id === 'qa-date') { qaState.date = el.value; scheduleRender(); }
 });
@@ -965,6 +1006,7 @@ document.addEventListener('click', e => {
       break;
     }
     case 'demo': loadDemo(); break;
+    case 'dims-clear': db.ui.dims = { projet: '', secteur: '', produit: '' }; save(); render(); break;
   }
 });
 
@@ -1030,8 +1072,8 @@ window.todoApp = {
   replaceData: d => { localStorage.setItem(BACKUP_KEY, JSON.stringify(db)); db = migrate(d); save(); render(); }
 };
 // Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
-const hooks = { taskRow: [], drawer: [], dashFilter: [], dashTop: [], subjectsToolbar: [] };
-Object.assign(window.todoApp, { hooks, views, NAV, ICON, PRIO, save, scheduleRender, task, subj, visible, isOpen, setTaskField, toast,
+const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [] };
+Object.assign(window.todoApp, { hooks, views, NAV, ICON, PRIO, STATUS, DIMS, dimOk, dimsBar, save, scheduleRender, task, subj, visible, isOpen, setTaskField, toast,
   esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur });
 
 render();

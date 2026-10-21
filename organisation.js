@@ -5,7 +5,7 @@
   if (!A || !A.hooks || !A.hooks.dashFilter) return;
   const { esc, today, addDays, parseYmd, ymd } = A;
   const db = () => A.getData();
-  const isOpen = t => t.status === 'todo' || t.status === 'doing';
+  const isOpen = A.isOpen;
   const view = () => location.hash.slice(1) || 'dashboard';
 
   const css = document.createElement('style');

@@ -2,10 +2,9 @@
 // Feuilles lues : "To do list" (en cours) et "Archive" (sujets et tâches terminés, importés archivés).
 // Une ligne A / P / I = un sujet, les lignes S qui suivent = ses tâches.
 //   P (projet avec % d'objectif) → P1, I → P2, A → P3
-//   Etat : A faire → À faire, En cours → En cours (avec le % de Tx avcmt), Fait, Annulé,
-//          En attente → À faire, avec « En attente » noté en tête des notes
+//   Etat : A faire, En cours (avec le % de Tx avcmt), En attente, Fait, Annulé repris tels quels
 //   Délais → deadline, Tps (heures) → temps estimé, Date → date de création,
-//   Commentaires → notes (ainsi que le suivi « -> … » des titres trop longs), Projet / Secteur / Produit fini → description du sujet.
+//   Commentaires → notes (ainsi que le suivi « -> … » des titres trop longs), Projet / Secteur / Produit fini → paramètres du sujet (filtres).
 // La lecture du fichier utilise SheetJS (vendor/xlsx.mini.min.js), chargé seulement au moment de l'import.
 (function () {
   'use strict';
@@ -13,7 +12,7 @@
 
   const SHEETS = [{ name: 'To do list', archived: false }, { name: 'Archive', archived: true }];
   const PRIO_BY_TYPE = { P: 1, I: 2, A: 3 };
-  const STATE = { 'a faire': 'todo', 'à faire': 'todo', 'en cours': 'doing', 'en attente': 'todo', 'fait': 'done', 'annulé': 'cancelled', 'annule': 'cancelled' };
+  const STATE = { 'a faire': 'todo', 'à faire': 'todo', 'en cours': 'doing', 'en attente': 'waiting', 'fait': 'done', 'annulé': 'cancelled', 'annule': 'cancelled' };
   const COLS = { date: 'date', etat: 'etat', projet: 'projet', secteur: 'secteur', 'produit fini': 'produit', sujet: 'sujet', 'délais': 'delai', 'tx avcmt': 'avct', tps: 'tps', commentaires: 'comm' };
 
   const pad = n => String(n).padStart(2, '0');
@@ -60,11 +59,11 @@
         const comm = text(r[c.comm]);
         const src = { type: 'excel', sheet: sh.name, row: i + 1 };
         if (PRIO_BY_TYPE[type]) {
-          const tags = [tag(r[c.projet]), tag(r[c.secteur]), tag(r[c.produit])].filter(Boolean);
           const closed = etat === 'fait' || etat === 'annulé';
           cur = {
             id: uid(), title: title || '(sujet sans titre)', priority: PRIO_BY_TYPE[type],
-            description: [tags.length ? tags.join(' · ') : '', etat === 'en attente' ? 'En attente' : '', rest, comm].filter(Boolean).join('\n'),
+            description: [rest, comm].filter(Boolean).join('\n'),
+            projet: tag(r[c.projet]), secteur: tag(r[c.secteur]), produit: tag(r[c.produit]),
             archived: sh.archived || closed, archivedAt: sh.archived || closed ? (iso(created) || now) : null,
             createdAt: iso(created) || now, updatedAt: now, source: src
           };
@@ -86,7 +85,7 @@
         const when = iso(deadline || created) || now;
         tasks.push({
           id: uid(), subjectId: cur ? cur.id : null, title: tTitle,
-          notes: [etat === 'en attente' ? 'En attente' : '', follow, rest, comm].filter(Boolean).join('\n'),
+          notes: [follow, rest, comm].filter(Boolean).join('\n'),
           deadline, estimateMin: tps, status, progress,
           archived: sh.archived, archivedAt: sh.archived ? when : null,
           createdAt: iso(created) || now, updatedAt: now, doneAt: closed ? when : null,
@@ -147,14 +146,14 @@
   function summary(p) {
     const openS = p.subjects.filter(s => !s.archived), arcS = p.subjects.length - openS.length;
     const live = p.tasks.filter(t => !t.archived);
-    const open = live.filter(t => t.status === 'todo' || t.status === 'doing');
+    const open = live.filter(t => A.isOpen(t));
     const late = open.filter(t => t.deadline && t.deadline < A.today()).length;
     const byP = n => openS.filter(s => s.priority === n).length;
-    const wait = open.filter(t => t.notes.startsWith('En attente')).length;
+    const wait = open.filter(t => t.status === 'waiting').length;
     return `<p>Lu dans <b>${A.esc(fileName)}</b> :</p>
       <ul style="margin:6px 0 10px 18px;line-height:1.6">
         <li><b>${openS.length}</b> sujets actifs (P1 : ${byP(1)}, P2 : ${byP(2)}, P3 : ${byP(3)}) et ${arcS} sujets terminés, mis aux archives</li>
-        <li><b>${open.length}</b> tâches ouvertes, dont ${late} en retard et ${wait} « en attente » (passées en À faire, noté dans leurs notes)</li>
+        <li><b>${open.length}</b> tâches ouvertes, dont ${late} en retard et ${wait} en attente</li>
         <li>${live.length - open.length} tâches faites ou annulées sous les sujets actifs, ${p.tasks.length - live.length} tâches archivées</li>
         ${p.skipped.length ? `<li>${p.skipped.length} ligne(s) vide(s) ignorée(s)</li>` : ''}
       </ul>`;
@@ -171,7 +170,7 @@
     }
     const already = A.getData().subjects.some(s => s.source && s.source.type === 'excel');
     return `<div class="card"><h3>Import depuis Excel</h3>
-      <p>Reprend ton fichier ToDoList.xlsm : chaque ligne A, P ou I devient un sujet (P → P1, I → P2, A → P3), les lignes S en dessous deviennent ses tâches, avec deadline, temps estimé, état et commentaires. La feuille Archive est importée dans les archives. Tu verras un résumé avant de confirmer.</p>
+      <p>Reprend ton fichier ToDoList.xlsm : chaque ligne A, P ou I devient un sujet (P → P1, I → P2, A → P3), les lignes S en dessous deviennent ses tâches, avec deadline, temps estimé, état et commentaires. Projet, Secteur et Produit fini deviennent des paramètres du sujet pour filtrer. La feuille Archive est importée dans les archives. Tu verras un résumé avant de confirmer.</p>
       ${already ? '<p class="hint">Ton Excel a déjà été importé. Réimporter avec « Ajouter » créerait des doublons : utilise plutôt « Remplacer ».</p>' : ''}
       <button class="btn" data-xl="pick">Importer un fichier Excel…</button></div>`;
   }
