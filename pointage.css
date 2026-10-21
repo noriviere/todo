@@ -1,0 +1,97 @@
+/* Pointage, absences et congés (module pointage.js) */
+
+/* Bandeau du jour */
+.pt-today{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px}
+.pt-today-l{flex:1 1 240px;min-width:0}
+.pt-today-r{display:flex;gap:6px;flex-wrap:wrap}
+.pt-dash .hint{text-decoration:none;font-weight:600;color:var(--accent)}
+.btn.pt-sm{padding:5px 10px;font-size:13px}
+.pt-live{font-size:11px;background:var(--ok-bg);color:var(--ok);border-radius:10px;padding:1px 7px;font-weight:600}
+
+/* Navigation semaine / année */
+.pt-weeknav{gap:10px}
+.pt-weeknav .btn{padding:4px 11px}
+
+/* Tableau de la semaine */
+.pt-week{padding:6px 10px}
+.pt-row{display:grid;grid-template-columns:150px 230px 1fr 64px minmax(80px,180px);align-items:center;gap:8px;padding:5px 6px;border-radius:8px;border-left:3px solid var(--tc,transparent)}
+.pt-row+.pt-row{margin-top:2px}
+.pt-row.td{background:var(--accent-bg)}
+.pt-row.off:not(.td){opacity:.62}
+.pt-row.absd:not(.td){background:var(--surface-2)}
+.pt-head{font-size:12px;color:var(--faint);font-weight:600;border:0}
+.pt-head .pt-times i{font-style:normal;text-align:center}
+.pt-date{display:flex;flex-direction:column;line-height:1.25}
+.pt-date b{text-transform:capitalize}
+.pt-hol{font-size:11px;color:var(--warn)}
+.pt-abs{display:flex;gap:4px}
+.pt-abs select{border:1px solid var(--border);background:var(--surface);border-radius:6px;padding:3px 4px;font-size:12px;outline:none;min-width:0;flex:1 1 auto}
+.pt-abs select:focus{border-color:var(--accent)}
+.pt-times{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.pt-times input{border:1px solid var(--border);background:var(--surface);border-radius:6px;padding:3px 4px;font-size:13px;outline:none;min-width:0;width:100%;font-variant-numeric:tabular-nums}
+.pt-times label{display:flex;flex-direction:column;min-width:0}
+.pt-times small{display:none;font-size:10px;color:var(--faint)}
+.pt-times input:focus{border-color:var(--accent)}
+.pt-tot{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.pt-tot.live{color:var(--ok)}
+.pt-head .pt-tot{font-weight:600}
+.pt-note{font-size:12px;color:var(--muted)}
+.pt-weeksum{display:flex;gap:16px;justify-content:flex-end;align-items:baseline;padding:10px 6px 6px;border-top:1px solid var(--border);margin-top:6px;color:var(--muted)}
+.pt-weeksum b{color:var(--text);font-size:16px}
+.cc-red{color:var(--danger)}
+.cc-green{color:var(--ok)}
+
+/* Congés */
+.pt-form{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pt-form label{display:inline-flex;align-items:center;gap:4px;color:var(--muted)}
+.pt-form .date{border-color:var(--border);background:var(--surface);width:140px;font-size:13px;color:var(--text)}
+.pt-form select{border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:6px 8px;outline:none}
+.pt-dot{display:inline-block;width:10px;height:10px;border-radius:3px;background:var(--tc);margin-right:7px;vertical-align:0}
+.pt-counter{border-left:4px solid var(--tc)}
+.pt-ctab{border-collapse:collapse;width:100%;max-width:640px;font-variant-numeric:tabular-nums}
+.pt-ctab th,.pt-ctab td{padding:4px 8px;text-align:right;white-space:nowrap}
+.pt-ctab th:first-child{text-align:left}
+.pt-ctab tr:first-child th{font-size:12px;color:var(--faint);font-weight:600}
+.pt-num{width:64px;text-align:right;border-color:var(--border)}
+.pt-tags{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.pt-tag{background:var(--surface-2);border-radius:20px;padding:3px 10px;font-size:12px}
+.pt-range{display:flex;align-items:center;gap:10px}
+.pt-range .title{flex:0 1 auto}
+.pt-range .hint{flex:1}
+.pt-future{color:var(--accent)}
+.pt-types{display:flex;flex-direction:column;gap:4px}
+.pt-type{display:grid;grid-template-columns:34px minmax(120px,240px) auto auto 34px;gap:8px;align-items:center}
+.pt-type.arch{opacity:.5}
+.pt-type input[type=color]{width:28px;height:24px;border:0;background:none;padding:0;cursor:pointer}
+
+/* Bilan */
+.pt-chart{display:flex;align-items:stretch;gap:2px;height:180px;overflow-x:auto;padding-bottom:2px}
+.pt-col{flex:1 0 12px;min-width:12px;display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:none;padding:0;border-radius:4px}
+.pt-col:hover{background:var(--surface-2)}
+.pt-bar{position:relative;flex:1;width:80%;display:flex;flex-direction:column-reverse;background:var(--surface-2);border-radius:4px;overflow:hidden}
+.pt-bar i{display:block;width:100%;background:var(--accent);border-radius:3px 3px 0 0}
+.pt-bar i.over{background:var(--ok)}
+.pt-tgt{position:absolute;left:0;right:0;height:2px;background:var(--text);opacity:.45}
+.pt-wl{font-size:9px;color:var(--faint);font-variant-numeric:tabular-nums}
+.pt-mtab{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+.pt-mtab th,.pt-mtab td{padding:5px 8px;text-align:right;border-bottom:1px solid var(--border)}
+.pt-mtab th:first-child,.pt-mtab td:first-child{text-align:left}
+.pt-mtab th{font-size:12px;color:var(--faint);font-weight:600}
+.pt-total td{font-weight:700;border-bottom:0}
+
+@media (max-width:860px){
+  .pt-row{grid-template-columns:1fr auto;gap:6px 8px}
+  .pt-head{display:none}
+  .pt-date{flex-direction:row;gap:6px;align-items:baseline}
+  .pt-abs{justify-content:flex-end}
+  .pt-times{grid-column:1/-1}
+  .pt-times:empty{display:none}
+  .pt-times small{display:block}
+  .pt-note{grid-column:1/-1}
+  .pt-row .pt-tot{grid-column:2;grid-row:1}
+  .pt-row .pt-abs{grid-column:1/-1}
+  .pt-type{grid-template-columns:34px 1fr 34px}
+  .pt-type .tog{grid-column:2}
+  .pt-ctab th,.pt-ctab td{padding:4px 4px}
+}
+a.btn{text-decoration:none;color:inherit}
