@@ -332,6 +332,41 @@
   }
   window.addEventListener('todo:saved', checkRecurring);
 
+  /* ================= Aller au sujet depuis le tableau de bord ================= */
+  css.textContent += `
+.org-goto{font-size:14px}
+@keyframes orgFlash{0%,60%{background:var(--accent-bg)}100%{background:transparent}}
+.org-flash{animation:orgFlash 2.2s ease-out}
+`;
+  let goTo = null;
+  A.hooks.taskRow.push(t => t.subjectId && view() !== 'sujets'
+    ? `<button class="icon org-goto" data-org-goto title="Ouvrir dans l'onglet Sujets">↗</button>` : '');
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-org-goto]');
+    if (!b) return;
+    const t = A.task(b.closest('[data-tid]').dataset.tid);
+    if (!t || !t.subjectId) return;
+    const ui = db().ui;
+    if (!ui.expanded.includes(t.subjectId)) ui.expanded.push(t.subjectId);
+    A.save();
+    goTo = { sid: t.subjectId, tid: t.id };
+    location.hash = 'sujets';
+  });
+  window.addEventListener('todo:rendered', () => {
+    if (!goTo || view() !== 'sujets') return;
+    const g = goTo;
+    goTo = null;
+    // Après le retour en haut de page fait par le changement d'onglet
+    setTimeout(() => {
+      const box = document.querySelector(`#main .subject[data-sid="${g.sid}"]`);
+      if (!box) { A.toast('Ce sujet est masqué par un filtre'); return; }
+      const row = box.querySelector(`.task[data-tid="${g.tid}"]`) || box;
+      row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      row.classList.add('org-flash');
+      box.classList.add('org-flash');
+    }, 30);
+  });
+
   // La page s'est déjà affichée avant le chargement de ce fichier : on la redessine avec les filtres et les poignées
   A.render();
 })();
