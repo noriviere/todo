@@ -341,6 +341,15 @@ function migrate(d) {
   d.ui.dims = Object.assign({ projet: '', secteur: '', produit: '' }, d.ui.dims);
   d.subjects = (d.subjects || []).map(normSubject);
   d.tasks = (d.tasks || []).map(normTask);
+  return purgeDemo(d);
+}
+// Retire les données de l'ancien bouton « Charger un exemple » (supprimé)
+const DEMO_INBOX = ['Rappeler Martin', 'Idée : automatiser le reporting'];
+function purgeDemo(d) {
+  const demo = new Set(d.subjects.filter(s => / \(exemple\)$/.test(s.title) && !s.source).map(s => s.id));
+  if (!demo.size) return d;
+  d.subjects = d.subjects.filter(s => !demo.has(s.id));
+  d.tasks = d.tasks.filter(t => !demo.has(t.subjectId) && !(!t.subjectId && !t.source && DEMO_INBOX.includes(t.title)));
   return d;
 }
 function load() {
@@ -609,7 +618,7 @@ views.dashboard = () => {
       <div class="stat"><div class="v">${groups.tomorrow.length}</div><div class="l">demain${load(groups.tomorrow) ? ' · ' + fmtDur(load(groups.tomorrow)) : ''}</div></div>
       <div class="stat"><div class="v">${inbox}</div><div class="l">à ranger (boîte de réception)</div></div>
     </div>
-    ${isEmpty ? `<div class="card"><h3>Bienvenue 👋</h3><p>Ajoute une tâche ci-dessus, crée tes sujets dans l'onglet Sujets, ou charge un exemple pour voir à quoi ça ressemble. Pour reprendre ton fichier Excel, va dans l'onglet Données.</p><button class="btn" data-act="demo">Charger un exemple</button></div>` : ''}
+    ${isEmpty ? `<div class="card"><h3>Bienvenue 👋</h3><p>Ajoute une tâche ci-dessus ou crée tes sujets dans l'onglet Sujets. Pour reprendre ton fichier Excel, va dans l'onglet Données.</p></div>` : ''}
     ${sec('late', 'En retard', secOpen('late'))}
     ${sec('today', "Aujourd'hui", secOpen('today'))}
     ${sec('tomorrow', 'Demain', secOpen('tomorrow'))}
@@ -1005,7 +1014,6 @@ document.addEventListener('click', e => {
       }
       break;
     }
-    case 'demo': loadDemo(); break;
     case 'dims-clear': db.ui.dims = { projet: '', secteur: '', produit: '' }; save(); render(); break;
   }
 });
@@ -1041,28 +1049,6 @@ $('#file').addEventListener('change', async e => {
     alert('Import impossible : ' + err.message);
   }
 });
-
-/* ---------- Exemple ---------- */
-function loadDemo() {
-  const td = today(), d = n => addDays(td, n);
-  const a = createSubject({ title: 'Objectif CA trimestre (exemple)', priority: 1 });
-  const b = createSubject({ title: 'Projet client Dupont (exemple)', priority: 2 });
-  const c = createSubject({ title: 'Administratif (exemple)', priority: 3 });
-  createTask({ subjectId: a.id, title: 'Relancer les 3 devis en attente', deadline: d(-2), estimateMin: 45 });
-  createTask({ subjectId: a.id, title: 'Préparer le point pipeline', deadline: d(0), estimateMin: 90, status: 'doing', progress: 40 });
-  createTask({ subjectId: a.id, title: 'Envoyer le reporting mensuel', deadline: d(3), estimateMin: 120 });
-  createTask({ subjectId: a.id, title: 'Mettre à jour le CRM', deadline: d(-5), estimateMin: 30, status: 'done', progress: 100, doneAt: nowIso() });
-  createTask({ subjectId: b.id, title: 'Rédiger le cahier des charges', deadline: d(6), estimateMin: 600, startDate: d(1), plan: { mode: 'spread', dailyMin: null } });
-  createTask({ subjectId: b.id, title: 'Caler la réunion de lancement', deadline: d(1), estimateMin: 15 });
-  createTask({ subjectId: b.id, title: 'Valider le budget', deadline: d(12), estimateMin: 60 });
-  createTask({ subjectId: c.id, title: 'Note de frais septembre', deadline: d(-1), estimateMin: 20 });
-  createTask({ subjectId: c.id, title: 'Commander du matériel', estimateMin: 15 });
-  createTask({ title: 'Rappeler Martin', deadline: d(0), estimateMin: 10 });
-  createTask({ title: 'Idée : automatiser le reporting' });
-  db.ui.expanded = [a.id];
-  save(); render();
-  toast("Exemple chargé. Tu pourras l'archiver ensuite depuis l'onglet Sujets.");
-}
 
 // Accès pour les modules séparés (sauvegarde auto, chrono, charge…)
 window.todoApp = {
