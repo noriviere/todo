@@ -95,3 +95,5 @@
   .pt-ctab th,.pt-ctab td{padding:4px 4px}
 }
 a.btn{text-decoration:none;color:inherit}
+.pt-dmin{display:inline-flex;align-items:center;gap:2px;margin-right:6px;font-size:13px}
+.pt-dmin input{width:58px}

@@ -34,7 +34,8 @@ function P() {
   if (!Array.isArray(p.types)) p.types = DEFAULT_TYPES.map(t => Object.assign({}, t));
   if (!p.rights || typeof p.rights !== 'object') p.rights = {};      // { typeId: { année: { acq, n1 } } }
   if (!p.defaults || typeof p.defaults !== 'object') p.defaults = { cp: 25 };  // droits annuels par défaut
-  if (p.holidays === undefined) p.holidays = true;                   // jours fériés français automatiques
+  if (p.holidays === undefined) p.holidays = true;
+  if (!p.dayMin || typeof p.dayMin !== 'object') p.dayMin = { 1: 465, 2: 465, 3: 465, 4: 465, 5: 240, 6: 0, 0: 0 };  // 7h45 du lundi au jeudi, 4h le vendredi                   // jours fériés français automatiques
   return p;
 }
 const day = ds => P().days[ds] || null;
@@ -46,8 +47,11 @@ function cleanDay(ds) {
 const type = id => P().types.find(t => t.id === id) || { id, label: id, short: id, color: '#9aa1b2', counted: false };
 const workDays = () => Array.isArray(db().settings.workDays) ? db().settings.workDays : [1, 2, 3, 4, 5];
 const workdayMin = () => db().settings.workdayMin || 420;
-const weekTarget = () => P().weekMin || workdayMin() * workDays().length;
-const dayTarget = () => Math.round(weekTarget() / Math.max(1, workDays().length));
+// Objectif de temps par jour de la semaine (index = getDay()), en minutes
+const WD_ORDER = [1, 2, 3, 4, 5, 6, 0];
+const WD_SHORT = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+const dayTarget = wd => { const m = P().dayMin && P().dayMin[wd]; return m != null ? m : workDays().includes(wd) ? workdayMin() : 0; };
+const weekTarget = () => WD_ORDER.reduce((a, wd) => a + dayTarget(wd), 0);
 
 /* ---------- Jours fériés (France métropolitaine) ---------- */
 const holCache = {};
@@ -92,7 +96,7 @@ function worked(ds) {
 }
 const absFrac = d => d && d.abs ? (d.abs.part === 'am' || d.abs.part === 'pm' ? 0.5 : 1) : 0;
 // Temps attendu d'un jour (objectif), diminué des absences et nul les jours fériés ou non travaillés
-const expected = ds => isWork(ds) ? Math.round(dayTarget() * (1 - absFrac(day(ds)))) : 0;
+const expected = ds => holiday(ds) ? 0 : Math.round(dayTarget(parseYmd(ds).getDay()) * (1 - absFrac(day(ds))));
 function mondayOf(ds) { const wd = parseYmd(ds).getDay(); return addDays(ds, -((wd + 6) % 7)); }
 function isoWeek(ds) {
   const d = parseYmd(ds); d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
@@ -369,7 +373,7 @@ function viewStats() {
     </div>
     <div class="card"><h3>Réglages</h3>
       <div class="cc-settings">
-        <label>Objectif par semaine <input class="inline est" data-pt-set="week" value="${esc(fmtDur(weekTarget()))}" title="Ex. 35h, 39h. Réparti sur les jours travaillés (réglés dans Charge)."></label>
+        <span>Objectif par jour ${WD_ORDER.map(wd => `<label class="pt-dmin">${WD_SHORT[wd]} <input class="inline est" data-pt-set="day" data-wd="${wd}" value="${esc(fmtDur(dayTarget(wd)) || '0')}" title="Ex. 7h45, 4h, 0"></label>`).join('')} <span class="hint">soit ${fmtH(weekTarget())} par semaine</span></span>
         <label class="tog"><input type="checkbox" data-pt-set="hol" ${P().holidays ? 'checked' : ''}> Jours fériés français automatiques</label>
       </div>
     </div>`;
@@ -483,10 +487,11 @@ document.addEventListener('change', e => {
     A.save(); A.render();
     return;
   }
-  if (el.dataset.ptSet === 'week') {
-    const m = A.parseDur(el.value);
-    if (!m || Number.isNaN(m)) { toast('Durée non comprise. Exemple : 35h'); el.value = fmtDur(weekTarget()); return; }
-    P().weekMin = m; A.save(); A.render();
+  if (el.dataset.ptSet === 'day') {
+    const wd = +el.dataset.wd, v = el.value.trim();
+    const m = v === '' || v === '0' ? 0 : A.parseDur(v);
+    if (m == null || Number.isNaN(m)) { toast('Durée non comprise. Exemple : 7h45'); el.value = fmtDur(dayTarget(wd)) || '0'; return; }
+    P().dayMin[wd] = m; A.save(); A.render();
   } else if (el.dataset.ptSet === 'hol') { P().holidays = el.checked; A.save(); A.render(); }
 });
 document.addEventListener('keydown', e => {
