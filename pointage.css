@@ -60,7 +60,7 @@
 .pt-range .hint{flex:1}
 .pt-future{color:var(--accent)}
 .pt-types{display:flex;flex-direction:column;gap:4px}
-.pt-type{display:grid;grid-template-columns:34px minmax(120px,240px) auto auto 34px;gap:8px;align-items:center}
+.pt-type{display:grid;grid-template-columns:34px minmax(120px,240px) auto auto auto 34px;gap:8px;align-items:center}
 .pt-type.arch{opacity:.5}
 .pt-type input[type=color]{width:28px;height:24px;border:0;background:none;padding:0;cursor:pointer}
 

@@ -14,6 +14,7 @@
     const d = new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000);
     return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
   }
+  function addDay(ds) { const [y, m, d] = ds.split('-').map(Number); const x = new Date(Date.UTC(y, m - 1, d + 1)); return `${x.getUTCFullYear()}-${pad(x.getUTCMonth() + 1)}-${pad(x.getUTCDate())}`; }
   // Heure Excel (fraction de jour) ou texte « 8:30 » → « 08:30 »
   function hm(v) {
     if (v == null || v === '') return null;
@@ -54,6 +55,7 @@
       const abs = c.cp >= 0 ? c.cp + 1 : -1;
       const years = {};
       let cpN = null, cpN1 = null;
+      let lastDs = null;
       rows.forEach((r, i) => {
         // Cellules de droits « CP N » / « CP N-1 », n'importe où sur la ligne, valeur dans la cellule à droite
         (r || []).forEach((v, j) => {
@@ -62,8 +64,11 @@
           if (n === 'cp n-1' && typeof r[j + 1] === 'number') cpN1 = r[j + 1];
         });
         if (i === 0) return;
-        const ds = serialDate(r[c.date]);
-        if (!ds) return;
+        // Lignes de week-end sans date (ex. « Congé pat » en jours calendaires) : date déduite de la ligne au-dessus
+        let ds = serialDate(r[c.date]);
+        if (!ds && lastDs && (r || []).some(v => v != null && v !== '')) ds = addDay(lastDs);
+        if (!ds) { lastDs = null; return; }
+        lastDs = ds;
         years[ds.slice(0, 4)] = (years[ds.slice(0, 4)] || 0) + 1;
         const d = {};
         let tIn = hm(r[c.in]), lo = c.lo >= 0 ? hm(r[c.lo]) : null, li = c.li >= 0 ? hm(r[c.li]) : null, out = c.out >= 0 ? hm(r[c.out]) : null;
