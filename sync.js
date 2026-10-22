@@ -4,7 +4,8 @@
 // Le localStorage reste la copie de travail : l'appli marche hors connexion et se resynchronise ensuite.
 (function () {
   'use strict';
-  if (!window.todoApp) return;
+  // Pas de synchro en mode démo : les données d'exemple ne doivent jamais partir sur GitHub
+  if (!window.todoApp || window.todoApp.demo) return;
   const app = window.todoApp;
   const CFG_KEY = 'todo-noel-sync';
   const BACKUP_KEY = 'todo-noel-v1-avant-import';
@@ -218,9 +219,6 @@
     else sync();
   });
   setInterval(() => { if (ready() && document.visibilityState === 'visible') sync(); }, 2 * 60 * 1000);
-
-  // Version installable (écran d'accueil du téléphone) : uniquement en ligne, pas en file://
-  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 
   paint();
   if (ready()) sync();

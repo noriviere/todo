@@ -206,6 +206,15 @@ details.sec>summary .load{margin-left:auto;font-size:12px;color:var(--muted);fon
   .stats{grid-template-columns:repeat(2,1fr)}
   .meta{margin-left:25px}
 }
+#demo-bar{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;padding:8px 16px;background:var(--warn-bg);color:var(--text);border-bottom:1px solid var(--warn);font-size:13px}
+#demo-bar[hidden]{display:none}
+#demo-bar b{color:var(--warn)}
+#demo-bar span{flex:1;min-width:200px;color:var(--muted)}
+#demo-bar .btn{padding:5px 10px;font-size:13px}
+.demo-link{background:none;border:0;padding:6px 0 0;color:var(--faint);font-size:12px;text-decoration:underline;cursor:pointer;text-align:left}
+.demo-link:hover{color:var(--accent)}
+body.demo .demo-link{display:none}
+body.demo .brand .dot{background:var(--warn)}
 </style>
 <link rel="stylesheet" href="chrono-charge.css">
 <link rel="stylesheet" href="pointage.css">
@@ -217,6 +226,8 @@ details.sec>summary .load{margin-left:auto;font-size:12px;color:var(--muted);fon
 <meta name="apple-mobile-web-app-title" content="To-Do">
 </head>
 <body>
+<div id="demo-bar" hidden><b>Mode démo</b><span>Données fictives. Tes vraies données ne sont pas touchées et rien n'est synchronisé.</span>
+  <button class="btn" data-act="demo-reset">Remettre l'exemple à zéro</button><button class="btn primary" data-act="demo-exit">Quitter la démo</button></div>
 <div class="app">
   <aside class="side">
     <div class="brand"><i class="dot"></i><span>Ma To-Do</span></div>
@@ -225,6 +236,7 @@ details.sec>summary .load{margin-left:auto;font-size:12px;color:var(--muted);fon
       <div class="theme" id="theme"></div>
       <div id="autosave"></div>
       <div id="saved"></div>
+      <button class="demo-link" data-act="demo-start" title="Montrer l'appli avec des données d'exemple, sans toucher aux tiennes">Voir l'exemple</button>
     </div>
   </aside>
   <main class="main" id="main"></main>
@@ -233,13 +245,19 @@ details.sec>summary .load{margin-left:auto;font-size:12px;color:var(--muted);fon
 <div id="toast"></div>
 <input type="file" id="file" accept=".json,application/json" hidden>
 
+<script src="demo.js"></script>
 <script>
 (function(){
 'use strict';
 
 /* ---------- Outils ---------- */
-const KEY = 'todo-noel-v1';
-const BACKUP_KEY = 'todo-noel-v1-avant-import';
+// Mode démo (index.html?demo) : données d'exemple rangées dans le stockage de l'onglet,
+// les vraies données (localStorage) ne sont pas modifiées, synchro et sauvegarde auto coupées
+const DEMO = new URLSearchParams(location.search).has('demo') && !!window.todoDemo;
+const REAL_KEY = 'todo-noel-v1';
+const KEY = DEMO ? 'todo-noel-demo' : REAL_KEY;
+const BACKUP_KEY = DEMO ? 'todo-noel-demo-avant-import' : 'todo-noel-v1-avant-import';
+const store = DEMO ? sessionStorage : localStorage;
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -342,7 +360,7 @@ function migrate(d) {
   d.ui.dims = Object.assign({ projet: '', secteur: '', produit: '' }, d.ui.dims);
   d.subjects = (d.subjects || []).map(normSubject);
   d.tasks = (d.tasks || []).map(normTask);
-  return purgeDemo(d);
+  return DEMO ? d : purgeDemo(d);
 }
 // Retire les données de l'ancien bouton « Charger un exemple » (supprimé)
 const DEMO_INBOX = ['Rappeler Martin', 'Idée : automatiser le reporting'];
@@ -355,16 +373,31 @@ function purgeDemo(d) {
 }
 function load() {
   try {
-    const s = localStorage.getItem(KEY);
+    const s = store.getItem(KEY);
     if (s) return migrate(JSON.parse(s));
   } catch (e) { console.error(e); }
-  return blank();
+  return DEMO ? demoData() : blank();
+}
+function demoData() {
+  const d = migrate(window.todoDemo.data(today()));
+  // Garde le thème choisi dans l'appli
+  try { d.settings.theme = JSON.parse(localStorage.getItem(REAL_KEY)).settings.theme || 'auto'; } catch (e) {}
+  return d;
+}
+const demoUrl = on => location.pathname + (on ? '?demo' : '') + location.hash;
+function startDemo() {
+  try { sessionStorage.removeItem('todo-noel-demo'); sessionStorage.removeItem('todo-noel-demo-avant-import'); } catch (e) {}
+  location.href = demoUrl(true);
+}
+function exitDemo() {
+  try { sessionStorage.removeItem(KEY); sessionStorage.removeItem(BACKUP_KEY); } catch (e) {}
+  location.href = demoUrl(false);
 }
 let db = load();
 let lastSaved = null;
 function save() {
   try {
-    localStorage.setItem(KEY, JSON.stringify(db));
+    store.setItem(KEY, JSON.stringify(db));
     lastSaved = new Date();
     window.dispatchEvent(new Event('todo:saved'));
   } catch (e) {
@@ -619,7 +652,7 @@ views.dashboard = () => {
       <div class="stat"><div class="v">${groups.tomorrow.length}</div><div class="l">demain${load(groups.tomorrow) ? ' · ' + fmtDur(load(groups.tomorrow)) : ''}</div></div>
       <div class="stat"><div class="v">${inbox}</div><div class="l">à ranger (boîte de réception)</div></div>
     </div>
-    ${isEmpty ? `<div class="card"><h3>Bienvenue 👋</h3><p>Ajoute une tâche ci-dessus ou crée tes sujets dans l'onglet Sujets. Pour reprendre ton fichier Excel, va dans l'onglet Données.</p></div>` : ''}
+    ${isEmpty ? `<div class="card"><h3>Bienvenue 👋</h3><p>Ajoute une tâche ci-dessus ou crée tes sujets dans l'onglet Sujets. Pour reprendre ton fichier Excel, va dans l'onglet Données.</p><button class="btn" data-act="demo-start">Voir un exemple</button></div>` : ''}
     ${sec('late', 'En retard', secOpen('late'))}
     ${sec('today', "Aujourd'hui", secOpen('today'))}
     ${sec('tomorrow', 'Demain', secOpen('tomorrow'))}
@@ -739,7 +772,10 @@ views.archives = () => {
 views.donnees = () => {
   const le = db.settings.lastExport;
   return `<h1>Données</h1>
-    <p class="sub">Tes données restent sur ce PC, dans ce navigateur. ${db.subjects.length} sujets, ${db.tasks.length} tâches au total.</p>
+    <p class="sub">${DEMO ? 'Mode démo : ces données sont fictives et disparaissent en quittant la démo.' : 'Tes données restent sur ce PC, dans ce navigateur.'} ${db.subjects.length} sujets, ${db.tasks.length} tâches au total.</p>
+    ${DEMO ? '' : `<div class="card"><h3>Mode démo</h3>
+      <p>Pour montrer l'appli sans tes données : ouvre une version remplie d'exemples (sujets, tâches, charge, pointage). Tes vraies données ne sont pas touchées et rien n'est synchronisé pendant la démo.</p>
+      <button class="btn" data-act="demo-start">Voir l'exemple</button></div>`}
     <div id="autosave-card"></div>
     <div class="card"><h3>Sauvegarde manuelle (export JSON)</h3>
       <p>Télécharge un fichier de sauvegarde à garder dans ton dossier ToDoList. Fais-le régulièrement : si l'historique du navigateur est effacé, c'est ce fichier qui te permet de tout récupérer.<br>Dernière sauvegarde : <b>${le ? new Date(le).toLocaleString('fr-FR') : 'jamais'}</b></p>
@@ -747,7 +783,7 @@ views.donnees = () => {
     <div class="card"><h3>Restaurer (import JSON)</h3>
       <p>Remplace les données actuelles par celles d'un fichier de sauvegarde. Une copie de l'état actuel est gardée dans le navigateur au cas où.</p>
       <button class="btn" data-act="import">Importer un JSON…</button>
-      ${localStorage.getItem(BACKUP_KEY) ? ' <button class="btn" data-act="undo-import">Revenir à l\'état d\'avant le dernier import</button>' : ''}</div>
+      ${store.getItem(BACKUP_KEY) ? ' <button class="btn" data-act="undo-import">Revenir à l\'état d\'avant le dernier import</button>' : ''}</div>
     <div id="excel-import-card"></div>`;
 };
 
@@ -816,7 +852,7 @@ function render() {
   }).join('');
   $('#theme').innerHTML = [['auto', 'Auto'], ['light', 'Clair'], ['dark', 'Sombre']]
     .map(([k, l]) => `<button data-act="theme" data-v="${k}" class="${db.settings.theme === k ? 'on' : ''}">${l}</button>`).join('');
-  $('#saved').textContent = lastSaved ? 'Enregistré à ' + lastSaved.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'Données locales';
+  $('#saved').textContent = DEMO ? 'Mode démo' : lastSaved ? 'Enregistré à ' + lastSaved.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'Données locales';
   $('#main').innerHTML = views[v]();
   renderDrawer();
   applyTheme();
@@ -1007,11 +1043,16 @@ document.addEventListener('click', e => {
     case 'theme': db.settings.theme = b.dataset.v; save(); render(); break;
     case 'undo': { const u = $('#toast')._undo; $('#toast').innerHTML = ''; if (u) u(); break; }
     case 'export': exportJson(); break;
+    case 'demo-start': startDemo(); break;
+    case 'demo-exit': exitDemo(); break;
+    case 'demo-reset':
+      if (confirm("Remettre les données d'exemple de départ ?")) { db = demoData(); store.removeItem(BACKUP_KEY); save(); render(); toast('Exemple remis à zéro'); }
+      break;
     case 'import': $('#file').click(); break;
     case 'undo-import': {
-      const bk = localStorage.getItem(BACKUP_KEY);
+      const bk = store.getItem(BACKUP_KEY);
       if (bk && confirm("Revenir à l'état d'avant le dernier import ?")) {
-        db = migrate(JSON.parse(bk)); save(); localStorage.removeItem(BACKUP_KEY); render(); toast('État précédent restauré');
+        db = migrate(JSON.parse(bk)); save(); store.removeItem(BACKUP_KEY); render(); toast('État précédent restauré');
       }
       break;
     }
@@ -1041,7 +1082,7 @@ $('#file').addEventListener('change', async e => {
     const d = JSON.parse(await f.text());
     if (!Array.isArray(d.subjects) || !Array.isArray(d.tasks)) throw new Error("ce n'est pas une sauvegarde de cette appli");
     if (!confirm(`Remplacer les données actuelles (${db.subjects.length} sujets, ${db.tasks.length} tâches) par celles du fichier (${d.subjects.length} sujets, ${d.tasks.length} tâches) ?`)) return;
-    localStorage.setItem(BACKUP_KEY, JSON.stringify(db));
+    store.setItem(BACKUP_KEY, JSON.stringify(db));
     delete d.exportedAt;
     db = migrate(d);
     save(); render();
@@ -1056,12 +1097,21 @@ window.todoApp = {
   getData: () => db,
   today,
   render: () => render(),
-  replaceData: d => { localStorage.setItem(BACKUP_KEY, JSON.stringify(db)); db = migrate(d); save(); render(); }
+  demo: DEMO,
+  replaceData: d => { store.setItem(BACKUP_KEY, JSON.stringify(db)); db = migrate(d); save(); render(); }
 };
 // Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
 const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [] };
 Object.assign(window.todoApp, { hooks, views, NAV, ICON, PRIO, STATUS, DIMS, dimOk, dimsBar, save, scheduleRender, task, subj, visible, isOpen, setTaskField, toast,
   esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur });
+
+if (DEMO) {
+  document.body.classList.add('demo');
+  $('#demo-bar').hidden = false;
+  document.title = 'Démo · ' + document.title;
+}
+// Version installable (écran d'accueil du téléphone) : uniquement en ligne, pas en file://
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 
 render();
 // Rafraîchit les libellés (retard, aujourd'hui…) quand on change de jour
