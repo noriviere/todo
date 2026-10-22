@@ -5,7 +5,8 @@
 //   sauvegardes/todo-AAAA-MM-JJ.json       → une copie par jour (historique)
 (function () {
   'use strict';
-  if (!window.todoApp) return;
+  // Pas de sauvegarde auto en mode démo : le fichier du dossier garde les vraies données
+  if (!window.todoApp || window.todoApp.demo) return;
   const app = window.todoApp;
   const LATEST = 'todo-donnees.json';
   const DIR = 'sauvegardes';
