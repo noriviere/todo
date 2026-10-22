@@ -376,7 +376,8 @@ function viewStats() {
         <span>Objectif par jour ${WD_ORDER.map(wd => `<label class="pt-dmin">${WD_SHORT[wd]} <input class="inline est" data-pt-set="day" data-wd="${wd}" value="${esc(fmtDur(dayTarget(wd)) || '0')}" title="Ex. 7h45, 4h, 0"></label>`).join('')} <span class="hint">soit ${fmtH(weekTarget())} par semaine</span></span>
         <label class="tog"><input type="checkbox" data-pt-set="hol" ${P().holidays ? 'checked' : ''}> Jours fériés français automatiques</label>
       </div>
-    </div>`;
+    </div>
+    <div id="pt-import"></div>`;
 }
 
 const TABS = [['semaine', 'Semaine'], ['conges', 'Congés'], ['bilan', 'Bilan']];
