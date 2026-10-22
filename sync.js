@@ -27,7 +27,7 @@
     return d;
   }
   const fingerprint = data => JSON.stringify(shared(data));
-  const isEmpty = d => !(d.subjects || []).length && !(d.tasks || []).length;
+  const isEmpty = d => !(d.subjects || []).length && !(d.tasks || []).length && !Object.keys((d.pointage && d.pointage.days) || {}).length;
   const dirty = () => !cfg.synced || fingerprint(app.getData()) !== cfg.synced;
 
   const toB64 = s => { const b = new TextEncoder().encode(s); let r = ''; for (let i = 0; i < b.length; i += 0x8000) r += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(r); };

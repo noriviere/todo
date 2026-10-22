@@ -208,6 +208,7 @@ details.sec>summary .load{margin-left:auto;font-size:12px;color:var(--muted);fon
 }
 </style>
 <link rel="stylesheet" href="chrono-charge.css">
+<link rel="stylesheet" href="pointage.css">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="theme-color" content="#4f63e8">
@@ -1058,7 +1059,7 @@ window.todoApp = {
   replaceData: d => { localStorage.setItem(BACKUP_KEY, JSON.stringify(db)); db = migrate(d); save(); render(); }
 };
 // Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
-const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [] };
+const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [] };
 Object.assign(window.todoApp, { hooks, views, NAV, ICON, PRIO, STATUS, DIMS, dimOk, dimsBar, save, scheduleRender, task, subj, visible, isOpen, setTaskField, toast,
   esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur });
 
@@ -1070,6 +1071,7 @@ setInterval(() => { if (today() !== day) { day = today(); render(); } }, 60000);
 </script>
 <script src="backup.js"></script>
 <script src="chrono-charge.js"></script>
+<script src="pointage.js"></script>
 <script src="organisation.js"></script>
 <script src="sync.js"></script>
 <script src="excel-import.js"></script>

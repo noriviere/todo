@@ -55,7 +55,8 @@ function slotOn(sl, ds) {
   }
   return false;
 }
-function slotsOn(ds) { return slots().filter(sl => slotOn(sl, ds)); }
+// Créneaux fixes du jour, plus les absences et fériés fournis par d'autres modules (pointage.js)
+function slotsOn(ds) { return slots().filter(sl => slotOn(sl, ds)).concat(...(A.hooks.dayOff || []).map(f => f(ds))); }
 const fixedMin = ds => slotsOn(ds).reduce((a, sl) => a + sl.durMin, 0);
 // Jour où l'on peut placer du travail : jour travaillé pas entièrement pris par des créneaux fixes (congés…)
 const canWork = ds => isWorkDay(ds) && fixedMin(ds) < capacity(ds);
@@ -262,7 +263,7 @@ function chart(days, compact) {
   }).join('')}</div>`;
 }
 const legend = () => `<div class="cc-legend">
-  <span><i class="fx"></i>Créneaux fixes</span>
+  <span><i class="fx"></i>Créneaux fixes, congés, fériés</span>
   ${[1, 2, 3].map(p => `<span><i style="background:${prioColor(p)}"></i>${A.PRIO[p].short} ${A.PRIO[p].name}</span>`).join('')}
   <span><i style="background:var(--p0)"></i>Boîte de réception</span>
   <span><i class="cap"></i>Capacité du jour</span>
@@ -337,11 +338,11 @@ A.views.charge = () => {
         <button class="icon" data-act="details" title="Détails">${A.ICON.more}</button></div>`; }).join('')}</div>
     </details>` : ''}
     <div class="card"><h3>Créneaux fixes</h3>
-      <p>Le temps pris chaque semaine par ce qui n'est pas une tâche : réunions récurrentes, points d'équipe, congés (durée « 1j »)… Il est retiré de ta capacité. Un jour entièrement pris ne reçoit pas de tâche réparties.</p>
+      <p>Le temps pris chaque semaine par ce qui n'est pas une tâche : réunions récurrentes, points d'équipe… Il est retiré de ta capacité. Un jour entièrement pris ne reçoit pas de tâche réparties. Les congés posés dans l'onglet <a href="#pointage">Pointage</a> et les jours fériés sont retirés automatiquement.</p>
       <div class="cc-slots">${act.map(slotRow).join('') || '<div class="empty">Aucun créneau fixe pour le moment.</div>'}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
         <button class="btn primary" data-act="cc-slot-add">+ Ajouter un créneau</button>
-        <button class="btn" data-act="cc-slot-add" data-preset="off">+ Congé / absence</button>
+        <a class="btn" href="#pointage" data-act="pt-tab" data-t="conges">+ Congé / absence</a>
       </div>
       ${arch.length ? `<details class="cc-arch"><summary class="hint">${arch.length} créneau${arch.length > 1 ? 'x' : ''} archivé${arch.length > 1 ? 's' : ''}</summary>
         ${arch.map(sl => `<div class="cc-slot" data-slid="${sl.id}"><span class="cc-st">${esc(sl.title)}</span><span class="hint">${fmtDur(sl.durMin)} · ${esc(describeSlot(sl))}</span><button class="btn" data-act="cc-slot-restore">Restaurer</button></div>`).join('')}</details>` : ''}
