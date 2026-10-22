@@ -16,7 +16,7 @@ const DEFAULT_TYPES = [
   { id: 'rtt', label: 'RTT', short: 'RTT', color: '#4f63e8', counted: true },
   { id: 'maladie', label: 'Maladie', short: 'Mal.', color: '#d43a4a', counted: false },
   { id: 'naissance', label: 'Congé naissance', short: 'Nais.', color: '#c2559b', counted: false },
-  { id: 'paternite', label: 'Congé paternité', short: 'Pat.', color: '#8e5bd8', counted: false },
+  { id: 'paternite', label: 'Congé paternité', short: 'Pat.', color: '#8e5bd8', counted: false, calendar: true },
   { id: 'sanssolde', label: 'Sans solde', short: 'SS', color: '#7b8396', counted: false },
   { id: 'recup', label: 'Récupération', short: 'Récup', color: '#0f8fa0', counted: false },
   { id: 'famille', label: 'Événement familial', short: 'Fam.', color: '#c77d0e', counted: false }
@@ -35,6 +35,8 @@ function P() {
   if (!p.rights || typeof p.rights !== 'object') p.rights = {};      // { typeId: { année: { acq, n1 } } }
   if (!p.defaults || typeof p.defaults !== 'object') p.defaults = { cp: 25 };  // droits annuels par défaut
   if (p.holidays === undefined) p.holidays = true;
+  // Le congé paternité se décompte en jours calendaires (week-ends compris)
+  if (!p.calV) { p.types.forEach(t => { if (t.id === 'paternite' && t.calendar === undefined) t.calendar = true; }); p.calV = 1; }
   if (!p.dayMin || typeof p.dayMin !== 'object') p.dayMin = { 1: 465, 2: 465, 3: 465, 4: 465, 5: 240, 6: 0, 0: 0 };  // 7h45 du lundi au jeudi, 4h le vendredi                   // jours fériés français automatiques
   return p;
 }
@@ -148,7 +150,7 @@ if (A.hooks.dayOff) A.hooks.dayOff.push(ds => {
   const h = holiday(ds);
   if (h && workDays().includes(parseYmd(ds).getDay())) out.push({ id: 'pt-hol-' + ds, title: 'Férié : ' + h, durMin: workdayMin(), freq: 'once', start: ds, days: [], virtual: true });
   const d = day(ds);
-  if (d && d.abs && !h) {
+  if (d && d.abs && !h && workDays().includes(parseYmd(ds).getDay())) {
     const t = type(d.abs.type);
     out.push({ id: 'pt-abs-' + ds, title: t.label + (d.abs.part !== 'full' ? ' (' + PART[d.abs.part].toLowerCase() + ')' : ''), durMin: Math.round(workdayMin() * absFrac(d)), freq: 'once', start: ds, days: [], virtual: true });
   }
@@ -282,7 +284,7 @@ function viewLeave() {
       ${y !== +today().slice(0, 4) ? '<button class="chip" data-act="pt-year" data-n="0">Cette année</button>' : ''}
     </div>
     <div class="card"><h3>Poser une absence</h3>
-      <p>Les jours travaillés de la période sont marqués (week-ends et fériés sautés). Une absence posée à l'avance bloque la capacité de ces jours dans la vue Charge.</p>
+      <p>Les jours travaillés de la période sont marqués (week-ends et fériés sautés, sauf pour un type en jours calendaires comme le congé paternité). Une absence posée à l'avance bloque la capacité de ces jours dans la vue Charge.</p>
       <div class="pt-form">
         <label>Du <input type="date" class="date" id="pt-from" value="${t0}"></label>
         <label>au <input type="date" class="date" id="pt-to" value="${t0}"></label>
@@ -303,11 +305,12 @@ function viewLeave() {
     </div>
     <details class="sec"><summary><span class="chev">${A.ICON.chev}</span>Types d'absence et droits annuels</summary>
       <div class="card">
-        <p>« Compteur » : le type a des droits en jours, suivis en N-1 et N. Le reste de N à la fin de l'année devient le N-1 de l'année suivante, et les jours posés puisent d'abord dans N-1.</p>
+        <p>« Jours calendaires » : poser une période marque aussi les week-ends et fériés, qui sont décomptés (congé paternité). Sinon seuls les jours travaillés sont posés. « Compteur » : le type a des droits en jours, suivis en N-1 et N. Le reste de N à la fin de l'année devient le N-1 de l'année suivante, et les jours posés puisent d'abord dans N-1.</p>
         <div class="pt-types">${P().types.map(t => `<div class="pt-type${t.archived ? ' arch' : ''}" data-tyid="${t.id}">
           <input type="color" data-pt-type="color" value="${t.color}" title="Couleur">
           <input class="inline" data-pt-type="label" value="${esc(t.label)}">
           <label class="tog"><input type="checkbox" data-pt-type="counted" ${t.counted ? 'checked' : ''}> compteur</label>
+          <label class="tog" title="Décompte en jours calendaires : les week-ends et fériés de la période sont posés aussi (ex. congé paternité)"><input type="checkbox" data-pt-type="calendar" ${t.calendar ? 'checked' : ''}> jours calendaires</label>
           ${t.counted ? `<label class="tog">droits/an <input class="inline pt-num" data-pt-type="def" value="${P().defaults[t.id] != null ? P().defaults[t.id] : ''}" placeholder="0"> j</label>` : '<span></span>'}
           <button class="icon" data-act="pt-type-arch" title="${t.archived ? 'Réactiver' : 'Masquer ce type'}">${t.archived ? A.ICON.restore : A.ICON.archive}</button>
         </div>`).join('')}</div>
@@ -376,7 +379,8 @@ function viewStats() {
         <span>Objectif par jour ${WD_ORDER.map(wd => `<label class="pt-dmin">${WD_SHORT[wd]} <input class="inline est" data-pt-set="day" data-wd="${wd}" value="${esc(fmtDur(dayTarget(wd)) || '0')}" title="Ex. 7h45, 4h, 0"></label>`).join('')} <span class="hint">soit ${fmtH(weekTarget())} par semaine</span></span>
         <label class="tog"><input type="checkbox" data-pt-set="hol" ${P().holidays ? 'checked' : ''}> Jours fériés français automatiques</label>
       </div>
-    </div>`;
+    </div>
+    <div id="pt-import"></div>`;
 }
 
 const TABS = [['semaine', 'Semaine'], ['conges', 'Congés'], ['bilan', 'Bilan']];
@@ -428,7 +432,7 @@ document.addEventListener('click', e => {
       if (diffDays(to, from) > 370) { toast('Période trop longue (plus d\'un an)'); return; }
       const before = {}, set = [];
       for (let ds = from; ds <= to; ds = addDays(ds, 1)) {
-        if (!isWork(ds)) continue;
+        if (!isWork(ds) && !type(typeId).calendar) continue;
         before[ds] = day(ds) && day(ds).abs ? Object.assign({}, day(ds).abs) : null;
         setAbs(ds, typeId, part); set.push(ds);
       }
@@ -483,6 +487,7 @@ document.addEventListener('change', e => {
     if (f === 'label') t.label = el.value.trim() || t.label;
     else if (f === 'color') t.color = el.value;
     else if (f === 'counted') t.counted = el.checked;
+    else if (f === 'calendar') t.calendar = el.checked;
     else if (f === 'def') { const v = el.value.trim().replace(',', '.'); if (v === '') delete P().defaults[t.id]; else if (!Number.isNaN(+v)) P().defaults[t.id] = +v; }
     A.save(); A.render();
     return;
