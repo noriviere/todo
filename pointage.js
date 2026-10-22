@@ -336,7 +336,11 @@ function stats(y) {
     tot += w.min; exp += e;
   }
   const list = Object.keys(weeks).sort().map(k => Object.assign({ mon: k }, weeks[k]));
-  const vals = list.filter(w => w.min > 0).map(w => w.min);
+  // Semaine complète : chaque jour qui a un objectif (lundi à vendredi) a des heures pointées.
+  // Une semaine avec un congé, une absence ou un férié, ou pas encore finie, n'entre pas dans la moyenne ni la médiane.
+  const complete = mon => [0, 1, 2, 3, 4, 5, 6].every(i => { const ds = addDays(mon, i); return !dayTarget(parseYmd(ds).getDay()) || (ds <= today() && worked(ds).min > 0 && !(day(ds) && day(ds).abs)); });
+  list.forEach(w => { w.full = complete(w.mon); });
+  const vals = list.filter(w => w.full && w.min > 0).map(w => w.min);
   const dayVals = [];
   for (let ds = start; ds <= end; ds = addDays(ds, 1)) { const m = worked(ds).min; if (m) dayVals.push(m); }
   return { tot, exp, daysIn, list, months, vals, dayVals };
@@ -349,7 +353,7 @@ function viewStats() {
   const pct = v => (v / max * 100).toFixed(2) + '%';
   const chart = s.list.length ? `<div class="pt-chart">${s.list.map(w => {
     const over = w.min > w.exp && w.exp > 0;
-    return `<button class="pt-col${w.min ? '' : ' empty'}" data-act="pt-goweek" data-d="${w.mon}" title="Semaine ${isoWeek(w.mon)} : ${fmtH(w.min)} (objectif ${fmtH(w.exp)})">
+    return `<button class="pt-col${w.min ? '' : ' empty'}${w.full ? '' : ' part'}" data-act="pt-goweek" data-d="${w.mon}" title="Semaine ${isoWeek(w.mon)} : ${fmtH(w.min)} (objectif ${fmtH(w.exp)})${w.full ? '' : ' · incomplète, hors moyenne'}">
       <span class="pt-bar"><span class="pt-tgt" style="bottom:${pct(w.exp)}"></span><i class="${over ? 'over' : ''}" style="height:${pct(w.min)}"></i></span>
       <span class="pt-wl">${isoWeek(w.mon)}</span></button>`;
   }).join('')}</div>` : '<div class="empty">Rien de pointé cette année.</div>';
@@ -360,12 +364,12 @@ function viewStats() {
     </div>
     <div class="stats">
       <div class="stat today"><div class="v">${fmtH(s.tot)}</div><div class="l">cumul ${y} · ${s.daysIn} jour${s.daysIn > 1 ? 's' : ''} pointé${s.daysIn > 1 ? 's' : ''}</div></div>
-      <div class="stat"><div class="v">${fmtH(avg(s.vals))}</div><div class="l">moyenne par semaine (${s.vals.length} sem.)</div></div>
-      <div class="stat"><div class="v">${fmtH(median(s.vals))}</div><div class="l">médiane par semaine</div></div>
+      <div class="stat"><div class="v">${fmtH(avg(s.vals))}</div><div class="l">moyenne par semaine complète (${s.vals.length} sem.)</div></div>
+      <div class="stat"><div class="v">${fmtH(median(s.vals))}</div><div class="l">médiane par semaine complète</div></div>
       <div class="stat ${ecart < 0 ? 'late' : ''}"><div class="v">${ecart >= 0 ? '+' : ''}${fmtH(ecart)}</div><div class="l">écart à l'objectif (${fmtH(s.exp)} attendues)</div></div>
     </div>
     <div class="card"><h3>Heures par semaine</h3>
-      <p class="hint">Trait : objectif de la semaine (diminué des absences et fériés). Clique une semaine pour l'ouvrir.</p>
+      <p class="hint">Trait : objectif de la semaine (diminué des absences et fériés). Barres pâles : semaines incomplètes (congé, absence, férié), hors moyenne et médiane. Clique une semaine pour l'ouvrir.</p>
       ${chart}
     </div>
     <div class="card"><h3>Par mois</h3>
