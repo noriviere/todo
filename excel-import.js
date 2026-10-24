@@ -21,7 +21,7 @@
   // Numéro de série Excel (jours depuis le 30/12/1899) → AAAA-MM-JJ
   function serialDate(v) {
     if (typeof v !== 'number' || !isFinite(v) || v < 1) return null;
-    const d = new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000);
+    const d = new Date(Date.UTC(1899, 11, 30) + Math.floor(v + 1e-6) * 86400000);
     return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
   }
   const iso = ymd => ymd ? ymd + 'T09:00:00.000Z' : null;
@@ -59,7 +59,7 @@
         const comm = text(r[c.comm]);
         const src = { type: 'excel', sheet: sh.name, row: i + 1 };
         if (PRIO_BY_TYPE[type]) {
-          const closed = etat === 'fait' || etat === 'annulé';
+          const closed = etat === 'fait' || etat === 'annulé' || etat === 'annule';
           cur = {
             id: uid(), title: title || '(sujet sans titre)', priority: PRIO_BY_TYPE[type],
             description: [rest, comm].filter(Boolean).join('\n'),

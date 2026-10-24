@@ -11,7 +11,7 @@
   const norm = v => String(v ?? '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   function serialDate(v) {
     if (typeof v !== 'number' || !isFinite(v) || v < 1) return null;
-    const d = new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000);
+    const d = new Date(Date.UTC(1899, 11, 30) + Math.floor(v + 1e-6) * 86400000);
     return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
   }
   function addDay(ds) { const [y, m, d] = ds.split('-').map(Number); const x = new Date(Date.UTC(y, m - 1, d + 1)); return `${x.getUTCFullYear()}-${pad(x.getUTCMonth() + 1)}-${pad(x.getUTCDate())}`; }
@@ -65,8 +65,13 @@
         });
         if (i === 0) return;
         // Lignes de week-end sans date (ex. « Congé pat » en jours calendaires) : date déduite de la ligne au-dessus
+        // (seulement si la cellule Date est vide et que le jour déduit est un samedi ou un dimanche : une ligne « Total » n'est pas un jour)
         let ds = serialDate(r[c.date]);
-        if (!ds && lastDs && (r || []).some(v => v != null && v !== '')) ds = addDay(lastDs);
+        const noDate = r[c.date] == null || r[c.date] === '';
+        if (!ds && noDate && lastDs && (r || []).some(v => v != null && v !== '')) {
+          const nx = addDay(lastDs), wd = new Date(nx + 'T12:00:00').getDay();
+          if (wd === 0 || wd === 6) ds = nx;
+        }
         if (!ds) { lastDs = null; return; }
         lastDs = ds;
         years[ds.slice(0, 4)] = (years[ds.slice(0, 4)] || 0) + 1;
@@ -90,7 +95,8 @@
         }
         if (!Object.keys(d).length) return;
         const prev = days[ds];
-        days[ds] = prev ? Object.assign({}, d, prev) : d;
+        // Date présente deux fois (deux onglets) : on garde la ligne la plus complète en entier, sans mélanger les heures
+        days[ds] = prev && Object.keys(prev).length >= Object.keys(d).length ? prev : d;
       });
       const y = Object.entries(years).sort((a, b) => b[1] - a[1])[0];
       if (y && (cpN != null || cpN1 != null)) rights[y[0]] = { acq: cpN, n1: cpN1, sheet: name };

@@ -360,23 +360,32 @@ function migrate(d) {
   d.ui.dims = Object.assign({ projet: '', secteur: '', produit: '' }, d.ui.dims);
   d.subjects = (d.subjects || []).map(normSubject);
   d.tasks = (d.tasks || []).map(normTask);
-  return DEMO ? d : purgeDemo(d);
-}
-// Retire les données de l'ancien bouton « Charger un exemple » (supprimé)
-const DEMO_INBOX = ['Rappeler Martin', 'Idée : automatiser le reporting'];
-function purgeDemo(d) {
-  const demo = new Set(d.subjects.filter(s => / \(exemple\)$/.test(s.title) && !s.source).map(s => s.id));
-  if (!demo.size) return d;
-  d.subjects = d.subjects.filter(s => !demo.has(s.id));
-  d.tasks = d.tasks.filter(t => !demo.has(t.subjectId) && !(!t.subjectId && !t.source && DEMO_INBOX.includes(t.title)));
   return d;
 }
 function load() {
-  try {
-    const s = store.getItem(KEY);
-    if (s) return migrate(JSON.parse(s));
-  } catch (e) { console.error(e); }
+  const s = store.getItem(KEY);
+  if (s) {
+    try { return migrate(JSON.parse(s)); } catch (e) {
+      console.error(e);
+      // Données illisibles : on garde une copie brute avant que le prochain enregistrement ne l'écrase
+      const rescue = KEY + '-illisible-' + nowIso().replace(/[:.]/g, '-');
+      let kept = false;
+      try { store.setItem(rescue, s); kept = true; } catch (e2) {}
+      alert("Les données de ce navigateur n'ont pas pu être relues.\n\n" +
+        (kept ? `Une copie brute est gardée dans le navigateur (clé « ${rescue} »).\n` : '') +
+        "Si la synchro GitHub est active, la dernière version va être récupérée automatiquement. Sinon, restaure ta dernière sauvegarde (Données › Restaurer).");
+    }
+  }
   return DEMO ? demoData() : blank();
+}
+// Point de retour « avant import » : une seule copie, datée
+function keepBackup() {
+  store.setItem(BACKUP_KEY, JSON.stringify(db));
+  try { store.setItem(BACKUP_KEY + '-date', nowIso()); } catch (e) {}
+}
+function dropBackup() {
+  store.removeItem(BACKUP_KEY);
+  store.removeItem(BACKUP_KEY + '-date');
 }
 function demoData() {
   const d = migrate(window.todoDemo.data(today()));
@@ -1046,13 +1055,22 @@ document.addEventListener('click', e => {
     case 'demo-start': startDemo(); break;
     case 'demo-exit': exitDemo(); break;
     case 'demo-reset':
-      if (confirm("Remettre les données d'exemple de départ ?")) { db = demoData(); store.removeItem(BACKUP_KEY); save(); render(); toast('Exemple remis à zéro'); }
+      if (confirm("Remettre les données d'exemple de départ ?")) { db = demoData(); dropBackup(); save(); render(); toast('Exemple remis à zéro'); }
       break;
     case 'import': $('#file').click(); break;
     case 'undo-import': {
       const bk = store.getItem(BACKUP_KEY);
-      if (bk && confirm("Revenir à l'état d'avant le dernier import ?")) {
-        db = migrate(JSON.parse(bk)); save(); store.removeItem(BACKUP_KEY); render(); toast('État précédent restauré');
+      if (!bk) break;
+      let old;
+      try { old = JSON.parse(bk); } catch (e) { alert('Copie illisible.'); break; }
+      const at = store.getItem(BACKUP_KEY + '-date');
+      if (confirm(`Revenir à l'état d'avant le dernier import${at ? ' (copie du ' + new Date(at).toLocaleString('fr-FR') + ')' : ''} ?\n\n` +
+        `Cette copie : ${(old.subjects || []).length} sujets, ${(old.tasks || []).length} tâches\nActuellement : ${db.subjects.length} sujets, ${db.tasks.length} tâches\n\n` +
+        `L'état actuel est gardé à sa place : tu pourras y revenir avec le même bouton.`)) {
+        // Échange : l'état actuel devient la copie, pour pouvoir annuler ce retour
+        const ui = db.ui;
+        keepBackup();
+        db = migrate(old); db.ui = ui; save(); render(); toast('État précédent restauré');
       }
       break;
     }
@@ -1082,7 +1100,7 @@ $('#file').addEventListener('change', async e => {
     const d = JSON.parse(await f.text());
     if (!Array.isArray(d.subjects) || !Array.isArray(d.tasks)) throw new Error("ce n'est pas une sauvegarde de cette appli");
     if (!confirm(`Remplacer les données actuelles (${db.subjects.length} sujets, ${db.tasks.length} tâches) par celles du fichier (${d.subjects.length} sujets, ${d.tasks.length} tâches) ?`)) return;
-    store.setItem(BACKUP_KEY, JSON.stringify(db));
+    keepBackup();
     delete d.exportedAt;
     db = migrate(d);
     save(); render();
@@ -1098,7 +1116,7 @@ window.todoApp = {
   today,
   render: () => render(),
   demo: DEMO,
-  replaceData: d => { store.setItem(BACKUP_KEY, JSON.stringify(db)); db = migrate(d); save(); render(); }
+  replaceData: d => { keepBackup(); db = migrate(d); save(); render(); }
 };
 // Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
 const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [] };

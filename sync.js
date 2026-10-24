@@ -9,6 +9,8 @@
   const app = window.todoApp;
   const CFG_KEY = 'todo-noel-sync';
   const BACKUP_KEY = 'todo-noel-v1-avant-import';
+  // Copie de l'appareil juste avant d'appliquer une version reçue de GitHub
+  const SYNC_BACKUP_KEY = 'todo-noel-v1-avant-synchro';
   const API = 'https://api.github.com';
 
   // cfg : { owner, repo, path, token, sha (version distante connue), synced (empreinte des données à cette version), at }
@@ -29,6 +31,7 @@
   }
   const fingerprint = data => JSON.stringify(shared(data));
   const isEmpty = d => !(d.subjects || []).length && !(d.tasks || []).length && !Object.keys((d.pointage && d.pointage.days) || {}).length;
+  const validShape = d => !!d && typeof d === 'object' && Array.isArray(d.subjects) && Array.isArray(d.tasks);
   const dirty = () => !cfg.synced || fingerprint(app.getData()) !== cfg.synced;
 
   const toB64 = s => { const b = new TextEncoder().encode(s); let r = ''; for (let i = 0; i < b.length; i += 0x8000) r += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(r); };
@@ -60,21 +63,33 @@
     return { sha: f.sha, data: JSON.parse(text) };
   }
   async function push(sha) {
-    const data = app.getData();
-    const body = { message: 'Synchro ' + new Date().toLocaleString('fr-FR') + ' (' + deviceName() + ')', content: toB64(JSON.stringify(Object.assign({ exportedAt: new Date().toISOString() }, shared(data)), null, 1)) };
+    // Empreinte prise sur ce qui part réellement : une modification faite pendant l'envoi
+    // reste « à envoyer » au lieu d'être marquée comme synchronisée
+    const fp = fingerprint(app.getData());
+    const body = { message: 'Synchro ' + new Date().toLocaleString('fr-FR') + ' (' + deviceName() + ')', content: toB64(JSON.stringify(Object.assign({ exportedAt: new Date().toISOString() }, JSON.parse(fp)), null, 1)) };
     if (sha) body.sha = sha;
     const res = await gh('PUT', body);
     cfg.sha = res.content.sha;
-    cfg.synced = fingerprint(data);
+    cfg.synced = fp;
     cfg.at = new Date().toISOString();
     saveCfg();
+    if (dirty()) again = true;
   }
   function apply(remote, sha, keepUndo) {
-    const prev = localStorage.getItem(BACKUP_KEY);
+    const prev = localStorage.getItem(BACKUP_KEY), prevAt = localStorage.getItem(BACKUP_KEY + '-date');
+    try {
+      localStorage.setItem(SYNC_BACKUP_KEY, JSON.stringify(app.getData()));
+      localStorage.setItem(SYNC_BACKUP_KEY + '-date', new Date().toISOString());
+    } catch (e) {}
     applying = true;
     try { app.replaceData(Object.assign({}, remote, { ui: app.getData().ui })); } finally { applying = false; }
     // Une synchro normale ne doit pas remplacer le point de retour « avant import »
-    if (!keepUndo) { try { prev === null ? localStorage.removeItem(BACKUP_KEY) : localStorage.setItem(BACKUP_KEY, prev); } catch (e) {} }
+    if (!keepUndo) {
+      try {
+        prev === null ? localStorage.removeItem(BACKUP_KEY) : localStorage.setItem(BACKUP_KEY, prev);
+        prevAt === null ? localStorage.removeItem(BACKUP_KEY + '-date') : localStorage.setItem(BACKUP_KEY + '-date', prevAt);
+      } catch (e) {}
+    }
     cfg.sha = sha;
     cfg.synced = fingerprint(app.getData());
     cfg.at = new Date().toISOString();
@@ -91,7 +106,9 @@
     if (!navigator.onLine) { lastError = 'hors connexion'; paint(); return; }
     busy = true; paint();
     try {
+      if (!cfg.private) await checkPrivate();
       const remote = await pull();
+      if (remote && !validShape(remote.data)) throw new Error('le fichier sur GitHub est illisible, rien n\'a été changé ici');
       const localDirty = dirty();
       const local = app.getData();
       if (!remote) {
@@ -102,6 +119,14 @@
       } else if (!cfg.sha && isEmpty(local)) {
         apply(remote.data, remote.sha, false);
         app.toast && app.toast('Données récupérées depuis GitHub.');
+      } else if (isEmpty(remote.data) && !isEmpty(local)) {
+        // GitHub vide alors que cet appareil a des données : on ne vide jamais sans demander
+        const msg = `Le fichier sur GitHub est vide, alors que cet appareil a ${local.subjects.length} sujets et ${local.tasks.length} tâches.\n\n` +
+          `OK = renvoyer les données de cet appareil sur GitHub (conseillé)\nAnnuler = vider cet appareil comme GitHub`;
+        if (confirm(msg)) await push(remote.sha);
+        else apply(remote.data, remote.sha, true);
+      } else if (isEmpty(local)) {
+        apply(remote.data, remote.sha, true);
       } else if (!localDirty) {
         apply(remote.data, remote.sha, false);
       } else if (fingerprint(remote.data) === fingerprint(local)) {
@@ -132,6 +157,23 @@
     timer = setTimeout(() => { timer = null; sync(); }, delay);
   }
 
+  // Les données ne doivent jamais partir dans un dépôt public (servi tel quel par GitHub Pages)
+  async function checkPrivate() {
+    const r = await fetch(`${API}/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}`, {
+      cache: 'no-store',
+      headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }
+    });
+    if (!r.ok) {
+      const err = new Error(r.status === 401 ? 'jeton refusé ou expiré' : r.status === 404 ? 'dépôt introuvable' : 'erreur GitHub ' + r.status);
+      err.status = r.status;
+      throw err;
+    }
+    const repo = await r.json();
+    if (!repo.private) throw new Error(`le dépôt ${cfg.owner}/${cfg.repo} est public : synchro bloquée pour ne pas publier tes données`);
+    cfg.private = true;
+    saveCfg();
+  }
+
   /* ---------- Réglages ---------- */
   async function connect(form) {
     const v = n => form.querySelector(`[name="${n}"]`).value.trim();
@@ -146,6 +188,18 @@
     await sync();
     if (lastError) alert('Connexion impossible : ' + lastError);
     app.render();
+  }
+  function undoSync() {
+    const bk = localStorage.getItem(SYNC_BACKUP_KEY);
+    if (!bk) return;
+    let d;
+    try { d = JSON.parse(bk); } catch (e) { return alert('Copie illisible.'); }
+    const at = localStorage.getItem(SYNC_BACKUP_KEY + '-date');
+    const cur = app.getData();
+    if (!confirm(`Revenir à l'état de cet appareil juste avant la dernière synchro reçue${at ? ' (' + new Date(at).toLocaleString('fr-FR') + ')' : ''} ?\n\n` +
+      `Cette copie : ${(d.subjects || []).length} sujets, ${(d.tasks || []).length} tâches\nActuellement : ${cur.subjects.length} sujets, ${cur.tasks.length} tâches\n\n` +
+      `L'état actuel reste récupérable via « Revenir à l'état d'avant le dernier import » dans Données, et la copie sera envoyée sur GitHub.`)) return;
+    app.replaceData(Object.assign(d, { ui: cur.ui }));
   }
   function disconnect() {
     if (!confirm('Arrêter la synchro sur cet appareil ? Les données restent ici et sur GitHub ; le jeton est effacé de cet appareil.')) return;
@@ -182,6 +236,7 @@
           <button class="btn primary" data-act="sync-now">Synchroniser maintenant</button>
           <a class="btn" style="text-decoration:none;color:inherit" href="https://github.com/${esc(cfg.owner)}/${esc(cfg.repo)}/commits" target="_blank" rel="noopener">Historique des versions</a>
           <button class="btn" data-act="sync-off">Arrêter la synchro ici</button>
+          ${localStorage.getItem(SYNC_BACKUP_KEY) ? '<button class="btn" data-act="sync-undo">Revenir à l\'état d\'avant la dernière synchro reçue</button>' : ''}
         </div>
         <p class="hint" style="margin:10px 0 0">La synchro se fait seule quelques secondes après chaque modification, à l'ouverture de l'appli et quand tu y reviens.</p>`;
     } else {
@@ -193,7 +248,8 @@
           <input name="path" type="hidden" value="donnees.json">
           <div><button class="btn primary" type="submit">Connecter et synchroniser</button></div>
         </form>
-        <p class="hint" style="margin:10px 0 0">Sur un nouvel appareil, connecte-toi avec le même dépôt : les données sont récupérées automatiquement.</p>`;
+        <p class="hint" style="margin:10px 0 0">Crée un jeton « fine-grained » limité au seul dépôt des données (droit Contents en lecture et écriture) avec une date d'expiration. L'appli refuse de synchroniser vers un dépôt public.<br>
+        Sur un nouvel appareil, connecte-toi avec le même dépôt : les données sont récupérées automatiquement.</p>`;
     }
     card.innerHTML = `<div class="card"><h3>Synchro PC ↔ téléphone</h3>${body}</div>`;
   }
@@ -203,6 +259,7 @@
     if (!b) return;
     if (b.dataset.act === 'sync-now') sync();
     else if (b.dataset.act === 'sync-off') disconnect();
+    else if (b.dataset.act === 'sync-undo') undoSync();
   });
   document.addEventListener('submit', e => {
     if (e.target.id !== 'sync-form') return;
