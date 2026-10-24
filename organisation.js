@@ -16,7 +16,10 @@
 .org-filters .chip.p2.on{background:var(--p2-bg);border-color:var(--p2);color:var(--p2)}
 .org-filters .chip.p3.on{background:var(--p3-bg);border-color:var(--p3);color:var(--p3)}
 .org-filters select,.org-filters input{border:1px solid var(--border);background:var(--surface);border-radius:20px;padding:4px 10px;font-size:12px;outline:none}
-.org-filters input{min-width:180px}
+.org-filters input{flex:0 1 200px;min-width:0}
+.org-filters select{max-width:min(100%,280px);min-width:0;text-overflow:ellipsis}
+.org-filters .chip.inb{display:inline-flex;align-items:center;gap:5px}
+.org-filters .chip svg{width:14px;height:14px}
 .org-filters input:focus,.org-filters select:focus{border-color:var(--accent)}
 .org-filters .clear{border:0;background:none;color:var(--accent);font-size:12px;text-decoration:underline}
 .org-grip{cursor:grab;color:var(--faint);opacity:0;user-select:none;font-size:13px;letter-spacing:-2px;padding:0 3px;margin-left:-8px}
@@ -53,7 +56,7 @@
     const chip = (v, label, cls) => `<button type="button" class="chip ${cls} ${f.prios.includes(v) ? 'on' : ''}" data-org-prio="${v}">${label}</button>`;
     const subs = db().subjects.filter(s => !s.archived).sort((a, b) => a.priority - b.priority || a.title.localeCompare(b.title, 'fr'));
     return `<div class="org-filters">
-      ${chip(1, 'P1', 'p1')}${chip(2, 'P2', 'p2')}${chip(3, 'P3', 'p3')}${chip(0, '📥 À ranger', '')}
+      ${chip(1, 'P1', 'p1')}${chip(2, 'P2', 'p2')}${chip(3, 'P3', 'p3')}${chip(0, A.ICON.inbox + 'À ranger', 'inb')}
       <select data-org-subj data-k="org-subj" title="Filtrer sur un sujet">
         <option value="">Tous les sujets</option>
         ${subs.map(s => `<option value="${s.id}" ${s.id === f.subjectId ? 'selected' : ''}>P${s.priority} · ${esc(s.title || 'Sans titre')}</option>`).join('')}

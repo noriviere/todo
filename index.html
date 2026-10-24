@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Ma To-Do</title>
 <style>
 :root{
@@ -39,6 +39,12 @@
 html,body{margin:0;height:100%}
 body{background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font:inherit;color:inherit}
+select,input,textarea{max-width:100%;min-width:0}
+select{text-overflow:ellipsis}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.inline:focus-visible,.search:focus-visible,.f :focus-visible{outline:0}
+button,a,.chip,.pill,.stat{transition:background-color .15s,border-color .15s,color .15s,box-shadow .15s}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:0s!important;animation-duration:0s!important;scroll-behavior:auto!important}}
 button{cursor:pointer}
 .app{display:flex;min-height:100vh}
 
@@ -62,8 +68,10 @@ button{cursor:pointer}
 h1{font-size:22px;margin:0 0 4px}
 .sub{color:var(--muted);margin:0 0 18px}
 .qa{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px;box-shadow:var(--shadow);margin-bottom:20px}
-.qa input[type=text]{flex:1 1 260px;border:0;background:none;padding:8px 10px;outline:none;font-size:15px}
+.qa input[type=text]{flex:1 1 260px;min-width:0;border:0;background:none;padding:8px 10px;outline:none;font-size:15px}
 .qa select,.qa input[type=date]{border:1px solid var(--border);background:var(--surface-2);border-radius:8px;padding:6px 8px}
+.qa select{flex:0 1 240px}
+.qa .plus{display:none}
 .chips{display:flex;gap:4px}
 .chip{border:1px solid var(--border);background:var(--surface);border-radius:20px;padding:4px 10px;font-size:12px;color:var(--muted)}
 .chip:hover,.chip.on{border-color:var(--accent);color:var(--accent)}
@@ -76,14 +84,23 @@ kbd{font:11px ui-monospace,monospace;border:1px solid var(--border);border-botto
 
 /* Cartes chiffres */
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
-.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;box-shadow:var(--shadow)}
-.stat .v{font-size:24px;font-weight:700}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:flex-start;text-align:left;color:var(--text);text-decoration:none;min-width:0}
+.stat:hover{border-color:var(--accent)}
+.stat:active{background:var(--surface-2)}
+.stat .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
 .stat .l{color:var(--muted);font-size:12px}
 .stat.late .v{color:var(--danger)}
 .stat.today .v{color:var(--accent)}
 
+/* Filtres : toujours visibles sur grand écran, repliés derrière un bouton sur téléphone */
+.filt-tog{display:none}
+.filt-tog svg{width:15px;height:15px}
+.filt-tog .n{font-size:12px;background:var(--accent);color:#fff;border-radius:10px;padding:0 7px;min-width:20px;text-align:center}
+.filt-tog .chev{display:inline-flex;color:var(--faint);transition:transform .15s}
+.filt.open .filt-tog .chev{transform:rotate(90deg)}
+
 /* Sections du dashboard */
-details.sec{margin-bottom:14px}
+details.sec{margin-bottom:14px;scroll-margin-top:72px}
 details.sec>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:6px 2px;font-weight:600;user-select:none}
 details.sec>summary::-webkit-details-marker{display:none}
 details.sec>summary .chev{transition:transform .15s;color:var(--faint)}
@@ -195,16 +212,54 @@ details.sec>summary .load{margin-left:auto;font-size:12px;color:var(--muted);fon
 
 @media (max-width:860px){
   .app{flex-direction:column}
-  .side{width:auto;height:auto;position:sticky;top:0;z-index:10;flex-direction:row;align-items:center;padding:8px 10px;border-right:0;border-bottom:1px solid var(--border);overflow-x:auto}
-  .brand{padding:0 8px 0 2px}
+  .side{width:auto;height:auto;position:sticky;top:0;z-index:10;flex-direction:row;align-items:center;padding:6px 8px;padding-top:max(6px,env(safe-area-inset-top));border-right:0;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none}
+  .side::-webkit-scrollbar{display:none}
+  .brand{padding:0 6px 0 2px}
   .brand span{display:none}
-  .nav{display:flex;gap:2px}
-  .nav a{padding:6px 8px;white-space:nowrap}
+  .nav{display:flex;gap:2px;flex:1;justify-content:space-between}
+  .nav a{padding:0 8px;min-height:44px;min-width:44px;justify-content:center;gap:6px;white-space:nowrap}
   .nav a .lbl{display:none}
+  .nav a .n{margin-left:0}
+  .nav svg{width:20px;height:20px}
   .side .foot{display:none}
-  .main{padding:16px 16px 80px}
-  .stats{grid-template-columns:repeat(2,1fr)}
+  .main{padding:14px 12px 80px;padding-bottom:max(80px,calc(64px + env(safe-area-inset-bottom)))}
+  h1{font-size:20px}
+  .sub{margin-bottom:12px}
+  /* Saisie rapide compacte : titre et sujet sur toute la largeur, puis date et bouton */
+  .qa{padding:6px;gap:6px;margin-bottom:12px}
+  .qa input[type=text]{flex:1 1 100%;font-size:16px;padding:8px}
+  .qa select{flex:1 1 100%}
+  .qa .chip{padding:6px 9px}
+  .qa input[type=date]{flex:1 1 0;min-width:96px}
+  .qa .btn.primary{width:44px;height:38px;padding:0;justify-content:center}
+  .qa .plus{display:inline;font-size:24px;font-weight:400;line-height:1}
+  .qa .btn.primary .lbl{display:none}
+  /* Filtres repliés */
+  .filt{margin-bottom:12px}
+  .filt-tog{display:inline-flex;min-height:36px}
+  .filt:not(.open) .filt-body{display:none}
+  .filt.open .filt-body{margin-top:10px}
+  .filt .org-filters{margin:0 0 10px}
+  .filt .dims-bar{margin:0}
+  .org-filters select,.org-filters input{flex:1 1 100%;max-width:none}
+  .dims-bar select{flex:1 1 40%;max-width:none}
+  /* Chiffres clés sur une ligne */
+  .stats{grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:16px}
+  .stat{padding:8px 8px 7px;border-radius:10px;box-shadow:none}
+  .stat .v{font-size:20px}
+  .stat .l{font-size:11px;line-height:1.25}
+  .stat .x{display:none}
   .meta{margin-left:25px}
+  .toast{bottom:max(16px,env(safe-area-inset-bottom));max-width:calc(100% - 24px)}
+}
+/* Écran tactile : cibles plus faciles à toucher */
+@media (pointer:coarse){
+  .chk{width:22px;height:22px}
+  .icon{min-width:36px;min-height:36px;justify-content:center}
+  .chip{padding:6px 12px}
+  .task{gap:6px 8px;padding:8px 10px 8px 12px}
+  .task:hover{background:none}
+  .task:active{background:var(--surface-2)}
 }
 #demo-bar{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;padding:8px 16px;background:var(--warn-bg);color:var(--text);border-bottom:1px solid var(--warn);font-size:13px}
 #demo-bar[hidden]{display:none}
@@ -220,7 +275,8 @@ body.demo .brand .dot{background:var(--warn)}
 <link rel="stylesheet" href="pointage.css">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<meta name="theme-color" content="#4f63e8">
+<meta name="theme-color" content="#f5f6fa" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#191d27" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="To-Do">
@@ -316,6 +372,7 @@ const ICON = {
   archive: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/></svg>',
   data: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>',
   chev: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
+  filter: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18M6 12h12M10 19h4"/></svg>',
   more: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
   restore: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>'
 };
@@ -624,7 +681,7 @@ function quickAdd(defaultSubject) {
       <button type="button" class="chip ${qaState.date === addDays(today(), 7) ? 'on' : ''}" data-act="qa-date" data-d="7">+7 j</button>
     </div>
     <input type="date" id="qa-date" data-k="qa-date" value="${qaState.date || ''}" title="Deadline">
-    <button class="btn primary" type="submit">Ajouter</button>
+    <button class="btn primary" type="submit" aria-label="Ajouter la tâche"><span class="plus" aria-hidden="true">+</span><span class="lbl">Ajouter</span></button>
   </form>`;
 }
 const qaState = { subject: '', date: '' };
@@ -649,17 +706,24 @@ views.dashboard = () => {
   };
   const isEmpty = !db.tasks.length && !db.subjects.length;
   const secOpen = k => dashOpen[k] ?? (k !== 'later' && k !== 'nodate');
+  const df = db.ui.dashFilter || {};
+  const nFilters = (df.prios || []).length + !!df.subjectId + !!(df.q || '').trim() + Object.keys(DIMS).filter(k => db.ui.dims[k]).length;
   return `
     <h1>Tableau de bord</h1>
     <p class="sub">${longDate(today()).replace(/^./, c => c.toUpperCase())}</p>
     ${quickAdd()}
-    ${hooks.dashTop.map(f => f()).join('')}
-    ${dimsBar()}
+    <div class="filt ${db.ui.filtersOpen ? 'open' : ''}">
+      <button type="button" class="btn filt-tog" data-act="filters-toggle" aria-expanded="${!!db.ui.filtersOpen}">${ICON.filter}Filtres${nFilters ? `<span class="n">${nFilters}</span>` : ''}<span class="chev">${ICON.chev}</span></button>
+      <div class="filt-body">
+        ${hooks.dashTop.map(f => f()).join('')}
+        ${dimsBar()}
+      </div>
+    </div>
     <div class="stats">
-      <div class="stat late"><div class="v">${groups.late.length}</div><div class="l">en retard</div></div>
-      <div class="stat today"><div class="v">${groups.today.length}</div><div class="l">aujourd'hui${load(groups.today) ? ' · ' + fmtDur(load(groups.today)) : ''}</div></div>
-      <div class="stat"><div class="v">${groups.tomorrow.length}</div><div class="l">demain${load(groups.tomorrow) ? ' · ' + fmtDur(load(groups.tomorrow)) : ''}</div></div>
-      <div class="stat"><div class="v">${inbox}</div><div class="l">à ranger (boîte de réception)</div></div>
+      <button type="button" class="stat late" data-act="goto-sec" data-sec="late"><span class="v">${groups.late.length}</span><span class="l">en retard</span></button>
+      <button type="button" class="stat today" data-act="goto-sec" data-sec="today"><span class="v">${groups.today.length}</span><span class="l">aujourd'hui${load(groups.today) ? '<span class="x"> · ' + fmtDur(load(groups.today)) + '</span>' : ''}</span></button>
+      <button type="button" class="stat" data-act="goto-sec" data-sec="tomorrow"><span class="v">${groups.tomorrow.length}</span><span class="l">demain${load(groups.tomorrow) ? '<span class="x"> · ' + fmtDur(load(groups.tomorrow)) + '</span>' : ''}</span></button>
+      <a class="stat" href="#inbox"><span class="v">${inbox}</span><span class="l">à ranger<span class="x"> (boîte de réception)</span></span></a>
     </div>
     ${isEmpty ? `<div class="card"><h3>Bienvenue 👋</h3><p>Ajoute une tâche ci-dessus ou crée tes sujets dans l'onglet Sujets. Pour reprendre ton fichier Excel, va dans l'onglet Données.</p><button class="btn" data-act="demo-start">Voir un exemple</button></div>` : ''}
     ${sec('late', 'En retard', secOpen('late'))}
@@ -1047,6 +1111,14 @@ document.addEventListener('click', e => {
       qaState.date = qaState.date === d ? '' : d;
       const ttl = $('#qa-title').value;
       render(); $('#qa-title').value = ttl; focusKey('qa-title');
+      break;
+    }
+    case 'filters-toggle': db.ui.filtersOpen = !db.ui.filtersOpen; save(); render(); break;
+    case 'goto-sec': {
+      const k = b.dataset.sec, d = document.querySelector(`details[data-sec="${k}"]`);
+      if (!d) break;
+      d.open = true; dashOpen[k] = true;
+      d.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
       break;
     }
     case 'theme': db.settings.theme = b.dataset.v; save(); render(); break;
