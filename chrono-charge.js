@@ -56,7 +56,12 @@ function slotOn(sl, ds) {
   return false;
 }
 // Créneaux fixes du jour, plus les absences et fériés fournis par d'autres modules (pointage.js)
-function slotsOn(ds) { return slots().filter(sl => slotOn(sl, ds)).concat(...(A.hooks.dayOff || []).map(f => f(ds))); }
+// Un jour entièrement pris (congé, férié) ne reçoit pas les créneaux fixes : la réunion n'a pas lieu sans toi
+function slotsOn(ds) {
+  const off = [].concat(...(A.hooks.dayOff || []).map(f => f(ds)));
+  if (off.length && off.reduce((a, sl) => a + sl.durMin, 0) >= capacity(ds)) return off;
+  return slots().filter(sl => slotOn(sl, ds)).concat(off);
+}
 const fixedMin = ds => slotsOn(ds).reduce((a, sl) => a + sl.durMin, 0);
 // Jour où l'on peut placer du travail : jour travaillé pas entièrement pris par des créneaux fixes (congés…)
 const canWork = ds => isWorkDay(ds) && fixedMin(ds) < capacity(ds);
@@ -93,8 +98,14 @@ function addLog(t, log) {
   t.updatedAt = nowIso();
 }
 function startTimer(t) {
-  // Un seul chrono à la fois : démarrer une tâche arrête la précédente
-  running().forEach(r => { if (r !== t) stopTimer(r, true); });
+  // Un seul chrono à la fois : démarrer une tâche arrête la précédente.
+  // Si elle tourne depuis plus de 4 h (oubli ?), on demande le temps à garder ; annuler ne démarre rien.
+  for (const r of running()) {
+    if (r === t) continue;
+    const long = Date.now() - Date.parse(r.timerStart) > 240 * 60000;
+    stopTimer(r, !long);
+    if (r.timerStart) return;
+  }
   t.timerStart = nowIso();
   if (t.status === 'todo' || t.status === 'waiting') A.setTaskField(t, 'status', 'doing');
   t.updatedAt = nowIso();
@@ -130,6 +141,11 @@ function lastWorkDay(ds, floor) {
   for (let i = 0; i < 14 && d > floor && !canWork(d); i++) d = addDays(d, -1);
   return d;
 }
+function firstWorkDay(ds) {
+  let d = ds;
+  for (let i = 0; i < 14 && !canWork(d); i++) d = addDays(d, 1);
+  return canWork(d) ? d : ds;
+}
 function allocate(t, td) {
   const rem = remaining(t);
   const res = { rem, parts: [], overdue: false, late: false, unplanned: false };
@@ -149,14 +165,14 @@ function allocate(t, td) {
     return res;
   }
   if (!dl) { res.unplanned = true; return res; }
-  if (dl < td) { res.overdue = true; res.parts.push({ date: td, min: rem }); return res; }
+  if (dl < td) { res.overdue = true; res.parts.push({ date: firstWorkDay(td), min: rem }); return res; }
   if (mode === 'spread') {
     const days = [];
     for (let d = from; d <= dl; d = addDays(d, 1)) if (canWork(d)) days.push(d);
     if (days.length) {
       const base = Math.floor(rem / days.length);
       let extra = rem - base * days.length;
-      days.forEach(d => res.parts.push({ date: d, min: base + (extra-- > 0 ? 1 : 0) }));
+      days.forEach(d => { const m = base + (extra-- > 0 ? 1 : 0); if (m > 0) res.parts.push({ date: d, min: m }); });
       return res;
     }
   }

@@ -119,7 +119,7 @@ function rightsOf(typeId, y) { return (P().rights[typeId] || {})[y] || {}; }
 function counter(typeId, y) {
   const all = absDays(typeId);
   const years = all.map(ds => +ds.slice(0, 4)).concat(Object.keys(P().rights[typeId] || {}).map(Number), [+today().slice(0, 4)]);
-  const first = Math.min(...years);
+  const first = Math.min(...years, y);
   let n1Start = 0, res = null;
   for (let yy = first; yy <= y; yy++) {
     const r = rightsOf(typeId, yy);
@@ -338,7 +338,9 @@ function stats(y) {
   const list = Object.keys(weeks).sort().map(k => Object.assign({ mon: k }, weeks[k]));
   // Semaine complète : chaque jour qui a un objectif (lundi à vendredi) a des heures pointées.
   // Une semaine avec un congé, une absence ou un férié, ou pas encore finie, n'entre pas dans la moyenne ni la médiane.
-  const complete = mon => [0, 1, 2, 3, 4, 5, 6].every(i => { const ds = addDays(mon, i); return !dayTarget(parseYmd(ds).getDay()) || (ds <= today() && worked(ds).min > 0 && !(day(ds) && day(ds).abs)); });
+  // Aujourd'hui ne compte que si la journée est terminée (heure de départ pointée) ; les jours hors de l'année affichée rendent la semaine incomplète.
+  const finished = ds => ds < today() || (ds === today() && !!(day(ds) && day(ds).out));
+  const complete = mon => [0, 1, 2, 3, 4, 5, 6].every(i => { const ds = addDays(mon, i); return !dayTarget(parseYmd(ds).getDay()) || (ds >= start && ds <= end && finished(ds) && worked(ds).min > 0 && !(day(ds) && day(ds).abs)); });
   list.forEach(w => { w.full = complete(w.mon); });
   const vals = list.filter(w => w.full && w.min > 0).map(w => w.min);
   const dayVals = [];
