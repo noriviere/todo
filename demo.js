@@ -34,8 +34,8 @@ function frHolidays(y) {
 function data(td) {
   const now = new Date().toISOString();
   const at = (ds, h = 9) => new Date(parse(ds).getTime() + h * 3600000).toISOString();
-  const S = (id, title, priority, projet, secteur, produit, description, extra) =>
-    Object.assign({ id, title, priority, projet, secteur, produit, description, createdAt: at(add(td, -60)), updatedAt: now }, extra);
+  const S = (id, title, priority, code, secteur, produit, description, extra) =>
+    Object.assign({ id, title, priority, code, secteur, produit, description, createdAt: at(add(td, -60)), updatedAt: now }, extra);
   const subjects = [
     S('s1', 'Lancement gamme Atlas', 1, 'Atlas', 'Industrie', 'Atlas 200', 'Mise sur le marché de la nouvelle gamme. Objectif lié au variable.'),
     S('s2', 'Réduction des coûts achats', 1, 'Achats 2026', 'Achats', '', 'Objectif : -5 % sur les familles principales.'),
@@ -126,7 +126,7 @@ function data(td) {
     tasks,
     fixedSlots,
     settings: { theme: 'auto', workdayMin: 420, lastExport: null, workDays: [1, 2, 3, 4, 5] },
-    ui: { expanded: ['s1', 's3'], showClosed: false, search: '', dims: { projet: '', secteur: '', produit: '' } },
+    ui: { expanded: ['s1', 's3'], showClosed: false, search: '', dims: { code: '', secteur: '', produit: '' } },
     pointage: {
       days,
       rights: { cp: { [y]: { acq: 25, n1: 6 } }, rtt: { [y]: { acq: 10, n1: 0 } } },

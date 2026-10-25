@@ -382,7 +382,7 @@ function longDate(d) {
 
 const STATUS = { todo: 'À faire', doing: 'En cours', waiting: 'En attente', done: 'Fait', cancelled: 'Annulé' };
 // Paramètres d'un sujet repris de l'Excel, utilisés pour filtrer partout (tableau de bord, sujets, charge)
-const DIMS = { projet: 'Projet', secteur: 'Secteur', produit: 'Produit fini' };
+const DIMS = { code: 'Code', secteur: 'Secteur', produit: 'Produit fini' };
 const PRIO = {
   1: { short: 'P1', name: 'Variable', desc: 'Impacte ma rémunération variable' },
   2: { short: 'P2', name: 'Important', desc: 'Sujets importants' },
@@ -431,12 +431,12 @@ function blank() {
     subjects: [],
     tasks: [],
     settings: { theme: 'auto', workdayMin: 420, lastExport: null, modules: {} },
-    ui: { expanded: [], showClosed: false, search: '', dims: { projet: '', secteur: '', produit: '' } }
+    ui: { expanded: [], showClosed: false, search: '', dims: { code: '', secteur: '', produit: '' } }
   };
 }
 function normSubject(s) {
   return Object.assign({
-    id: uid(), title: '', priority: 3, description: '', projet: '', secteur: '', produit: '', archived: false, archivedAt: null,
+    id: uid(), title: '', priority: 3, description: '', code: '', secteur: '', produit: '', archived: false, archivedAt: null,
     createdAt: nowIso(), updatedAt: nowIso(), source: null
   }, s);
 }
@@ -462,8 +462,14 @@ function migrate(d) {
   d.settings = Object.assign(blank().settings, d.settings);
   if (!d.settings.modules || typeof d.settings.modules !== 'object') d.settings.modules = {};
   d.ui = Object.assign(blank().ui, d.ui);
-  d.ui.dims = Object.assign({ projet: '', secteur: '', produit: '' }, d.ui.dims);
-  d.subjects = (d.subjects || []).map(normSubject);
+  // Ancienne dimension « Projet » (Excel) renommée « Code » : « Projet » désigne désormais le module Projets
+  const dims = d.ui.dims || {};
+  if (dims.projet != null) { if (!dims.code) dims.code = dims.projet; delete dims.projet; }
+  d.ui.dims = Object.assign({ code: '', secteur: '', produit: '' }, dims);
+  d.subjects = (d.subjects || []).map(s => {
+    if (s && s.projet != null) { if (!s.code) s.code = s.projet; delete s.projet; }
+    return normSubject(s);
+  });
   d.tasks = (d.tasks || []).map(normTask);
   return d;
 }
@@ -528,7 +534,7 @@ const visible = t => !t.archived && !(subj(t.subjectId)?.archived);
 const activeSubjects = () => db.subjects.filter(s => !s.archived)
   .sort((a, b) => a.priority - b.priority || a.title.localeCompare(b.title, 'fr'));
 
-// Filtre Projet / Secteur / Produit fini, commun à toutes les pages
+// Filtre Code / Secteur / Produit fini, commun à toutes les pages
 const dimVal = (s, k) => (s && s[k] || '').trim();
 const dimsActive = () => Object.keys(DIMS).some(k => db.ui.dims[k]);
 const dimOkSubject = s => Object.keys(DIMS).every(k => !db.ui.dims[k] || dimVal(s, k) === db.ui.dims[k]);
@@ -832,7 +838,7 @@ function subjectBlock(s, st, open) {
       </select>
       <input class="inline stitle" data-field="s-title" data-k="st-${s.id}" value="${esc(s.title)}" placeholder="Nom du sujet">
       <span class="s-info">
-        ${Object.keys(DIMS).some(k => dimVal(s, k)) ? `<span class="s-tags" title="Projet · Secteur · Produit fini">${Object.keys(DIMS).map(k => esc(dimVal(s, k))).filter(Boolean).join(' · ')}</span>` : ''}
+        ${Object.keys(DIMS).some(k => dimVal(s, k)) ? `<span class="s-tags" title="Code · Secteur · Produit fini">${Object.keys(DIMS).map(k => esc(dimVal(s, k))).filter(Boolean).join(' · ')}</span>` : ''}
         ${st.late ? `<span class="late">⚠ ${st.late} en retard</span>` : ''}
         ${st.next ? `<span title="Prochaine deadline">⏱ ${relDate(st.next)}</span>` : ''}
         ${st.remainMin ? `<span title="Temps estimé restant">${fmtDur(st.remainMin)}</span>` : ''}
@@ -1223,7 +1229,7 @@ document.addEventListener('click', e => {
       }
       break;
     }
-    case 'dims-clear': db.ui.dims = { projet: '', secteur: '', produit: '' }; save(); render(); break;
+    case 'dims-clear': db.ui.dims = { code: '', secteur: '', produit: '' }; save(); render(); break;
   }
 });
 

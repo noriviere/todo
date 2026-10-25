@@ -141,14 +141,14 @@ const SECTIONS = [
       <li><b>${P(1)} ${P(2)} ${P(3)} À ranger</b> : une ou plusieurs priorités (re-clic pour retirer).</li>
       <li><b>Tous les sujets</b> : un seul sujet.</li>
       <li><b>Filtrer par mot</b> : cherche dans le titre, les notes et le nom du sujet.</li>
-      <li><b>Projet, Secteur, Produit fini</b> : les paramètres des sujets. Ce filtre-là s'applique aussi à l'onglet Sujets${when('charge', ' et à la vue Charge')}.</li>
+      <li><b>Code, Secteur, Produit fini</b> : les paramètres des sujets. Ce filtre-là s'applique aussi à l'onglet Sujets${when('charge', ' et à la vue Charge')}.</li>
     </ul>
     <p>« Effacer les filtres » ou « Tout afficher » remet tout. Sur téléphone, les filtres sont repliés derrière le bouton <b>Filtres</b> ; le chiffre sur le bouton dit combien sont actifs.</p>` },
 
   { id: 'sujets', g: 'organize', title: 'Sujets', html: () => `
     <p>Un sujet regroupe les tâches d'un même dossier. L'onglet Sujets les montre tous, comme un tableau de suivi, classés par priorité puis par urgence.</p>
     <ul>
-      <li><b>La flèche</b> déplie le sujet : paramètres (Projet, Secteur, Produit fini), description, tâches ouvertes, et une ligne pour ajouter une tâche.</li>
+      <li><b>La flèche</b> déplie le sujet : paramètres (Code, Secteur, Produit fini), description, tâches ouvertes, et une ligne pour ajouter une tâche.</li>
       <li><b>Le nom</b> se corrige en cliquant dedans.</li>
       <li>En un coup d'œil : tâches en retard ⚠, prochaine deadline ⏱, temps restant, nombre de tâches faites, barre d'avancement.</li>
       <li><b>L'état du sujet</b> est calculé à partir de ses tâches (pondéré par leur durée estimée), tu n'as pas à le tenir à jour.</li>
@@ -295,7 +295,7 @@ const SECTIONS = [
     <ul>
       <li>Chaque ligne <b>P</b>, <b>I</b> ou <b>A</b> devient un sujet : P → ${P(1)}, I → ${P(2)}, A → ${P(3)}.</li>
       <li>Les lignes <b>S</b> en dessous deviennent ses tâches : deadline, temps estimé (en heures), état, avancement, commentaires.</li>
-      <li>Projet, Secteur et Produit fini deviennent les paramètres du sujet, utilisables dans les filtres.</li>
+      <li>Les colonnes Projet (renommée Code dans l'appli), Secteur et Produit fini deviennent les paramètres du sujet, utilisables dans les filtres.</li>
       <li>La feuille Archive arrive directement dans les archives.</li>
     </ul>
     <p>Un aperçu s'affiche avant d'importer. <b>Remplacer</b> repart de l'Excel seul, <b>Ajouter</b> garde aussi ce qui existe (attention aux doublons si l'Excel a déjà été importé).</p>`, tab: 'donnees' },
