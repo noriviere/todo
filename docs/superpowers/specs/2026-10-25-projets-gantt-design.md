@@ -15,6 +15,14 @@ Un module optionnel **intégré à l'app** (pas une app séparée) pour piloter 
 - **Vue live** pour l'utilisateur, **export PDF** (Gantt + tableau des étapes + jalons) pour l'équipe, qui ne modifie rien.
 - Module **désactivé par défaut** dans « Modules actifs » ; l'app reste complète et identique sans lui.
 
+## Un seul champ « Projet »
+
+Les sujets ont déjà une dimension texte « Projet » venant de l'Excel (avec Secteur et Produit fini). Décision de Noel (2026-10-25) : ce champ est **renommé « Code »** partout (fiche du sujet, filtres, import Excel, démo, mode d'emploi). « Projet » ne désigne plus que le projet du module.
+
+- Données : `subject.projet` devient `subject.code`, `ui.dims.projet` devient `ui.dims.code`, migration automatique au chargement (valeur reprise, ancien champ retiré).
+- Import Excel : la colonne « Projet » du fichier alimente `code`.
+- Ce renommage est livré même si le module Projets reste désactivé.
+
 ## Hors périmètre V1
 
 - Tâches visibles dans le Gantt (la structure de rendu doit toutefois le permettre plus tard, voir « Rendu »).
@@ -34,11 +42,11 @@ Un module optionnel **intégré à l'app** (pas une app séparée) pour piloter 
 ### Étapes
 
 - Créer une étape :
-  1. depuis un sujet existant : champ « Projet » (liste déroulante) dans la fiche du sujet ;
+  1. depuis un sujet existant : champ « Projet » (liste déroulante des projets) dans la fiche du sujet ;
   2. depuis le projet : bouton « Nouvelle étape », qui crée un sujet rattaché.
 - Détacher une étape (vider le champ « Projet ») la rend à la todolist sans perte ; ses liens sont retirés.
 - Champs propres à l'étape : début, durée en jours ouvrés (ou fin), « Après : » (pastilles des autres étapes du même projet), décalage en jours, « Qui ».
-- Une étape garde tout ce qu'un sujet possède déjà : priorité P1/P2/P3, tâches, filtres projet/secteur/produit, archivage.
+- Une étape garde tout ce qu'un sujet possède déjà : priorité P1/P2/P3, tâches, filtres code/secteur/produit, archivage.
 - Une étape sans dates n'est pas dessinée ; elle est listée en tête du Gantt avec un lien « Planifier ».
 
 ### Dates et échéances

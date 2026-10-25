@@ -23,13 +23,26 @@
 
 ## Review Focus
 
-1. **Champ Excel `projet` vs `projectId`** : un sujet a déjà une dimension texte `projet` (import Excel). Le nouveau sélecteur s'appelle « Rattacher au projet » et n'écrit que `projectId` ; l'import Excel ne touche jamais `projectId` (test Task 3).
+1. **Ancien champ `projet` des données synchronisées** : un appareil encore sur l'ancienne version peut renvoyer des sujets avec `projet` ; la migration reprend la valeur dans `code` si `code` est vide, à chaque chargement, sans écraser un `code` existant (vérif Task 0). L'import Excel n'écrit jamais `projectId` (vérif Task 3).
 2. **Références mortes** : `after`, `before` ou `projectId` pointant vers un sujet archivé, détaché ou inexistant sont ignorés sans erreur (test Task 1).
 3. **Prédécesseur sans dates** : il est ignoré ; si plus aucun prédécesseur n'est planifié, l'étape prend son propre début, sinon elle est « à planifier » (test Task 1).
 4. **Saisies limites** : début saisi un week-end → reporté au jour ouvré suivant ; `durDays` vide, 0 ou négatif → 1 ; `lagDays` négatif → 0 (test Task 1).
 5. **Module désactivé avec des données projet** (synchro depuis un autre appareil) : aucun onglet, champ ou alerte visible, et rien n'est perdu à la sauvegarde (vérif Task 2).
 
 ---
+
+### Task 0: Renommer la dimension « Projet » en « Code »
+
+**Files:**
+- Modify: `index.html` (`DIMS` ligne ~385, `blank()`, `migrate()`), `excel-import.js` (ligne ~66), `demo.js` (lignes 37-38 et 129), `guide.js` (mentions de la dimension Projet)
+
+**Interfaces:**
+- Produces : `DIMS = { code: 'Code', secteur: 'Secteur', produit: 'Produit fini' }` ; `subject.code` ; `ui.dims.code`. Plus aucun `subject.projet` ni `ui.dims.projet` après migration. Le libellé « Projet » est réservé au module Projets.
+
+- [ ] **Step 1:** `index.html` : `DIMS` comme ci-dessus ; `blank().ui.dims` et la normalisation de `ui.dims` avec `code` ; dans `migrate()`, pour chaque sujet, `if (s.projet != null) { if (!s.code) s.code = s.projet; delete s.projet; }` et même reprise pour `ui.dims.projet` → `ui.dims.code`.
+- [ ] **Step 2:** `excel-import.js` : la colonne « projet » du fichier remplit `code` (la clé de lecture `COLS.projet` ne change pas, seule la cible change). `demo.js` : paramètre et `ui.dims` en `code`. `guide.js` : « Projet » (dimension) devient « Code ».
+- [ ] **Step 3: Verify** (Playwright, `file://`) : données avec `projet: 'X'` → après chargement, `code === 'X'`, plus de `projet`, filtre « Code » affiche X ; données avec `code:'Y'` et `projet:'X'` → `code` reste Y ; `?demo` affiche « Code » dans les filtres ; import du fichier Excel d'exemple (si disponible) → `code` rempli.
+- [ ] **Step 4: Commit** — `"Renomme la dimension Projet en Code"`
 
 ### Task 1: Calcul pur du planning (`projets-plan.js`)
 
@@ -93,10 +106,10 @@
 - Consumes: `hooks.subjectBody`, `wouldCycle`, `projectSchedule`.
 - Produces : champs sujet `projectId`, `plan:{start, durDays}`, `after:[]`, `lagDays`, `who` ; `detachStep(subjectId)` qui vide ces champs et retire l'id des `after` des autres étapes et des `before` des jalons.
 
-- [ ] **Step 1: Bloc « Étape de projet »** dans `subjectBody` (si `on()`) : sélecteur « Rattacher au projet » (— ou projets actifs). Si rattaché : début (date, masqué quand l'étape a des prédécesseurs, remplacé par « calculé : <date> »), durée en jours ouvrés, « Après : » en pastilles cochables des autres étapes du même projet, décalage en jours, « Qui » (`<input list>` alimenté par les `who` existants). Changement → `save()` puis rendu.
+- [ ] **Step 1: Bloc « Étape de projet »** dans `subjectBody` (si `on()`) : sélecteur « Projet » (— ou projets actifs). Si rattaché : début (date, masqué quand l'étape a des prédécesseurs, remplacé par « calculé : <date> »), durée en jours ouvrés, « Après : » en pastilles cochables des autres étapes du même projet, décalage en jours, « Qui » (`<input list>` alimenté par les `who` existants). Changement → `save()` puis rendu.
 - [ ] **Step 2: Refus de cycle** : cocher une pastille qui ferait `wouldCycle` → la case revient décochée et `toast('Ce lien créerait une boucle entre étapes')`.
 - [ ] **Step 3: « Nouvelle étape »** dans le détail projet : crée un sujet (priorité 3) avec `projectId`, puis ouvre-le dans Sujets déplié. Vider le sélecteur appelle `detachStep`.
-- [ ] **Step 4: Verify** (Playwright) : rattacher un sujet existant, régler durée + « Après », voir la date calculée ; lien en boucle refusé ; détacher → liens nettoyés ; l'import Excel d'un sujet ayant `projet` texte ne crée pas de `projectId` (Review Focus 1).
+- [ ] **Step 4: Verify** (Playwright) : rattacher un sujet existant, régler durée + « Après », voir la date calculée ; lien en boucle refusé ; détacher → liens nettoyés ; un import Excel ne crée jamais de `projectId` (Review Focus 1).
 - [ ] **Step 5: Commit** — `"Projets : étapes, dépendances et responsables"`
 
 ### Task 4: Jalons
