@@ -15,7 +15,11 @@ const I_HELP = SVG('<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1
 const I_X = SVG('<path d="M18 6 6 18M6 6l12 12"/>');
 const ic = k => (A.ICON[k] || '').replace('<svg', '<svg aria-hidden="true"');
 const P = n => `<span class="gd-pill" style="background:var(--p${n}-bg);color:var(--p${n})">P${n}</span>`;
-const see = ids => `<p class="gd-see">Voir aussi : ${ids.map(id => `<button type="button" data-gd-to="${id}">${esc(byId(id).title)}</button>`).join(' · ')}</p>`;
+// Modules masqués (Données › Modules actifs) : leurs sections et leurs mentions disparaissent du guide
+const on = m => !A.modOn || A.modOn(m);
+const when = (m, html) => on(m) ? html : '';
+const live = () => SECTIONS.filter(s => !s.mod || on(s.mod));
+const see = all => { const ids = all.filter(id => live().some(s => s.id === id)); return ids.length ? `<p class="gd-see">Voir aussi : ${ids.map(id => `<button type="button" data-gd-to="${id}">${esc(byId(id).title)}</button>`).join(' · ')}</p>` : ''; };
 const esc = A.esc;
 
 /* ---------- Contenu ---------- */
@@ -38,8 +42,21 @@ const SECTIONS = [
       <li><b>Voir un exemple</b> : le lien « Voir l'exemple » (en bas de la barre latérale ou dans Données) ouvre l'appli remplie de données fictives, sans toucher aux tiennes.</li>
     </ul>
     <p>Tout est enregistré automatiquement dans ce navigateur, à chaque modification. Il n'y a pas de bouton « Enregistrer ».</p>
+    <p>Pour garder l'appli simple, tu choisis les fonctions affichées dans <b>Données › Modules actifs</b> (chrono, charge, pointage…).</p>
     <div class="gd-tip"><b>Sur téléphone</b> : ouvre l'appli dans le navigateur puis « Ajouter à l'écran d'accueil » pour l'avoir comme une vraie appli, même hors connexion. Pour retrouver les mêmes données que sur le PC, active la synchro.</div>
-    ${see(['excel', 'synchro', 'demo'])}`, tab: 'donnees' },
+    ${see(['modules', 'excel', 'synchro', 'demo'])}`, tab: 'donnees' },
+
+  { id: 'modules', g: 'start', title: 'Modules actifs', html: () => `
+    <p>Onglet Données, carte <b>Modules actifs</b> : un interrupteur par fonction, pour n'afficher que ce qui te sert.</p>
+    <ul>
+      <li><b>Chrono et temps passé</b> : le bouton ▶ des tâches et le temps réel.</li>
+      <li><b>Charge de travail</b> : l'onglet Charge, son mini graphique et les réglages de répartition.</li>
+      <li><b>Pointage et congés</b> : l'onglet Pointage et son bandeau.</li>
+      <li><b>Tâches récurrentes</b> : l'option Répéter.</li>
+      <li><b>Gestion de projet</b> : en préparation.</li>
+    </ul>
+    <p>Sujets, tâches, tableau de bord, boîte de réception, archives et données restent toujours là. <b>Masquer un module ne supprime rien</b> : ses données sont gardées, sauvegardées et synchronisées, et réapparaissent quand tu le réactives. Si un chrono tourne au moment où tu masques le chrono, il est arrêté et son temps enregistré.</p>
+    <p>Le choix est rangé avec tes données : il suit la synchro sur tes autres appareils. Ce mode d'emploi n'affiche que les modules actifs.</p>`, tab: 'donnees' },
 
   { id: 'dashboard', g: 'daily', title: 'Tableau de bord', html: () => `
     <p>La page d'accueil, pour voir d'un coup d'œil ce qui presse.</p>
@@ -47,8 +64,8 @@ const SECTIONS = [
       <li><b>Les 4 chiffres</b> en haut : tâches en retard, du jour, de demain, et à ranger (sans sujet). Un clic sur un chiffre amène à la liste correspondante.</li>
       <li><b>Les sections</b> : En retard, Aujourd'hui, Demain, 7 prochains jours, Plus tard, Sans deadline. Clique sur un titre pour replier ou déplier. À droite du titre : le temps estimé total de la section.</li>
       <li>Dans chaque section, les tâches sont classées par deadline, puis par priorité du sujet.</li>
-      <li><b>Le bandeau Pointage</b> (si tu travailles ce jour-là) montre ton heure d'arrivée et le bouton pour pointer.</li>
-      <li><b>La charge des 7 prochains jours</b> : mini graphique, un clic ouvre la vue Charge.</li>
+      ${when('pointage', `<li><b>Le bandeau Pointage</b> (si tu travailles ce jour-là) montre ton heure d'arrivée et le bouton pour pointer.</li>`)}
+      ${when('charge', `<li><b>La charge des 7 prochains jours</b> : mini graphique, un clic ouvre la vue Charge.</li>`)}
     </ul>
     <p>Le compteur rouge sur « Tableau de bord » dans le menu rappelle le nombre de tâches en retard, depuis n'importe quel onglet.</p>
     ${see(['saisie', 'taches', 'filtres'])}`, tab: 'dashboard' },
@@ -74,8 +91,8 @@ const SECTIONS = [
       <li><b>L'état</b> : À faire, En cours, En attente, Fait, Annulé. En cours affiche un champ <b>%</b> d'avancement ; 100 % la passe en Fait.</li>
       <li><b>La durée estimée</b> et <b>la deadline</b>. La date est écrite en clair (aujourd'hui, demain, dans 3 j, il y a 2 j…) : rouge si en retard, bleu si c'est aujourd'hui.</li>
       <li><b>+1j</b> reporte d'un jour (à partir d'aujourd'hui si la tâche est en retard).</li>
-      <li><b>▶</b> lance le chrono, <b>⋯</b> ouvre les détails, la boîte <b>archive</b> la tâche.</li>
-      <li>La barre de couleur à gauche rappelle la priorité du sujet : ${P(1)} ${P(2)} ${P(3)}, gris pour la boîte de réception. <b>↻</b> signale une tâche récurrente.</li>
+      <li>${when('chrono', '<b>▶</b> lance le chrono, ')}<b>⋯</b> ouvre les détails, la boîte <b>archive</b> la tâche.</li>
+      <li>La barre de couleur à gauche rappelle la priorité du sujet : ${P(1)} ${P(2)} ${P(3)}, gris pour la boîte de réception.${when('recurrence', ' <b>↻</b> signale une tâche récurrente.')}</li>
     </ul>
     ${see(['details', 'chrono', 'glisser'])}` },
 
@@ -83,11 +100,11 @@ const SECTIONS = [
     <p>Le bouton <b>⋯</b> d'une tâche ouvre un panneau à droite avec tous ses champs :</p>
     <ul>
       <li><b>Titre, sujet, état, avancement</b>.</li>
-      <li><b>Deadline</b> et <b>date de début</b> : la date de début sert à répartir le travail dans la vue Charge.</li>
-      <li><b>Temps estimé</b> et <b>temps réel passé</b> (le réel se remplit aussi avec le chrono).</li>
-      <li><b>Répartition du travail</b> : comment le temps restant est placé dans la vue Charge.</li>
-      <li><b>Temps passé</b> : chrono et ajout de temps à la main, avec l'historique.</li>
-      <li><b>Répéter</b> : rend la tâche récurrente.</li>
+      <li><b>Deadline</b>${when('charge', ' et <b>date de début</b> : la date de début sert à répartir le travail dans la vue Charge')}.</li>
+      <li><b>Temps estimé</b>${when('chrono', ' et <b>temps réel passé</b> (le réel se remplit aussi avec le chrono)')}.</li>
+      ${when('charge', '<li><b>Répartition du travail</b> : comment le temps restant est placé dans la vue Charge.</li>')}
+      ${when('chrono', "<li><b>Temps passé</b> : chrono et ajout de temps à la main, avec l'historique.</li>")}
+      ${when('recurrence', '<li><b>Répéter</b> : rend la tâche récurrente.</li>')}
       <li><b>Notes</b> : contexte, liens, prochaines étapes.</li>
     </ul>
     <p>Échap ou un clic à côté ferme le panneau. Les dates de création, de modification et de fin sont notées en bas.</p>
@@ -103,7 +120,7 @@ const SECTIONS = [
     </ul>
     <p>Si la durée n'est pas comprise, un message le dit et rien n'est changé.</p>` },
 
-  { id: 'chrono', g: 'daily', title: 'Chrono et temps réel', html: () => `
+  { id: 'chrono', mod: 'chrono', g: 'daily', title: 'Chrono et temps réel', html: () => `
     <ul>
       <li>Le bouton <b>▶</b> sur une ligne de tâche démarre le chrono ; il devient <b>■</b> avec le temps qui défile. Un clic l'arrête et ajoute le temps au réel.</li>
       <li>Un seul chrono tourne à la fois : en lancer un autre arrête le premier.</li>
@@ -113,7 +130,7 @@ const SECTIONS = [
     </ul>
     <p>Le temps réel déjà passé est retiré du temps restant dans la vue Charge.</p>` },
 
-  { id: 'recurrence', g: 'daily', title: 'Tâches récurrentes', html: () => `
+  { id: 'recurrence', mod: 'recurrence', g: 'daily', title: 'Tâches récurrentes', html: () => `
     <p>Dans les détails d'une tâche, <b>Répéter</b> propose : chaque jour travaillé, chaque semaine, toutes les 2 semaines, chaque mois, chaque trimestre, chaque année.</p>
     <p>Quand la tâche est faite (ou annulée), la suivante est créée automatiquement avec la prochaine deadline. Si tu l'as faite en retard, la nouvelle date saute directement à la prochaine échéance à venir.</p>
     <p>Une tâche récurrente porte le symbole <b>↻</b> dans sa ligne.</p>` },
@@ -124,7 +141,7 @@ const SECTIONS = [
       <li><b>${P(1)} ${P(2)} ${P(3)} À ranger</b> : une ou plusieurs priorités (re-clic pour retirer).</li>
       <li><b>Tous les sujets</b> : un seul sujet.</li>
       <li><b>Filtrer par mot</b> : cherche dans le titre, les notes et le nom du sujet.</li>
-      <li><b>Projet, Secteur, Produit fini</b> : les paramètres des sujets. Ce filtre-là s'applique aussi à l'onglet Sujets et à la vue Charge.</li>
+      <li><b>Projet, Secteur, Produit fini</b> : les paramètres des sujets. Ce filtre-là s'applique aussi à l'onglet Sujets${when('charge', ' et à la vue Charge')}.</li>
     </ul>
     <p>« Effacer les filtres » ou « Tout afficher » remet tout. Sur téléphone, les filtres sont repliés derrière le bouton <b>Filtres</b> ; le chiffre sur le bouton dit combien sont actifs.</p>` },
 
@@ -166,7 +183,7 @@ const SECTIONS = [
     <p>Rien n'est jamais supprimé : on archive. Une tâche ou un sujet archivé disparaît des listes mais reste dans l'onglet Archives, avec sa date d'archivage, et se restaure d'un clic.</p>
     <p>Archiver un sujet qui a encore des tâches ouvertes demande une confirmation. Juste après un archivage, « Annuler » en bas de l'écran le défait.</p>`, tab: 'archives' },
 
-  { id: 'charge', g: 'plan', title: 'Vue Charge', html: () => `
+  { id: 'charge', mod: 'charge', g: 'plan', title: 'Vue Charge', html: () => `
     <p>Prévision de ton temps de travail sur 7, 14 ou 28 jours.</p>
     <ul>
       <li><b>Le graphique</b> : une barre par jour, empilée par priorité (${P(1)} ${P(2)} ${P(3)}, gris pour la boîte de réception, hachuré pour les créneaux fixes, congés et fériés). Le trait horizontal est la capacité du jour ; une barre au-dessus signale une surcharge.</li>
@@ -177,7 +194,7 @@ const SECTIONS = [
     <p>Le temps compté est le <b>temps restant</b> : estimé moins réel déjà passé (ou estimé × reste du % si la tâche est en cours).</p>
     ${see(['repartition', 'creneaux'])}`, tab: 'charge' },
 
-  { id: 'repartition', g: 'plan', title: 'Répartition du travail', html: () => `
+  { id: 'repartition', mod: 'charge', g: 'plan', title: 'Répartition du travail', html: () => `
     <p>Dans les détails d'une tâche, trois façons de placer son temps restant :</p>
     <ul>
       <li><b>Tout le jour de la deadline</b> (par défaut).</li>
@@ -186,16 +203,16 @@ const SECTIONS = [
     </ul>
     <p>Une tâche en retard est placée sur aujourd'hui. Les jours de congé, fériés ou entièrement pris par des créneaux fixes ne reçoivent pas de travail.</p>` },
 
-  { id: 'creneaux', g: 'plan', title: 'Créneaux fixes et semaine type', html: () => `
+  { id: 'creneaux', mod: 'charge', g: 'plan', title: 'Créneaux fixes et semaine type', html: () => `
     <p><b>Créneaux fixes</b> (vue Charge) : le temps pris par ce qui n'est pas une tâche, comme les réunions récurrentes. Il est retiré de ta capacité.</p>
     <ul>
       <li>Nom, durée, fréquence (chaque semaine, une semaine sur deux, chaque jour, un jour du mois, une seule fois…), jours de la semaine, dates de début et de fin.</li>
       <li>Un créneau s'archive et se restaure comme le reste.</li>
-      <li>Les congés posés dans Pointage et les jours fériés sont retirés automatiquement : pas besoin de créneau pour eux.</li>
+      ${when('pointage', '<li>Les congés posés dans Pointage et les jours fériés sont retirés automatiquement : pas besoin de créneau pour eux.</li>')}
     </ul>
     <p><b>Ma semaine type</b> : la capacité d'une journée (sert aussi pour écrire <code>1j</code>) et les jours travaillés.</p>`, tab: 'charge' },
 
-  { id: 'pointer', g: 'pointage', title: 'Pointer sa journée', html: () => `
+  { id: 'pointer', mod: 'pointage', g: 'pointage', title: 'Pointer sa journée', html: () => `
     <p>Onglet Pointage, sous-onglet <b>Semaine</b> (et bandeau du tableau de bord) :</p>
     <ul>
       <li>Les boutons <b>Pointer l'arrivée</b>, <b>Pause déjeuner</b>, <b>Retour de pause</b>, <b>Pointer le départ</b> notent l'heure actuelle. Le total de la journée défile pendant que tu es là.</li>
@@ -204,7 +221,7 @@ const SECTIONS = [
     </ul>
     ${see(['conges', 'bilan'])}`, tab: 'pointage', ptTab: 'semaine' },
 
-  { id: 'conges', g: 'pointage', title: 'Poser un congé', html: () => `
+  { id: 'conges', mod: 'pointage', g: 'pointage', title: 'Poser un congé', html: () => `
     <p>Sous-onglet <b>Congés</b> :</p>
     <ul>
       <li><b>Poser une absence</b> : dates de début et de fin, type (congés payés, RTT, maladie…), journée ou demi-journée, puis <b>Poser</b>. Seuls les jours travaillés sont marqués : week-ends et fériés sont sautés.</li>
@@ -213,7 +230,7 @@ const SECTIONS = [
     </ul>
     ${see(['compteurs', 'types-absence'])}`, tab: 'pointage', ptTab: 'conges' },
 
-  { id: 'compteurs', g: 'pointage', title: 'Compteurs de congés', html: () => `
+  { id: 'compteurs', mod: 'pointage', g: 'pointage', title: 'Compteurs de congés', html: () => `
     <p>Pour chaque type qui a un compteur (congés payés, RTT…) : droits, jours pris, jours posés à venir et reste, en <b>N-1</b> et en <b>N</b>.</p>
     <ul>
       <li>L'année suit le calendrier. Les jours posés puisent d'abord dans N-1.</li>
@@ -221,14 +238,14 @@ const SECTIONS = [
       <li>Les droits sont calculés tout seuls ; tape une valeur dans la case « Droits » pour corriger, vide-la pour revenir au calcul.</li>
     </ul>` , tab: 'pointage', ptTab: 'conges' },
 
-  { id: 'types-absence', g: 'pointage', title: 'Types d\'absence', html: () => `
+  { id: 'types-absence', mod: 'pointage', g: 'pointage', title: 'Types d\'absence', html: () => `
     <p>En bas du sous-onglet Congés : renomme un type, change sa couleur, masque-le ou ajoutes-en un.</p>
     <ul>
       <li><b>Compteur</b> : le type a des droits annuels (à indiquer en jours).</li>
       <li><b>Jours calendaires</b> : poser une période marque aussi les week-ends et fériés, qui sont décomptés (ex. congé paternité).</li>
     </ul>`, tab: 'pointage', ptTab: 'conges' },
 
-  { id: 'bilan', g: 'pointage', title: 'Bilan des heures', html: () => `
+  { id: 'bilan', mod: 'pointage', g: 'pointage', title: 'Bilan des heures', html: () => `
     <p>Sous-onglet <b>Bilan</b>, par année :</p>
     <ul>
       <li><b>Cumul</b>, <b>moyenne</b> et <b>médiane</b> par semaine, <b>écart</b> à l'objectif.</li>
@@ -283,7 +300,7 @@ const SECTIONS = [
     </ul>
     <p>Un aperçu s'affiche avant d'importer. <b>Remplacer</b> repart de l'Excel seul, <b>Ajouter</b> garde aussi ce qui existe (attention aux doublons si l'Excel a déjà été importé).</p>`, tab: 'donnees' },
 
-  { id: 'pointage-import', g: 'data', title: 'Import de l\'historique de pointage', html: () => `
+  { id: 'pointage-import', mod: 'pointage', g: 'data', title: 'Import de l\'historique de pointage', html: () => `
     <p>En bas du Bilan du Pointage : reprend ton Excel de pointage (une feuille par année). Les colonnes Date, Arrivé, Midi, Midi, Départ et CP sont repérées par leur en-tête, ainsi que les absences écrites en texte (Arrêt, Maladie, Naissance, Congé pat, Sans solde…) et les droits « CP N » / « CP N-1 ».</p>
     <p>Les jours déjà saisis dans l'appli sont gardés : l'import ne fait que compléter.</p>`, tab: 'pointage', ptTab: 'bilan' },
 
@@ -315,7 +332,7 @@ const FEATS = [
   ['chrono', 'clock', 'Chrono', 'Temps réel passé sur chaque tâche.'],
   ['pointer', 'clock', 'Pointage et congés', 'Heures du jour, absences, compteurs N-1 / N.'],
   ['archives', 'archive', 'Archives', 'Rien n\'est supprimé, tout se restaure.'],
-  ['donnees', 'data', 'Données', 'Sauvegarde, synchro téléphone, import Excel.']
+  ['donnees', 'data', 'Données', 'Sauvegarde, synchro téléphone, import Excel, modules actifs.']
 ];
 
 /* ---------- Panneau ---------- */
@@ -351,12 +368,12 @@ function build() {
           <p><b>Ma To-Do</b> remplace ton fichier Excel : des <b>sujets</b> classés par priorité, qui contiennent des <b>tâches</b> avec deadline et temps estimé. Le but : ne rien oublier et voir tout de suite ce qui est en retard ou prévu aujourd'hui.</p>
           <p>Tout s'enregistre seul. Rien n'est supprimé : on archive. Les petits <span style="display:inline-flex;vertical-align:middle;color:var(--accent);width:16px">${I_INFO}</span> dans l'appli ouvrent l'explication de la case ou du bouton à côté.</p>
         </div>
-        <div class="gd-feats">${FEATS.map(([id, icon, t, d]) => `<button type="button" class="gd-feat" data-gd-to="${id}"><b>${ic(icon)}${esc(t)}</b><span>${esc(d)}</span></button>`).join('')}</div>
-        <nav class="gd-toc" aria-label="Sommaire">${GROUPS.map(([g, label]) => `<h3>${esc(label)}</h3>
-          <div class="gd-toc-list">${SECTIONS.filter(s => s.g === g).map(s => `<button type="button" data-gd-to="${s.id}" data-gd-toc="${s.id}">${esc(s.title)}</button>`).join('')}</div>`).join('')}
+        <div class="gd-feats">${FEATS.filter(f => live().some(s => s.id === f[0])).map(([id, icon, t, d]) => `<button type="button" class="gd-feat" data-gd-to="${id}"><b>${ic(icon)}${esc(t)}</b><span>${esc(d)}</span></button>`).join('')}</div>
+        <nav class="gd-toc" aria-label="Sommaire">${GROUPS.filter(([g]) => live().some(s => s.g === g)).map(([g, label]) => `<h3>${esc(label)}</h3>
+          <div class="gd-toc-list">${live().filter(s => s.g === g).map(s => `<button type="button" data-gd-to="${s.id}" data-gd-toc="${s.id}">${esc(s.title)}</button>`).join('')}</div>`).join('')}
         </nav>
       </div>
-      ${SECTIONS.map(sectionHtml).join('')}
+      ${live().map(sectionHtml).join('')}
       <div class="gd-empty" id="gd-none" hidden>Rien trouvé. Essaie un autre mot.</div>
     </div>
   </aside>`;
@@ -444,6 +461,7 @@ const SPOTS = [
   ['#main .card h3', 'Heures par semaine', 'bilan'],
   ['#main .card h3', 'Par mois', 'bilan'],
   ['#main .card h3', 'Réglages', 'bilan'],
+  ['#main .card h3', 'Modules actifs', 'modules'],
   ['#main .card h3', 'Mode démo', 'demo'],
   ['#main .card h3', 'Sauvegarde automatique', 'sauvegarde-auto'],
   ['#main .card h3', 'Sauvegarde manuelle', 'export'],
