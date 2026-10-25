@@ -1,0 +1,16 @@
+/* Gestion de projet (module projets.js) : liste des projets, étapes, jalons, Gantt, export PDF */
+
+/* Liste des projets */
+.pj-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.pj-card{position:relative;border-left:4px solid var(--pj);margin:0;display:flex;flex-direction:column;gap:8px}
+.pj-open{all:unset;cursor:pointer;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-right:28px;border-radius:6px}
+.pj-open:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.pj-name{font-weight:600;font-size:16px}
+.pj-open:hover .pj-name{color:var(--accent)}
+.pj-meta{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;color:var(--muted)}
+.pj-prog{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.pj-prog .bar{flex:1}
+.pj-arch{position:absolute;top:12px;right:10px}
+.pj-badge{font-size:12px;font-weight:600;border-radius:20px;padding:2px 8px}
+.pj-badge.late{background:var(--danger-bg);color:var(--danger)}
+.pj-back{margin-bottom:10px}

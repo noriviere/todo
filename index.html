@@ -295,6 +295,7 @@ body.demo .brand .dot{background:var(--warn)}
 </style>
 <link rel="stylesheet" href="chrono-charge.css">
 <link rel="stylesheet" href="pointage.css">
+<link rel="stylesheet" href="projets.css">
 <link rel="stylesheet" href="guide.css">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -412,7 +413,7 @@ const MODULES = [
   { id: 'charge', label: 'Charge de travail', icon: 'chart', desc: 'Onglet Charge (prévision jour par jour, créneaux fixes), mini graphique du tableau de bord, date de début et répartition dans les détails.' },
   { id: 'pointage', label: 'Pointage et congés', icon: 'clock', desc: 'Onglet Pointage (heures, absences, compteurs de congés) et bandeau du tableau de bord. Les congés réduisent la capacité de la Charge.' },
   { id: 'recurrence', label: 'Tâches récurrentes', icon: 'repeat', desc: 'Option « Répéter » dans les détails : la tâche suivante se crée toute seule.' },
-  { id: 'projet', label: 'Gestion de projet', icon: 'gantt', soon: true, desc: 'Étapes reliées entre elles, planning type Gantt et vue d\'avancement pour l\'équipe.' }
+  { id: 'projet', label: 'Gestion de projet', icon: 'gantt', def: false, desc: 'Étapes reliées entre elles, planning type Gantt et vue d\'avancement pour l\'équipe.' }
 ];
 function modOn(id) {
   const m = MODULES.find(x => x.id === id);
@@ -471,6 +472,8 @@ function migrate(d) {
     return normSubject(s);
   });
   d.tasks = (d.tasks || []).map(normTask);
+  // Projets (module Gestion de projet) : gardés même module désactivé
+  d.projects = Array.isArray(d.projects) ? d.projects : [];
   return d;
 }
 function load() {
@@ -850,6 +853,7 @@ function subjectBlock(s, st, open) {
     </div>
     ${open ? `<div class="s-body">
       <div class="s-dims">${Object.entries(DIMS).map(([k, l]) => `<label>${l} <input data-field="s-dim-${k}" data-k="sdim-${k}-${s.id}" value="${esc(dimVal(s, k))}" list="dl-${k}" placeholder="—"></label>`).join('')}</div>
+      ${hooks.subjectBody.map(f => f(s)).join('')}
       <textarea class="s-desc" data-field="s-desc" data-k="sd-${s.id}" rows="1" placeholder="Description / contexte du sujet (facultatif)">${esc(s.description)}</textarea>
       ${openT.map(t => taskRow(t)).join('')}
       ${!openT.length ? '<div class="empty">Aucune tâche ouverte.</div>' : ''}
@@ -1274,8 +1278,8 @@ window.todoApp = {
   replaceData: d => { keepBackup(); db = migrate(d); save(); render(); }
 };
 // Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
-const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [] };
-Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, save, scheduleRender, task, subj, visible, isOpen, setTaskField, toast,
+const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [], subjectBody: [] };
+Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, save, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats,
   esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur });
 
 if (DEMO) {
@@ -1297,6 +1301,8 @@ setInterval(() => { if (today() !== day) { day = today(); render(); } }, 60000);
 <script src="pointage.js"></script>
 <script src="pointage-import.js"></script>
 <script src="organisation.js"></script>
+<script src="projets-plan.js"></script>
+<script src="projets.js"></script>
 <script src="sync.js"></script>
 <script src="excel-import.js"></script>
 <script src="guide.js"></script>
