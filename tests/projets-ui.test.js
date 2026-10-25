@@ -263,3 +263,27 @@ test('bascule Gantt / Liste mémorisée', async () => {
   assert.match(txt, /FAT/); assert.match(txt, /Production/); assert.match(txt, /Livraison/);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= 390));
 });
+
+/* ---------- Task 8 : export PDF ---------- */
+test('export PDF : page d\'impression avec Gantt, étapes et jalons', async () => {
+  const page = await openApp(gantt(), { hash: 'projets' });
+  await page.evaluate(() => { window.__printed = 0; window.print = () => { window.__printed++; }; });
+  await page.click('[data-pj="export-pdf"]');
+  assert.equal(await page.evaluate(() => window.__printed), 1);
+  const sheet = page.locator('#pj-print');
+  const txt = await sheet.innerText();
+  assert.match(txt, /Achat machine/);
+  assert.match(txt, /Exporté le/);
+  assert.equal(await sheet.locator('.pj-gantt:not(.compact)').count(), 1);
+  assert.equal(await sheet.locator('.pj-grip').count(), 0);
+  assert.match(await sheet.locator('table.pj-steps').innerText(), /SAT[\s\S]*Production/);
+  assert.match(await sheet.locator('table.pj-mstab').innerText(), /Livraison[\s\S]*dépassé/);
+  assert.doesNotMatch(txt, /Envoyer email/);           // aucune tâche du quotidien
+  await page.emulateMedia({ media: 'print' });
+  assert.equal(await page.locator('#main').isVisible(), false);
+  assert.equal(await sheet.isVisible(), true);
+  await page.emulateMedia({ media: 'screen' });
+  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+  assert.equal(await page.locator('#pj-print').count(), 0);
+  assert.deepEqual(page.errors, []);
+});

@@ -11,6 +11,8 @@ const on = () => !A.modOn || A.modOn('projet');
 const view = () => location.hash.slice(1) || 'dashboard';
 const coarse = () => !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
 
+A.ICON.print = A.ICON.print || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg>';
+
 const COLORS = ['#4f63e8', '#23915f', '#c77d0e', '#c2559b', '#0f8fa0', '#8e5bd8', '#d43a4a', '#5876b8'];
 
 /* ---------- Données ---------- */
@@ -133,18 +135,19 @@ function whoColors(steps) {
 const colorOf = (s, wc) => wc.get((s.who || '').trim()) || 'var(--p0)';
 
 // Moteur de rendu : dessine une liste de lignes génériques (étapes, jalons ; tâches plus tard)
-function renderGantt(p, sc, { scale = 'week', compact = false } = {}) {
+function renderGantt(p, sc, { scale = 'week', compact = false, fit = 0 } = {}) {
   const steps = stepsOf(p.id), byStep = new Map(steps.map(s => [s.id, s]));
   const rows = PL.buildRows(steps, sc, milestonesOf(p));
   if (!rows.length) return '';
   const ms = new Map(milestonesOf(p).map(m => [m.id, m]));
   const lateMs = new Set(sc.alerts.map(a => a.milestoneId));
   const wc = whoColors(steps), td = today();
-  const ppd = PPD[scale] || PPD.week;
   let lo = [td, ...rows.map(r => r.start)].sort()[0], hi = [td, ...rows.map(r => r.end)].sort().pop();
   lo = shift(lo, -3); hi = shift(hi, 10);
   if (scale === 'month') lo = lo.slice(0, 8) + '01';
   else lo = shift(lo, -((new Date(T(lo)).getUTCDay() + 6) % 7));          // lundi
+  // fit : largeur imposée (export PDF), la frise entière tient dans la page
+  const ppd = fit ? fit / (dd(lo, hi) + 1) : PPD[scale] || PPD.week;
   const RH = compact ? 46 : ROW;   // lignes plus hautes au doigt
   const days = dd(lo, hi) + 1, W = days * ppd, H = HEAD + rows.length * RH;
   const X = d => dd(lo, d) * ppd, Y = i => HEAD + i * RH + RH / 2;
@@ -171,7 +174,7 @@ function renderGantt(p, sc, { scale = 'week', compact = false } = {}) {
     const w = (dd(r.start, r.end) + 1) * ppd;
     marks.push(`<button class="pj-bar ${late ? 'late' : ''} ${prev.length ? 'chained' : 'free'}" data-pj="open-step" data-sid="${s.id}" data-start="${r.start}" data-end="${r.end}"
       style="left:${X(r.start)}px;top:${Y(i) - 12}px;width:${w}px;--c:${col}" title="${label}" aria-label="${label}">
-      <i class="pj-fill" style="width:${st.progress}%"></i>${w >= 44 ? `<span>${st.progress}%</span>` : ''}${compact || coarse() ? '' : '<b class="pj-grip" aria-hidden="true"></b>'}</button>`);
+      <i class="pj-fill" style="width:${st.progress}%"></i>${w >= 44 ? `<span>${st.progress}%</span>` : ''}${compact || fit || coarse() ? '' : '<b class="pj-grip" aria-hidden="true"></b>'}</button>`);
     prev.forEach(id => {
       const j = idx.get('etape' + id);
       if (j == null) return;
@@ -228,6 +231,7 @@ function ganttSection(p, sc) {
       <div class="pj-gtools">
         ${seg('pview', list ? 'list' : 'gantt', [['gantt', 'Gantt'], ['list', 'Liste']], 'Affichage')}
         ${list ? '' : seg('scale', scale, [['week', 'Semaines'], ['month', 'Mois']], 'Échelle')}
+        <button class="btn" data-pj="export-pdf" title="Version imprimable pour l'équipe : choisis « Enregistrer en PDF »">${A.ICON.print}Exporter en PDF</button>
       </div>
     </div>
     ${un.length ? `<div class="pj-unplanned"><span class="pj-lbl">À planifier</span>${un.map(s => `<button class="pj-chip" data-pj="open-step" data-sid="${s.id}">${esc(s.title)} · Planifier</button>`).join('')}</div>` : ''}
@@ -281,6 +285,7 @@ document.addEventListener('click', e => {
     }
     case 'open-step': openStep(b.dataset.sid); break;
     case 'scale': db().ui.pjScale = b.dataset.v; A.save(); A.render(); break;
+    case 'export-pdf': { const q = project(db().ui.pjOpen); if (q) exportPdf(q); break; }
     case 'pview': db().ui.pjView = b.dataset.v; A.save(); A.render(); break;
     case 'back':
       db().ui.pjOpen = null; A.save(); A.render();
@@ -393,6 +398,38 @@ window.addEventListener('todo:rendered', () => {
     box.scrollIntoView({ block: 'start', behavior: 'smooth' });
     box.classList.add('org-flash');
   }, 30);
+});
+
+/* ---------- Export PDF : une page d'impression dédiée, puis la fenêtre d'impression du navigateur ---------- */
+function exportPdf(p) {
+  const sc = projectSchedule(p), steps = stepsOf(p.id), rows = PL.buildRows(steps, sc, milestonesOf(p));
+  const span = rows.length ? dd(rows.map(r => r.start).sort()[0], rows.map(r => r.end).sort().pop()) : 0;
+  const scale = span > 120 ? 'month' : 'week';
+  const lateMs = new Set(sc.alerts.map(a => a.milestoneId)), lateSteps = new Set(sc.alerts.map(a => a.subjectId));
+  const stepRows = sc.order.map(id => A.subj(id)).concat(sc.unplanned.map(id => A.subj(id))).filter(Boolean).map(s => {
+    const c = sc.byId[s.id], k = A.subjectStats(s);
+    return `<tr class="${lateSteps.has(s.id) ? 'late' : ''}"><td>${esc(s.title)}</td><td>${esc(s.who || '—')}</td><td>${c ? fmt(c.start) : 'à planifier'}</td><td>${c ? fmt(c.end) : ''}</td><td class="n">${k.progress} %</td></tr>`;
+  }).join('');
+  const msRows = milestonesOf(p).sort((a, b) => a.date.localeCompare(b.date)).map(m =>
+    `<tr class="${lateMs.has(m.id) ? 'late' : ''}"><td>◆ ${esc(m.name)}</td><td>${fmt(m.date)}</td><td>${lateMs.has(m.id) ? 'dépassé' : m.date < today() ? 'passé' : 'à venir'}</td></tr>`).join('');
+  document.getElementById('pj-print')?.remove();
+  const el = document.createElement('div');
+  el.id = 'pj-print';
+  el.innerHTML = `<header><h1>${esc(p.name)}</h1><p>${p.owner ? 'Chef de projet : ' + esc(p.owner) + ' · ' : ''}Exporté le ${A.longDate(today())} · avancement ${projectProgress(p)} %</p></header>
+    ${sc.alerts.length ? `<p class="pj-p-alert">⚠ ${sc.alerts.length} dépassement(s) de jalon, voir le tableau des jalons.</p>` : ''}
+    ${renderGantt(p, sc, { scale, fit: 740 }) || '<p>Aucune étape planifiée.</p>'}
+    ${legend(steps)}
+    <div class="pj-p-tables">
+      <table class="pj-steps"><caption>Étapes</caption><thead><tr><th>Étape</th><th>Qui</th><th>Début</th><th>Fin</th><th>Avancement</th></tr></thead><tbody>${stepRows}</tbody></table>
+      ${msRows ? `<table class="pj-mstab"><caption>Jalons</caption><thead><tr><th>Jalon</th><th>Date</th><th>État</th></tr></thead><tbody>${msRows}</tbody></table>` : ''}
+    </div>`;
+  document.body.appendChild(el);
+  document.body.classList.add('pj-printing');
+  window.print();
+}
+window.addEventListener('afterprint', () => {
+  document.getElementById('pj-print')?.remove();
+  document.body.classList.remove('pj-printing');
 });
 
 /* ---------- Édition directe : glisser une étape libre, étirer sa fin (souris, pas sur écran tactile) ---------- */

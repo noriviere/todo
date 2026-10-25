@@ -124,3 +124,31 @@
   .pj-ms-add input:not([type=date]){min-width:0}
   .pj-list{grid-template-columns:1fr}
 }
+
+/* Export PDF (page d'impression dédiée, invisible à l'écran) */
+#pj-print{display:none}
+@media print{
+  @page{size:A4 landscape;margin:12mm}
+  body.pj-printing{background:#fff!important;color:#111}
+  body.pj-printing > :not(#pj-print){display:none!important}
+  body.pj-printing #pj-print{display:block;font-size:11pt;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #pj-print header h1{font-size:20pt;margin:0 0 2pt}
+  #pj-print header p{margin:0 0 10pt;color:#444}
+  #pj-print .pj-p-alert{color:#b4232f;font-weight:600;margin:0 0 8pt}
+  #pj-print .pj-gantt{border-color:#bbb;break-inside:avoid}
+  #pj-print .pj-g-names{width:270px}
+  #pj-print .pj-g-scroll{overflow:visible}
+  #pj-print .pj-g-name{font-size:10pt}
+  #pj-print .pj-g-name .w{font-size:9pt;color:#444}
+  #pj-print .pj-tick span,#pj-print .pj-g-ms span{font-size:8.5pt;color:#333}
+  #pj-print .pj-bar{font-size:9pt}
+  #pj-print .pj-legend{font-size:10pt;break-inside:avoid}
+  #pj-print .pj-p-tables{break-before:page;display:flex;flex-direction:column;gap:14pt}
+  #pj-print table{width:100%;border-collapse:collapse;break-inside:auto}
+  #pj-print caption{text-align:left;font-weight:700;font-size:13pt;padding-bottom:4pt}
+  #pj-print th,#pj-print td{border-bottom:1px solid #ccc;padding:5pt 6pt;text-align:left}
+  #pj-print th{background:#f0f2f7;font-size:10pt}
+  #pj-print tr{break-inside:avoid}
+  #pj-print td.n{text-align:right;font-variant-numeric:tabular-nums}
+  #pj-print tr.late td{color:#b4232f;font-weight:600}
+}
