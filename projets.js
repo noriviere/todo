@@ -24,7 +24,7 @@ const isProj = s => !!(s && s.isProject && !A.parentOf(s));
 const projects = () => db().subjects.filter(s => isProj(s) && !s.archived).sort((a, b) => a.priority - b.priority || (a.order || 0) - (b.order || 0) || a.title.localeCompare(b.title, 'fr'));
 const project = id => { const s = A.subj(id); return isProj(s) ? s : null; };
 const stepsOf = pid => { const p = A.subj(pid); return p ? A.childrenOf(p) : []; };
-const projectOfStep = s => { const p = A.parentOf(s); return isProj(p) ? p : null; };
+const projectOfStep = s => { const p = A.parentOf(s); return isProj(p) && !p.archived ? p : null; };
 const workDays = () => Array.isArray(db().settings.workDays) ? db().settings.workDays : [1, 2, 3, 4, 5];
 const milestonesOf = p => (pjOf(p).milestones || []).filter(m => !m.archived);
 // Les étapes archivées (souvent terminées) restent des ancres pour celles qui en dépendent, sans être dessinées
@@ -63,6 +63,7 @@ function listView() {
         ${next ? `<span title="Prochain jalon">◆ ${esc(next.name)} · ${A.longDate(next.date)}</span>` : ''}
       </div>
       <div class="pj-prog"><span class="bar" title="${prog}%"><i style="width:${prog}%"></i></span><span>${prog}%</span></div>
+      <button class="icon pj-arch" data-pj="unproject" title="Quitter le mode projet (le sujet et ses sous-sujets restent)">✕</button>
     </div>`;
   }).join('');
   return `<h1>Projets</h1>

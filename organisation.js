@@ -154,7 +154,7 @@
       if (sec && SEC_DROP.includes(sec.dataset.sec)) return { type: 'sec', el: sec, cls: 'org-into' };
     } else {
       const s = t.closest('#main .subject[data-sid]');
-      if (s && s.dataset.sid !== drag.id) return { type: 'subject', el: s, cls: 'org-before' };
+      if (s && s.dataset.sid !== drag.id && !drag.el.contains(s)) return { type: 'subject', el: s, cls: 'org-before' };
       const g = t.closest('#main .prio-group');
       if (g) return { type: 'group', el: g, cls: 'org-into' };
     }
@@ -223,6 +223,8 @@
   }
   function dropSubject(s, tg) {
     if (!s) return;
+    // Un sous-sujet reste dans son parent : on le range avec la liste « Dans » de sa fiche
+    if (A.parentOf(s) && !A.parentOf(s).archived && tg.type === 'group') { A.toast('Sous-sujet : change son parent avec « Dans » dans sa fiche'); return; }
     const prev = s.priority;
     let p;
     if (tg.type === 'group') {

@@ -180,3 +180,4 @@ label.tog svg{width:13px;height:13px;vertical-align:-2px}
 .f .tog{flex-direction:row;font-size:13px;color:var(--text)}
 .f .tog input{width:auto;flex:none;margin:0}
 .f .tog svg{width:14px;height:14px}
+.pj-arch{position:absolute;top:12px;right:10px;color:var(--faint)}
