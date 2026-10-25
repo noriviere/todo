@@ -295,6 +295,7 @@ body.demo .brand .dot{background:var(--warn)}
 </style>
 <link rel="stylesheet" href="chrono-charge.css">
 <link rel="stylesheet" href="pointage.css">
+<link rel="stylesheet" href="projets.css">
 <link rel="stylesheet" href="guide.css">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -382,7 +383,7 @@ function longDate(d) {
 
 const STATUS = { todo: 'À faire', doing: 'En cours', waiting: 'En attente', done: 'Fait', cancelled: 'Annulé' };
 // Paramètres d'un sujet repris de l'Excel, utilisés pour filtrer partout (tableau de bord, sujets, charge)
-const DIMS = { projet: 'Projet', secteur: 'Secteur', produit: 'Produit fini' };
+const DIMS = { code: 'Code', secteur: 'Secteur', produit: 'Produit fini' };
 const PRIO = {
   1: { short: 'P1', name: 'Variable', desc: 'Impacte ma rémunération variable' },
   2: { short: 'P2', name: 'Important', desc: 'Sujets importants' },
@@ -412,7 +413,7 @@ const MODULES = [
   { id: 'charge', label: 'Charge de travail', icon: 'chart', desc: 'Onglet Charge (prévision jour par jour, créneaux fixes), mini graphique du tableau de bord, date de début et répartition dans les détails.' },
   { id: 'pointage', label: 'Pointage et congés', icon: 'clock', desc: 'Onglet Pointage (heures, absences, compteurs de congés) et bandeau du tableau de bord. Les congés réduisent la capacité de la Charge.' },
   { id: 'recurrence', label: 'Tâches récurrentes', icon: 'repeat', desc: 'Option « Répéter » dans les détails : la tâche suivante se crée toute seule.' },
-  { id: 'projet', label: 'Gestion de projet', icon: 'gantt', soon: true, desc: 'Étapes reliées entre elles, planning type Gantt et vue d\'avancement pour l\'équipe.' }
+  { id: 'projet', label: 'Gestion de projet', icon: 'gantt', def: false, desc: 'Étapes reliées entre elles, planning type Gantt et vue d\'avancement pour l\'équipe.' }
 ];
 function modOn(id) {
   const m = MODULES.find(x => x.id === id);
@@ -431,12 +432,12 @@ function blank() {
     subjects: [],
     tasks: [],
     settings: { theme: 'auto', workdayMin: 420, lastExport: null, modules: {} },
-    ui: { expanded: [], showClosed: false, search: '', dims: { projet: '', secteur: '', produit: '' } }
+    ui: { expanded: [], showClosed: false, search: '', dims: { code: '', secteur: '', produit: '' } }
   };
 }
 function normSubject(s) {
   return Object.assign({
-    id: uid(), title: '', priority: 3, description: '', projet: '', secteur: '', produit: '', archived: false, archivedAt: null,
+    id: uid(), title: '', priority: 3, description: '', code: '', secteur: '', produit: '', archived: false, archivedAt: null,
     createdAt: nowIso(), updatedAt: nowIso(), source: null
   }, s);
 }
@@ -462,9 +463,17 @@ function migrate(d) {
   d.settings = Object.assign(blank().settings, d.settings);
   if (!d.settings.modules || typeof d.settings.modules !== 'object') d.settings.modules = {};
   d.ui = Object.assign(blank().ui, d.ui);
-  d.ui.dims = Object.assign({ projet: '', secteur: '', produit: '' }, d.ui.dims);
-  d.subjects = (d.subjects || []).map(normSubject);
+  // Ancienne dimension « Projet » (Excel) renommée « Code » : « Projet » désigne désormais le module Projets
+  const dims = d.ui.dims || {};
+  if (dims.projet != null) { if (!dims.code) dims.code = dims.projet; delete dims.projet; }
+  d.ui.dims = Object.assign({ code: '', secteur: '', produit: '' }, dims);
+  d.subjects = (d.subjects || []).map(s => {
+    if (s && s.projet != null) { if (!s.code) s.code = s.projet; delete s.projet; }
+    return normSubject(s);
+  });
   d.tasks = (d.tasks || []).map(normTask);
+  // Projets (module Gestion de projet) : gardés même module désactivé
+  d.projects = Array.isArray(d.projects) ? d.projects : [];
   return d;
 }
 function load() {
@@ -528,7 +537,7 @@ const visible = t => !t.archived && !(subj(t.subjectId)?.archived);
 const activeSubjects = () => db.subjects.filter(s => !s.archived)
   .sort((a, b) => a.priority - b.priority || a.title.localeCompare(b.title, 'fr'));
 
-// Filtre Projet / Secteur / Produit fini, commun à toutes les pages
+// Filtre Code / Secteur / Produit fini, commun à toutes les pages
 const dimVal = (s, k) => (s && s[k] || '').trim();
 const dimsActive = () => Object.keys(DIMS).some(k => db.ui.dims[k]);
 const dimOkSubject = s => Object.keys(DIMS).every(k => !db.ui.dims[k] || dimVal(s, k) === db.ui.dims[k]);
@@ -571,7 +580,7 @@ function subjectStats(s) {
   const live = ts.filter(t => t.status !== 'cancelled');
   const open = ts.filter(isOpen);
   const done = live.filter(t => t.status === 'done').length;
-  let status, progress = 0;
+  let status, progress = 0, estMin = 0;
   if (!ts.length) status = 'empty';
   else if (!live.length) status = 'cancelled';
   else {
@@ -582,6 +591,7 @@ function subjectStats(s) {
       p += wt * (t.status === 'done' ? 100 : t.status === 'doing' ? (t.progress || 0) : 0);
     }
     progress = Math.round(p / w);
+    estMin = w;
     if (done === live.length) status = 'done';
     else if (done > 0 || live.some(t => t.status === 'doing')) status = 'doing';
     else if (open.length && open.every(t => t.status === 'waiting')) status = 'waiting';
@@ -591,7 +601,7 @@ function subjectStats(s) {
   const late = open.filter(t => t.deadline && t.deadline < td).length;
   const next = open.map(t => t.deadline).filter(Boolean).sort()[0] || null;
   const remainMin = open.reduce((a, t) => a + (t.estimateMin || 0) * (1 - (t.status === 'doing' ? t.progress : 0) / 100), 0);
-  return { total: ts.length, live: live.length, open: open.length, done, status, progress, late, next, remainMin: Math.round(remainMin) };
+  return { total: ts.length, live: live.length, open: open.length, done, status, progress, late, next, remainMin: Math.round(remainMin), estMin };
 }
 
 /* ---------- Actions ---------- */
@@ -832,7 +842,7 @@ function subjectBlock(s, st, open) {
       </select>
       <input class="inline stitle" data-field="s-title" data-k="st-${s.id}" value="${esc(s.title)}" placeholder="Nom du sujet">
       <span class="s-info">
-        ${Object.keys(DIMS).some(k => dimVal(s, k)) ? `<span class="s-tags" title="Projet · Secteur · Produit fini">${Object.keys(DIMS).map(k => esc(dimVal(s, k))).filter(Boolean).join(' · ')}</span>` : ''}
+        ${Object.keys(DIMS).some(k => dimVal(s, k)) ? `<span class="s-tags" title="Code · Secteur · Produit fini">${Object.keys(DIMS).map(k => esc(dimVal(s, k))).filter(Boolean).join(' · ')}</span>` : ''}
         ${st.late ? `<span class="late">⚠ ${st.late} en retard</span>` : ''}
         ${st.next ? `<span title="Prochaine deadline">⏱ ${relDate(st.next)}</span>` : ''}
         ${st.remainMin ? `<span title="Temps estimé restant">${fmtDur(st.remainMin)}</span>` : ''}
@@ -844,6 +854,7 @@ function subjectBlock(s, st, open) {
     </div>
     ${open ? `<div class="s-body">
       <div class="s-dims">${Object.entries(DIMS).map(([k, l]) => `<label>${l} <input data-field="s-dim-${k}" data-k="sdim-${k}-${s.id}" value="${esc(dimVal(s, k))}" list="dl-${k}" placeholder="—"></label>`).join('')}</div>
+      ${hooks.subjectBody.map(f => f(s)).join('')}
       <textarea class="s-desc" data-field="s-desc" data-k="sd-${s.id}" rows="1" placeholder="Description / contexte du sujet (facultatif)">${esc(s.description)}</textarea>
       ${openT.map(t => taskRow(t)).join('')}
       ${!openT.length ? '<div class="empty">Aucune tâche ouverte.</div>' : ''}
@@ -1223,7 +1234,7 @@ document.addEventListener('click', e => {
       }
       break;
     }
-    case 'dims-clear': db.ui.dims = { projet: '', secteur: '', produit: '' }; save(); render(); break;
+    case 'dims-clear': db.ui.dims = { code: '', secteur: '', produit: '' }; save(); render(); break;
   }
 });
 
@@ -1268,8 +1279,8 @@ window.todoApp = {
   replaceData: d => { keepBackup(); db = migrate(d); save(); render(); }
 };
 // Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
-const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [] };
-Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, save, scheduleRender, task, subj, visible, isOpen, setTaskField, toast,
+const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [], subjectBody: [] };
+Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, save, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats,
   esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur });
 
 if (DEMO) {
@@ -1291,6 +1302,8 @@ setInterval(() => { if (today() !== day) { day = today(); render(); } }, 60000);
 <script src="pointage.js"></script>
 <script src="pointage-import.js"></script>
 <script src="organisation.js"></script>
+<script src="projets-plan.js"></script>
+<script src="projets.js"></script>
 <script src="sync.js"></script>
 <script src="excel-import.js"></script>
 <script src="guide.js"></script>

@@ -4,7 +4,7 @@
 //   P (projet avec % d'objectif) → P1, I → P2, A → P3
 //   Etat : A faire, En cours (avec le % de Tx avcmt), En attente, Fait, Annulé repris tels quels
 //   Délais → deadline, Tps (heures) → temps estimé, Date → date de création,
-//   Commentaires → notes (ainsi que le suivi « -> … » des titres trop longs), Projet / Secteur / Produit fini → paramètres du sujet (filtres).
+//   Commentaires → notes (ainsi que le suivi « -> … » des titres trop longs), Projet (→ Code) / Secteur / Produit fini → paramètres du sujet (filtres).
 // La lecture du fichier utilise SheetJS (vendor/xlsx.mini.min.js), chargé seulement au moment de l'import.
 (function () {
   'use strict';
@@ -63,7 +63,7 @@
           cur = {
             id: uid(), title: title || '(sujet sans titre)', priority: PRIO_BY_TYPE[type],
             description: [rest, comm].filter(Boolean).join('\n'),
-            projet: tag(r[c.projet]), secteur: tag(r[c.secteur]), produit: tag(r[c.produit]),
+            code: tag(r[c.projet]), secteur: tag(r[c.secteur]), produit: tag(r[c.produit]),
             archived: sh.archived || closed, archivedAt: sh.archived || closed ? (iso(created) || now) : null,
             createdAt: iso(created) || now, updatedAt: now, source: src
           };
@@ -161,19 +161,24 @@
 
   function card() {
     const has = A.getData().subjects.length + A.getData().tasks.length;
+    const steps = A.getData().subjects.filter(s => s.projectId && !s.archived).length;
     if (preview) {
       return `<div class="card"><h3>Import depuis Excel</h3>${summary(preview)}
         <p>${has ? `Tu as déjà ${A.getData().subjects.length} sujets et ${A.getData().tasks.length} tâches dans l'appli. « Remplacer » repart de ton Excel seul, « Ajouter » garde aussi ce qui existe. Dans les deux cas l'état actuel est gardé et tu peux revenir en arrière.` : ''}</p>
+        ${steps ? `<p class="hint">⚠ « Remplacer » retire aussi tes ${steps} étape${steps > 1 ? 's' : ''} de projet (leur planning et leurs liens) : les projets resteraient vides. Préfère « Ajouter » pour les garder.</p>` : ''}
         <button class="btn primary" data-xl="replace">${has ? 'Remplacer mes données' : 'Importer'}</button>
         ${has ? '<button class="btn" data-xl="add">Ajouter à mes données</button>' : ''}
         <button class="btn" data-xl="cancel">Annuler</button></div>`;
     }
     const already = A.getData().subjects.some(s => s.source && s.source.type === 'excel');
     return `<div class="card"><h3>Import depuis Excel</h3>
-      <p>Reprend ton fichier ToDoList.xlsm : chaque ligne A, P ou I devient un sujet (P → P1, I → P2, A → P3), les lignes S en dessous deviennent ses tâches, avec deadline, temps estimé, état et commentaires. Projet, Secteur et Produit fini deviennent des paramètres du sujet pour filtrer. La feuille Archive est importée dans les archives. Tu verras un résumé avant de confirmer.</p>
+      <p>Reprend ton fichier ToDoList.xlsm : chaque ligne A, P ou I devient un sujet (P → P1, I → P2, A → P3), les lignes S en dessous deviennent ses tâches, avec deadline, temps estimé, état et commentaires. Les colonnes Projet (appelée Code dans l'appli), Secteur et Produit fini deviennent des paramètres du sujet pour filtrer. La feuille Archive est importée dans les archives. Tu verras un résumé avant de confirmer.</p>
       ${already ? '<p class="hint">Ton Excel a déjà été importé. Réimporter avec « Ajouter » créerait des doublons : utilise plutôt « Remplacer ».</p>' : ''}
       <button class="btn" data-xl="pick">Importer un fichier Excel…</button></div>`;
   }
+
+  // Aperçu d'un import déjà lu (utilisé aussi par les tests)
+  A.excelPreview = p => { preview = p; A.render(); };
 
   window.addEventListener('todo:rendered', () => {
     const el = document.getElementById('excel-import-card');
