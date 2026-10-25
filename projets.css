@@ -29,3 +29,19 @@
 .pj-chip:has(input:checked){background:var(--accent-bg);border-color:var(--accent);color:var(--accent)}
 .pj-chip input{accent-color:var(--accent);margin:0}
 @media (pointer:coarse){.pj-chip{min-height:40px}.pj-f input,.pj-f select{min-height:36px;font-size:14px}}
+
+/* Détail d'un projet : alertes et jalons */
+.pj-alert{display:flex;gap:10px;background:var(--danger-bg);color:var(--text);border:1px solid var(--danger);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px;font-size:14px}
+.pj-alert-ic{color:var(--danger);font-size:18px;line-height:1.2}
+.pj-alert ul{margin:6px 0 0;padding-left:18px}
+.linkish{all:unset;cursor:pointer;color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.linkish:focus-visible{outline:2px solid var(--accent)}
+.pj-sec h3{display:flex;align-items:center;gap:8px}
+.pj-hint{color:var(--muted);font-size:13px;margin:0 0 10px}
+.pj-ms{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 0;border-top:1px solid var(--border)}
+.pj-ms .inline{font-weight:600;flex:1;min-width:140px}
+.pj-dia{color:var(--text);font-size:14px}
+.pj-ms.late .pj-dia{color:var(--danger)}
+.pj-ms .pj-after{font-size:12px;color:var(--muted);padding-left:22px}
+.pj-ms-add{display:flex;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--border)}
+.pj-ms-add input:not([type=date]){flex:1;min-width:180px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:8px;padding:7px 10px}

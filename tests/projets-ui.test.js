@@ -114,3 +114,46 @@ test('« Nouvelle étape » crée un sujet rattaché et l\'ouvre', async () => {
   assert.equal(s.projectId, 'p1');
   assert.ok(d.ui.expanded.includes(s.id));
 });
+
+/* ---------- Task 4 : jalons ---------- */
+const planned = () => {
+  const d = data(true, { subjects: [
+    { id: 's1', title: 'FAT', priority: 1, projectId: 'p1', plan: { start: '2026-11-02', durDays: 5 } },
+    { id: 's2', title: 'SAT', priority: 1, projectId: 'p1', plan: { durDays: 3 }, after: ['s1'] }] });
+  d.ui = { pjOpen: 'p1' };
+  return d;
+};
+
+test('créer un jalon, le relier à une étape, alerte de dépassement', async () => {
+  const page = await openApp(planned(), { hash: 'projets' });
+  await page.fill('[data-pjm="new-name"]', 'Livraison machine');
+  await page.fill('[data-pjm="new-date"]', '2026-11-10');
+  await page.click('[data-pj="add-milestone"]');
+  let d = await page.db();
+  const m = d.projects[0].milestones[0];
+  assert.equal(m.name, 'Livraison machine');
+  assert.equal(m.date, '2026-11-10');
+  await page.locator(`[data-mid="${m.id}"] [data-pj-before="s2"]`).check();
+  assert.match(await page.locator('.pj-alert').innerText(), /Livraison machine/);
+  assert.match(await page.locator('.pj-alert').innerText(), /SAT/);
+  d = await page.db();
+  assert.equal(d.projects[0].milestones[0].date, '2026-11-10');   // le jalon ne bouge pas
+  assert.deepEqual(d.projects[0].milestones[0].before, ['s2']);
+  // Raccourcir la FAT supprime le dépassement
+  await page.evaluate(() => { const s = window.todoApp.subj('s1'); s.plan.durDays = 2; window.todoApp.save(); window.todoApp.render(); });
+  assert.equal(await page.locator('.pj-alert').count(), 0);
+  assert.deepEqual(page.errors, []);
+});
+
+test('alerte visible sur la carte du projet, jalon archivable', async () => {
+  const d0 = planned();
+  d0.projects[0].milestones = [{ id: 'm1', name: 'Paiement 30 %', date: '2026-11-05', before: ['s1'] }];
+  d0.ui = {};
+  const page = await openApp(d0, { hash: 'projets' });
+  assert.match(await page.locator('.pj-card[data-pid="p1"]').innerText(), /alerte/);
+  await page.click('[data-pj="open-project"]');
+  await page.click('[data-mid="m1"] [data-pj="archive-milestone"]');
+  const d = await page.db();
+  assert.equal(d.projects[0].milestones[0].archived, true);
+  assert.equal(await page.locator('.pj-alert').count(), 0);
+});

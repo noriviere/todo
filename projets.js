@@ -71,13 +71,51 @@ A.views.projets = () => {
 };
 
 /* ---------- Détail d'un projet ---------- */
+function alertsBanner(p, sc) {
+  if (!sc.alerts.length) return '';
+  const ms = new Map((p.milestones || []).map(m => [m.id, m]));
+  const lines = sc.alerts.map(a => {
+    const m = ms.get(a.milestoneId), st = A.subj(a.subjectId);
+    return `<li><b>${esc(m.name)}</b> (${fmt(m.date)}) est dépassé par <button class="linkish" data-pj="open-step" data-sid="${a.subjectId}">${esc(st ? st.title : '?')}</button>, qui finit le ${fmt(sc.byId[a.subjectId].end)}</li>`;
+  }).join('');
+  return `<div class="pj-alert" role="alert"><span class="pj-alert-ic">⚠</span><div><b>Jalon dépassé</b> : décale le jalon ou réorganise les étapes, puis ré-exporte le PDF pour prévenir l'équipe.<ul>${lines}</ul></div></div>`;
+}
+
+function milestonesSection(p, sc) {
+  const steps = stepsOf(p.id), late = new Set(sc.alerts.map(a => a.milestoneId));
+  const rows = milestonesOf(p).sort((a, b) => (a.date || '').localeCompare(b.date || '')).map(m => `
+    <div class="pj-ms ${late.has(m.id) ? 'late' : ''}" data-mid="${m.id}">
+      <span class="pj-dia" aria-hidden="true">◆</span>
+      <input class="inline" data-pjm="name" data-k="pjmn-${m.id}" value="${esc(m.name)}" aria-label="Nom du jalon">
+      <input type="date" class="date" data-pjm="date" data-k="pjmd-${m.id}" value="${esc(m.date || '')}" aria-label="Date du jalon">
+      ${late.has(m.id) ? '<span class="pj-badge late">dépassé</span>' : ''}
+      <button class="icon" data-pj="archive-milestone" title="Archiver le jalon">${A.ICON.archive}</button>
+      ${steps.length ? `<div class="pj-after"><span class="pj-lbl">À finir avant</span>${steps.map(o => `<label class="pj-chip"><input type="checkbox" data-pj-before="${o.id}" ${(m.before || []).includes(o.id) ? 'checked' : ''}><span>${esc(o.title)}</span></label>`).join('')}</div>` : ''}
+    </div>`).join('');
+  return `<section class="card pj-sec"><h3>Jalons</h3>
+    <p class="pj-hint">Dates fixes du projet (livraison, paiements…). Ils ne bougent jamais seuls : une alerte prévient si une étape les dépasse.</p>
+    ${rows}
+    <div class="pj-ms-add">
+      <input data-pjm="new-name" data-k="pjm-new-name" placeholder="+ Nouveau jalon (ex. Livraison machine)" aria-label="Nom du nouveau jalon">
+      <input type="date" class="date" data-pjm="new-date" data-k="pjm-new-date" aria-label="Date du nouveau jalon">
+      <button class="btn" data-pj="add-milestone">Ajouter</button>
+    </div>
+  </section>`;
+}
+
 function detailView(p) {
-  return `<div class="pj-detail" data-pid="${p.id}">
+  const sc = projectSchedule(p), prog = projectProgress(p);
+  return `<div class="pj-detail" data-pid="${p.id}" style="--pj:${esc(p.color || COLORS[0])}">
     <button class="btn pj-back" data-pj="back">← Projets</button>
     <h1>${esc(p.name)}</h1>
+    <p class="sub">${p.owner ? esc(p.owner) + ' · ' : ''}${stepsOf(p.id).length} étape(s) · avancement ${prog}%</p>
+    ${alertsBanner(p, sc)}
     <div class="toolbar"><button class="btn primary" data-pj="new-step">+ Nouvelle étape</button></div>
+    ${typeof ganttSection === 'function' ? ganttSection(p, sc) : ''}
+    ${milestonesSection(p, sc)}
   </div>`;
 }
+var ganttSection;
 
 /* ---------- Actions ---------- */
 function newProject() {
@@ -107,6 +145,21 @@ document.addEventListener('click', e => {
       db().ui.pjOpen = p.id; A.save(); A.render(); window.scrollTo(0, 0);
       break;
     case 'new-step': if (p) newStep(p); break;
+    case 'add-milestone': {
+      if (!p) return;
+      const box = b.closest('.pj-ms-add');
+      const name = box.querySelector('[data-pjm="new-name"]').value.trim(), date = box.querySelector('[data-pjm="new-date"]').value;
+      if (!name || !date) { toast('Indique un nom et une date pour le jalon'); return; }
+      (p.milestones = p.milestones || []).push({ id: uid(), name, date, before: [], archived: false });
+      A.save(); A.render();
+      break;
+    }
+    case 'archive-milestone': {
+      const m = p && (p.milestones || []).find(x => x.id === b.closest('[data-mid]')?.dataset.mid);
+      if (!m) return;
+      m.archived = true; A.save(); A.render(); toast('Jalon archivé');
+      break;
+    }
     case 'open-step': openStep(b.dataset.sid); break;
     case 'back':
       db().ui.pjOpen = null; A.save(); A.render();
@@ -148,6 +201,21 @@ function detachStep(s) {
   if (p) (p.milestones || []).forEach(m => { if (Array.isArray(m.before)) m.before = m.before.filter(id => id !== s.id); });
   s.projectId = null; s.after = []; s.lagDays = 0;
 }
+
+// Jalons : nom, date, étapes à finir avant
+document.addEventListener('change', e => {
+  const el = e.target.closest('[data-mid] [data-pjm], [data-mid] [data-pj-before]');
+  if (!el || !on()) return;
+  const p = project(el.closest('[data-pid]')?.dataset.pid);
+  const m = p && (p.milestones || []).find(x => x.id === el.closest('[data-mid]').dataset.mid);
+  if (!m) return;
+  if (el.dataset.pjBefore) {
+    m.before = (m.before || []).filter(x => x !== el.dataset.pjBefore);
+    if (el.checked) m.before.push(el.dataset.pjBefore);
+  } else if (el.dataset.pjm === 'name') { if (el.value.trim()) m.name = el.value.trim(); }
+  else if (el.dataset.pjm === 'date') { if (el.value) m.date = el.value; }
+  A.save(); A.render();
+});
 
 document.addEventListener('change', e => {
   const el = e.target.closest('[data-pjf], [data-pj-after]');
