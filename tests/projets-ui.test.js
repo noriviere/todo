@@ -237,3 +237,29 @@ test('une étape placée par ses dépendances ne se déplace pas', async () => {
   assert.equal(await page.locator('.pj-bar[data-sid="s2"]').getAttribute('data-start'), '2026-11-09');
   assert.equal(await page.evaluate(() => location.hash), '#projets');
 });
+
+/* ---------- Task 7 : mobile ---------- */
+const phone = { viewport: { width: 390, height: 844 }, touch: true, hash: 'projets' };
+
+test('mobile : Gantt compact sans débordement de page, appui sur une barre', async () => {
+  const page = await openApp(gantt(), phone);
+  assert.equal(await page.locator('.pj-gantt.compact').count(), 1);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= 390), 'pas de défilement horizontal de la page');
+  assert.equal(await page.locator('.pj-grip').count(), 0);
+  const h = (await page.locator('.pj-g-name[data-sid="s1"]').boundingBox()).height;
+  assert.ok(h >= 44, 'lignes assez hautes pour le doigt');
+  await page.locator('.pj-bar[data-sid="s1"]').scrollIntoViewIfNeeded();
+  await page.locator('.pj-bar[data-sid="s1"]').tap();
+  await page.waitForFunction(() => location.hash === '#sujets');
+  assert.deepEqual(page.errors, []);
+});
+
+test('bascule Gantt / Liste mémorisée', async () => {
+  const page = await openApp(gantt(), phone);
+  await page.click('[data-pj="pview"][data-v="list"]');
+  assert.equal((await page.db()).ui.pjView, 'list');
+  assert.equal(await page.locator('.pj-gantt').count(), 0);
+  const txt = await page.locator('.pj-mlist').innerText();
+  assert.match(txt, /FAT/); assert.match(txt, /Production/); assert.match(txt, /Livraison/);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= 390));
+});

@@ -94,3 +94,33 @@
 .pj-leg i{width:10px;height:10px;border-radius:3px}
 .pj-bar.dragging{opacity:.85;cursor:grabbing;box-shadow:0 4px 14px color-mix(in srgb,var(--c) 40%,transparent);z-index:3}
 @media (pointer:coarse){.pj-grip{display:none}.pj-bar.free{cursor:pointer}}
+
+/* Vue liste */
+.pj-mlist{list-style:none;margin:0;padding:0;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.pj-li{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);min-height:44px;box-sizing:border-box}
+.pj-li:last-child{border-bottom:0}
+.pj-li .linkish{font-weight:600;color:var(--text);text-decoration:none}
+.pj-li .d{grid-column:1;font-size:12px;color:var(--muted)}
+.pj-li .pj-prog{grid-column:2;grid-row:1 / span 2}
+.pj-li .pj-prog .bar{width:60px}
+.pj-li.late{box-shadow:inset 3px 0 0 var(--danger)}
+.pj-li.late .d{color:var(--danger)}
+.pj-li.ms{grid-template-columns:auto 1fr;background:var(--surface-2)}
+.pj-li.ms .d{display:block}
+.pj-li.ms.late .pj-dia{color:var(--danger)}
+
+/* Téléphone : Gantt compact, noms figés, frise qui défile */
+@media (max-width:760px){
+  .pj-g-names{width:112px}
+  .pj-g-name{padding:0 8px;font-size:12px;flex-wrap:wrap;align-content:center;gap:0 6px}
+  .pj-g-name .t{flex:1 1 0}
+  .pj-g-name .w{flex-basis:100%;max-width:100%;margin-left:16px}
+  .pj-g-head{padding:0 8px}
+  .pj-gsec{padding:14px 12px}
+  .pj-gbar{flex-direction:column;align-items:stretch}
+  .pj-gtools{justify-content:space-between}
+  .pj-g-ms span{display:none}
+  .pj-g-name.ms .t{white-space:normal;line-height:1.2}
+  .pj-ms-add input:not([type=date]){min-width:0}
+  .pj-list{grid-template-columns:1fr}
+}

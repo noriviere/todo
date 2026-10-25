@@ -9,6 +9,7 @@ const db = () => A.getData();
 // Module activable (Données › Modules actifs), désactivé par défaut
 const on = () => !A.modOn || A.modOn('projet');
 const view = () => location.hash.slice(1) || 'dashboard';
+const coarse = () => !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
 
 const COLORS = ['#4f63e8', '#23915f', '#c77d0e', '#c2559b', '#0f8fa0', '#8e5bd8', '#d43a4a', '#5876b8'];
 
@@ -144,8 +145,9 @@ function renderGantt(p, sc, { scale = 'week', compact = false } = {}) {
   lo = shift(lo, -3); hi = shift(hi, 10);
   if (scale === 'month') lo = lo.slice(0, 8) + '01';
   else lo = shift(lo, -((new Date(T(lo)).getUTCDay() + 6) % 7));          // lundi
-  const days = dd(lo, hi) + 1, W = days * ppd, H = HEAD + rows.length * ROW;
-  const X = d => dd(lo, d) * ppd, Y = i => HEAD + i * ROW + ROW / 2;
+  const RH = compact ? 46 : ROW;   // lignes plus hautes au doigt
+  const days = dd(lo, hi) + 1, W = days * ppd, H = HEAD + rows.length * RH;
+  const X = d => dd(lo, d) * ppd, Y = i => HEAD + i * RH + RH / 2;
   const ticks = [];
   for (let d = lo; d <= hi; d = shift(d, 1)) {
     const t = new Date(T(d));
@@ -157,7 +159,7 @@ function renderGantt(p, sc, { scale = 'week', compact = false } = {}) {
   rows.forEach((r, i) => {
     if (r.kind === 'jalon') {
       const m = ms.get(r.id), late = lateMs.has(r.id);
-      names.push(`<div class="pj-g-name ms ${late ? 'late' : ''}" style="height:${ROW}px"><span class="pj-dia">◆</span><span class="t">${esc(m.name)}</span></div>`);
+      names.push(`<div class="pj-g-name ms ${late ? 'late' : ''}" style="height:${RH}px"><span class="pj-dia">◆</span><span class="t">${esc(m.name)}</span></div>`);
       marks.push(`<div class="pj-g-ms ${late ? 'late' : ''}" data-mid="${m.id}" style="left:${X(r.start) + ppd / 2}px;top:${Y(i)}px" title="${esc(m.name)} · ${fmt(m.date)}${late ? ' · dépassé' : ''}"><i></i><span>${fmt(m.date)}</span></div>`);
       return;
     }
@@ -165,11 +167,11 @@ function renderGantt(p, sc, { scale = 'week', compact = false } = {}) {
     const late = r.end < td && st.status !== 'done' && st.status !== 'cancelled';
     const prev = (s.after || []).filter(id => sc.byId[id]);
     const label = `${esc(s.title)}${s.who ? ' · ' + esc(s.who) : ''} · ${fmt(r.start)} → ${fmt(r.end)} · ${st.progress}%${late ? ' · en retard' : ''}${prev.length ? ' · placée par ses dépendances' : ''}`;
-    names.push(`<button class="pj-g-name" data-pj="open-step" data-sid="${s.id}" style="height:${ROW}px" title="${label}"><span class="sw" style="background:${col}"></span><span class="t">${esc(s.title)}</span>${s.who ? `<span class="w">${esc(s.who)}</span>` : ''}</button>`);
+    names.push(`<button class="pj-g-name" data-pj="open-step" data-sid="${s.id}" style="height:${RH}px" title="${label}"><span class="sw" style="background:${col}"></span><span class="t">${esc(s.title)}</span>${s.who ? `<span class="w">${esc(s.who)}</span>` : ''}</button>`);
     const w = (dd(r.start, r.end) + 1) * ppd;
     marks.push(`<button class="pj-bar ${late ? 'late' : ''} ${prev.length ? 'chained' : 'free'}" data-pj="open-step" data-sid="${s.id}" data-start="${r.start}" data-end="${r.end}"
       style="left:${X(r.start)}px;top:${Y(i) - 12}px;width:${w}px;--c:${col}" title="${label}" aria-label="${label}">
-      <i class="pj-fill" style="width:${st.progress}%"></i>${w >= 44 ? `<span>${st.progress}%</span>` : ''}${compact ? '' : '<b class="pj-grip" aria-hidden="true"></b>'}</button>`);
+      <i class="pj-fill" style="width:${st.progress}%"></i>${w >= 44 ? `<span>${st.progress}%</span>` : ''}${compact || coarse() ? '' : '<b class="pj-grip" aria-hidden="true"></b>'}</button>`);
     prev.forEach(id => {
       const j = idx.get('etape' + id);
       if (j == null) return;
@@ -183,7 +185,7 @@ function renderGantt(p, sc, { scale = 'week', compact = false } = {}) {
     <div class="pj-g-names"><div class="pj-g-head" style="height:${HEAD}px">Étape</div>${names.join('')}</div>
     <div class="pj-g-scroll"><div class="pj-g-track" style="width:${W}px;height:${H}px">
       <div class="pj-g-ticks" style="height:${H}px">${ticks.join('')}</div>
-      ${rows.map((r, i) => `<div class="pj-g-row" style="top:${HEAD + i * ROW}px"></div>`).join('')}
+      ${rows.map((r, i) => `<div class="pj-g-row" style="top:${HEAD + i * RH}px;height:${RH}px"></div>`).join('')}
       ${todayLine}
       <svg class="pj-arrows" width="${W}" height="${H}" aria-hidden="true"><defs><marker id="pj-arr-${p.id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker></defs>
         ${arrows.join('').replace(/<path d/g, `<path marker-end="url(#pj-arr-${p.id})" d`)}</svg>
@@ -198,17 +200,39 @@ function legend(steps) {
   return `<div class="pj-legend"><span class="pj-lbl">Qui</span>${[...wc].map(([n, c]) => `<span class="pj-leg"><i style="background:${c}"></i>${esc(n)}</span>`).join('')}</div>`;
 }
 
+// Vue liste : la même information que le Gantt, ligne par ligne (téléphone, lecture rapide)
+function listRows(p, sc) {
+  const steps = stepsOf(p.id), late = new Set(sc.alerts.map(a => a.subjectId)), lateMs = new Set(sc.alerts.map(a => a.milestoneId)), td = today();
+  const items = PL.buildRows(steps, sc, milestonesOf(p)).map(r => {
+    if (r.kind === 'jalon') {
+      const m = milestonesOf(p).find(x => x.id === r.id);
+      return `<li class="pj-li ms ${lateMs.has(m.id) ? 'late' : ''}"><span class="pj-dia">◆</span><div><b>${esc(m.name)}</b><span class="d">${fmt(m.date)}${lateMs.has(m.id) ? ' · dépassé' : ''}</span></div></li>`;
+    }
+    const s = A.subj(r.id), k = A.subjectStats(s);
+    const isLate = r.end < td && k.status !== 'done' && k.status !== 'cancelled';
+    return `<li class="pj-li ${isLate || late.has(s.id) ? 'late' : ''}"><button class="linkish" data-pj="open-step" data-sid="${s.id}">${esc(s.title)}</button>
+      <div class="d">${s.who ? esc(s.who) + ' · ' : ''}${fmt(r.start)} → ${fmt(r.end)}${isLate ? ' · en retard' : ''}${late.has(s.id) ? ' · dépasse un jalon' : ''}</div>
+      <span class="pj-prog"><span class="bar"><i style="width:${k.progress}%"></i></span>${k.progress}%</span></li>`;
+  });
+  return items.length ? `<ul class="pj-mlist">${items.join('')}</ul>` : '';
+}
+
 function ganttSection(p, sc) {
-  const scale = db().ui.pjScale === 'month' ? 'month' : 'week';
+  const ui = db().ui, scale = ui.pjScale === 'month' ? 'month' : 'week', list = ui.pjView === 'list';
+  const compact = !!(window.matchMedia && matchMedia('(max-width: 760px)').matches);
   const un = sc.unplanned.map(id => A.subj(id)).filter(Boolean);
-  const g = renderGantt(p, sc, { scale });
+  const body = list ? listRows(p, sc) : renderGantt(p, sc, { scale, compact });
+  const seg = (act, cur, opts, label) => `<div class="theme pj-seg" role="group" aria-label="${label}">${opts.map(([k, l]) => `<button class="${k === cur ? 'on' : ''}" data-pj="${act}" data-v="${k}" aria-pressed="${k === cur}">${l}</button>`).join('')}</div>`;
   return `<section class="card pj-sec pj-gsec">
     <div class="pj-gbar"><h3>Planning</h3>
-      <div class="theme pj-seg" role="group" aria-label="Échelle">${[['week', 'Semaines'], ['month', 'Mois']].map(([k, l]) => `<button class="${k === scale ? 'on' : ''}" data-pj="scale" data-v="${k}" aria-pressed="${k === scale}">${l}</button>`).join('')}</div>
+      <div class="pj-gtools">
+        ${seg('pview', list ? 'list' : 'gantt', [['gantt', 'Gantt'], ['list', 'Liste']], 'Affichage')}
+        ${list ? '' : seg('scale', scale, [['week', 'Semaines'], ['month', 'Mois']], 'Échelle')}
+      </div>
     </div>
     ${un.length ? `<div class="pj-unplanned"><span class="pj-lbl">À planifier</span>${un.map(s => `<button class="pj-chip" data-pj="open-step" data-sid="${s.id}">${esc(s.title)} · Planifier</button>`).join('')}</div>` : ''}
-    ${g || '<p class="pj-hint">Aucune étape planifiée. Ouvre une étape et indique son début et sa durée.</p>'}
-    ${legend(stepsOf(p.id))}
+    ${body || '<p class="pj-hint">Aucune étape planifiée. Ouvre une étape et indique son début et sa durée.</p>'}
+    ${list ? '' : legend(stepsOf(p.id))}
   </section>`;
 }
 
@@ -257,6 +281,7 @@ document.addEventListener('click', e => {
     }
     case 'open-step': openStep(b.dataset.sid); break;
     case 'scale': db().ui.pjScale = b.dataset.v; A.save(); A.render(); break;
+    case 'pview': db().ui.pjView = b.dataset.v; A.save(); A.render(); break;
     case 'back':
       db().ui.pjOpen = null; A.save(); A.render();
       break;
@@ -372,7 +397,6 @@ window.addEventListener('todo:rendered', () => {
 
 /* ---------- Édition directe : glisser une étape libre, étirer sa fin (souris, pas sur écran tactile) ---------- */
 let drag = null, swallowClick = false;
-const coarse = () => window.matchMedia && matchMedia('(pointer: coarse)').matches;
 function workdaysBetween(a, b) {   // nombre de jours ouvrés de a à b inclus
   const wd = workDays();
   let n = 0;
