@@ -111,11 +111,106 @@ function detailView(p) {
     <p class="sub">${p.owner ? esc(p.owner) + ' · ' : ''}${stepsOf(p.id).length} étape(s) · avancement ${prog}%</p>
     ${alertsBanner(p, sc)}
     <div class="toolbar"><button class="btn primary" data-pj="new-step">+ Nouvelle étape</button></div>
-    ${typeof ganttSection === 'function' ? ganttSection(p, sc) : ''}
+    ${ganttSection(p, sc)}
     ${milestonesSection(p, sc)}
   </div>`;
 }
-var ganttSection;
+
+/* ---------- Gantt ---------- */
+const T = ymd => Date.UTC(+ymd.slice(0, 4), +ymd.slice(5, 7) - 1, +ymd.slice(8, 10));
+const dd = (a, b) => Math.round((T(b) - T(a)) / 864e5);
+const shift = (ymd, n) => new Date(T(ymd) + n * 864e5).toISOString().slice(0, 10);
+const MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+const PPD = { week: 22, month: 5 };   // pixels par jour
+const ROW = 40, HEAD = 34;
+
+// Une couleur par responsable (ordre alphabétique), gris sans responsable ; le nom est toujours écrit à côté
+function whoColors(steps) {
+  const names = [...new Set(steps.map(s => (s.who || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
+  return new Map(names.map((n, i) => [n, COLORS[i % COLORS.length]]));
+}
+const colorOf = (s, wc) => wc.get((s.who || '').trim()) || 'var(--p0)';
+
+// Moteur de rendu : dessine une liste de lignes génériques (étapes, jalons ; tâches plus tard)
+function renderGantt(p, sc, { scale = 'week', compact = false } = {}) {
+  const steps = stepsOf(p.id), byStep = new Map(steps.map(s => [s.id, s]));
+  const rows = PL.buildRows(steps, sc, milestonesOf(p));
+  if (!rows.length) return '';
+  const ms = new Map(milestonesOf(p).map(m => [m.id, m]));
+  const lateMs = new Set(sc.alerts.map(a => a.milestoneId));
+  const wc = whoColors(steps), td = today();
+  const ppd = PPD[scale] || PPD.week;
+  let lo = [td, ...rows.map(r => r.start)].sort()[0], hi = [td, ...rows.map(r => r.end)].sort().pop();
+  lo = shift(lo, -3); hi = shift(hi, 10);
+  if (scale === 'month') lo = lo.slice(0, 8) + '01';
+  else lo = shift(lo, -((new Date(T(lo)).getUTCDay() + 6) % 7));          // lundi
+  const days = dd(lo, hi) + 1, W = days * ppd, H = HEAD + rows.length * ROW;
+  const X = d => dd(lo, d) * ppd, Y = i => HEAD + i * ROW + ROW / 2;
+  const ticks = [];
+  for (let d = lo; d <= hi; d = shift(d, 1)) {
+    const t = new Date(T(d));
+    if (scale === 'month' ? t.getUTCDate() === 1 : t.getUTCDay() === 1)
+      ticks.push(`<div class="pj-tick" style="left:${X(d)}px"><span>${scale === 'month' ? MONTHS[t.getUTCMonth()] + ' ' + t.getUTCFullYear() : t.getUTCDate() + ' ' + MONTHS[t.getUTCMonth()]}</span></div>`);
+  }
+  const idx = new Map(rows.map((r, i) => [r.kind + r.id, i]));
+  const names = [], marks = [], arrows = [];
+  rows.forEach((r, i) => {
+    if (r.kind === 'jalon') {
+      const m = ms.get(r.id), late = lateMs.has(r.id);
+      names.push(`<div class="pj-g-name ms ${late ? 'late' : ''}" style="height:${ROW}px"><span class="pj-dia">◆</span><span class="t">${esc(m.name)}</span></div>`);
+      marks.push(`<div class="pj-g-ms ${late ? 'late' : ''}" data-mid="${m.id}" style="left:${X(r.start) + ppd / 2}px;top:${Y(i)}px" title="${esc(m.name)} · ${fmt(m.date)}${late ? ' · dépassé' : ''}"><i></i><span>${fmt(m.date)}</span></div>`);
+      return;
+    }
+    const s = byStep.get(r.id), st = A.subjectStats(s), col = colorOf(s, wc);
+    const late = r.end < td && st.status !== 'done' && st.status !== 'cancelled';
+    const prev = (s.after || []).filter(id => sc.byId[id]);
+    const label = `${esc(s.title)}${s.who ? ' · ' + esc(s.who) : ''} · ${fmt(r.start)} → ${fmt(r.end)} · ${st.progress}%${late ? ' · en retard' : ''}`;
+    names.push(`<button class="pj-g-name" data-pj="open-step" data-sid="${s.id}" style="height:${ROW}px" title="${label}"><span class="sw" style="background:${col}"></span><span class="t">${esc(s.title)}</span>${s.who ? `<span class="w">${esc(s.who)}</span>` : ''}</button>`);
+    const w = (dd(r.start, r.end) + 1) * ppd;
+    marks.push(`<button class="pj-bar ${late ? 'late' : ''} ${prev.length ? 'chained' : 'free'}" data-pj="open-step" data-sid="${s.id}" data-start="${r.start}" data-end="${r.end}"
+      style="left:${X(r.start)}px;top:${Y(i) - 12}px;width:${w}px;--c:${col}" title="${label}" aria-label="${label}">
+      <i class="pj-fill" style="width:${st.progress}%"></i>${w >= 44 ? `<span>${st.progress}%</span>` : ''}${compact ? '' : '<b class="pj-grip" aria-hidden="true"></b>'}</button>`);
+    prev.forEach(id => {
+      const j = idx.get('etape' + id);
+      if (j == null) return;
+      // Fin du prédécesseur → début de l'étape, en coude dans l'intervalle entre les deux barres
+      const x1 = X(sc.byId[id].end) + ppd, y1 = Y(j), x2 = X(r.start), y2 = Y(i), xm = x1 + Math.max(4, Math.min(10, (x2 - x1) / 2));
+      arrows.push(`<path d="M${x1} ${y1}H${xm}V${y2}H${x2 - 1}" />`);
+    });
+  });
+  const todayLine = td >= lo && td <= hi ? `<div class="pj-today" style="left:${X(td) + ppd / 2}px" title="Aujourd'hui"></div>` : '';
+  return `<div class="pj-gantt ${compact ? 'compact' : ''}" data-scale="${scale}" data-lo="${lo}" data-ppd="${ppd}">
+    <div class="pj-g-names"><div class="pj-g-head" style="height:${HEAD}px">Étape</div>${names.join('')}</div>
+    <div class="pj-g-scroll"><div class="pj-g-track" style="width:${W}px;height:${H}px">
+      <div class="pj-g-ticks" style="height:${H}px">${ticks.join('')}</div>
+      ${rows.map((r, i) => `<div class="pj-g-row" style="top:${HEAD + i * ROW}px"></div>`).join('')}
+      ${todayLine}
+      <svg class="pj-arrows" width="${W}" height="${H}" aria-hidden="true"><defs><marker id="pj-arr-${p.id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker></defs>
+        ${arrows.join('').replace(/<path d/g, `<path marker-end="url(#pj-arr-${p.id})" d`)}</svg>
+      ${marks.join('')}
+    </div></div>
+  </div>`;
+}
+
+function legend(steps) {
+  const wc = whoColors(steps);
+  if (!wc.size) return '';
+  return `<div class="pj-legend"><span class="pj-lbl">Qui</span>${[...wc].map(([n, c]) => `<span class="pj-leg"><i style="background:${c}"></i>${esc(n)}</span>`).join('')}</div>`;
+}
+
+function ganttSection(p, sc) {
+  const scale = db().ui.pjScale === 'month' ? 'month' : 'week';
+  const un = sc.unplanned.map(id => A.subj(id)).filter(Boolean);
+  const g = renderGantt(p, sc, { scale });
+  return `<section class="card pj-sec pj-gsec">
+    <div class="pj-gbar"><h3>Planning</h3>
+      <div class="theme pj-seg" role="group" aria-label="Échelle">${[['week', 'Semaines'], ['month', 'Mois']].map(([k, l]) => `<button class="${k === scale ? 'on' : ''}" data-pj="scale" data-v="${k}" aria-pressed="${k === scale}">${l}</button>`).join('')}</div>
+    </div>
+    ${un.length ? `<div class="pj-unplanned"><span class="pj-lbl">À planifier</span>${un.map(s => `<button class="pj-chip" data-pj="open-step" data-sid="${s.id}">${esc(s.title)} · Planifier</button>`).join('')}</div>` : ''}
+    ${g || '<p class="pj-hint">Aucune étape planifiée. Ouvre une étape et indique son début et sa durée.</p>'}
+    ${legend(stepsOf(p.id))}
+  </section>`;
+}
 
 /* ---------- Actions ---------- */
 function newProject() {
@@ -161,6 +256,7 @@ document.addEventListener('click', e => {
       break;
     }
     case 'open-step': openStep(b.dataset.sid); break;
+    case 'scale': db().ui.pjScale = b.dataset.v; A.save(); A.render(); break;
     case 'back':
       db().ui.pjOpen = null; A.save(); A.render();
       break;
@@ -272,6 +368,15 @@ window.addEventListener('todo:rendered', () => {
     box.scrollIntoView({ block: 'start', behavior: 'smooth' });
     box.classList.add('org-flash');
   }, 30);
+});
+
+// À l'ouverture, la frise se place sur aujourd'hui (un tiers de la largeur avant)
+window.addEventListener('todo:rendered', () => {
+  if (view() !== 'projets') return;
+  document.querySelectorAll('#main .pj-gantt').forEach(g => {
+    const sc = g.querySelector('.pj-g-scroll'), t = g.querySelector('.pj-today');
+    if (sc && t && !sc.dataset.placed) { sc.scrollLeft = Math.max(0, t.offsetLeft - sc.clientWidth / 3); sc.dataset.placed = '1'; }
+  });
 });
 
 // Accès pour les étapes suivantes du module (même fichier)

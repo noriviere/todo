@@ -157,3 +157,47 @@ test('alerte visible sur la carte du projet, jalon archivable', async () => {
   assert.equal(d.projects[0].milestones[0].archived, true);
   assert.equal(await page.locator('.pj-alert').count(), 0);
 });
+
+/* ---------- Task 5 : Gantt bureau ---------- */
+const gantt = () => {
+  const d = planned();
+  d.subjects.push({ id: 's3', title: 'Raccordement', priority: 2, projectId: 'p1', plan: {}, who: 'Entreprise A' });
+  d.subjects[1].who = 'Production';
+  d.projects[0].milestones = [{ id: 'm1', name: 'Livraison', date: '2026-11-10', before: ['s2'] }];
+  return d;
+};
+
+test('Gantt : barres aux dates calculées, jalon, flèche, étape à planifier', async () => {
+  const page = await openApp(gantt(), { hash: 'projets' });
+  const b1 = page.locator('.pj-bar[data-sid="s1"]'), b2 = page.locator('.pj-bar[data-sid="s2"]');
+  assert.equal(await b1.getAttribute('data-start'), '2026-11-02');
+  assert.equal(await b1.getAttribute('data-end'), '2026-11-06');
+  assert.equal(await b2.getAttribute('data-start'), '2026-11-09');
+  const r1 = await b1.boundingBox(), r2 = await b2.boundingBox();
+  assert.ok(r2.x > r1.x + r1.width - 1, 'la SAT commence après la FAT');
+  assert.ok(r2.y > r1.y, 'une ligne par étape');
+  assert.equal(await page.locator('.pj-g-ms[data-mid="m1"]').count(), 1);
+  assert.match(await page.locator('.pj-g-ms[data-mid="m1"]').getAttribute('class'), /late/);
+  assert.equal(await page.locator('.pj-arrows > path').count(), 1);
+  assert.match(await page.locator('.pj-unplanned').innerText(), /Raccordement/);
+  assert.match(await page.locator('.pj-legend').innerText(), /Production/);
+  assert.match(await page.locator('.pj-g-names').innerText(), /Production/);
+  assert.deepEqual(page.errors, []);
+});
+
+test('Gantt : échelle semaine / mois mémorisée', async () => {
+  const page = await openApp(gantt(), { hash: 'projets' });
+  const w1 = (await page.locator('.pj-g-track').boundingBox()).width;
+  await page.click('[data-pj="scale"][data-v="month"]');
+  assert.equal((await page.db()).ui.pjScale, 'month');
+  const w2 = (await page.locator('.pj-g-track').boundingBox()).width;
+  assert.ok(w2 < w1, 'le mois est plus compact');
+});
+
+test('Gantt : clic sur une barre ouvre l\'étape dans Sujets', async () => {
+  const page = await openApp(gantt(), { hash: 'projets' });
+  await page.click('.pj-bar[data-sid="s2"]');
+  await page.waitForFunction(() => location.hash === '#sujets');
+  assert.ok((await page.db()).ui.expanded.includes('s2'));
+  assert.equal(await page.locator('.subject.open[data-sid="s2"]').count(), 1);
+});
