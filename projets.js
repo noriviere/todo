@@ -400,6 +400,33 @@ window.addEventListener('todo:rendered', () => {
   }, 30);
 });
 
+/* ---------- Échéance ferme (cadenas) et garde-fou sur les tâches ---------- */
+A.ICON.lock = A.ICON.lock || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+function stepEnd(t) {   // fin calculée de l'étape de la tâche, ou null
+  const s = t.subjectId && A.subj(t.subjectId), p = s && s.projectId && project(s.projectId);
+  const c = p && projectSchedule(p).byId[s.id];
+  return c ? c.end : null;
+}
+A.hooks.taskRow.push(t => {
+  if (!on()) return '';
+  let h = '';
+  if (t.hardDue && t.deadline) h += `<span class="pj-lock ${A.isOpen(t) && t.deadline < today() ? 'late' : ''}" title="Échéance ferme">${A.ICON.lock}</span>`;
+  const end = t.deadline && A.isOpen(t) && stepEnd(t);
+  if (end && t.deadline > end) h += `<span class="pj-warn" title="Après la fin prévue de l'étape (${fmt(end)})">⚠</span>`;
+  return h;
+});
+A.hooks.drawer.push(t => !on() ? '' : `<div class="f"><label>Échéance</label>
+    <label class="tog"><input type="checkbox" data-pj-hard ${t.hardDue ? 'checked' : ''}> Échéance ferme ${A.ICON.lock}</label>
+    <span class="hint">Coche si la date est une vraie échéance, pas seulement un rappel pour y travailler.</span>
+  </div>`);
+document.addEventListener('change', e => {
+  if (!e.target.matches('[data-pj-hard]')) return;
+  const t = A.task(e.target.closest('[data-tid]')?.dataset.tid);
+  if (!t) return;
+  t.hardDue = e.target.checked; t.updatedAt = nowIso();
+  A.save(); A.render();
+});
+
 /* ---------- Export PDF : une page d'impression dédiée, puis la fenêtre d'impression du navigateur ---------- */
 function exportPdf(p) {
   const sc = projectSchedule(p), steps = stepsOf(p.id), rows = PL.buildRows(steps, sc, milestonesOf(p));

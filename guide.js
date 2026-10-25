@@ -53,7 +53,7 @@ const SECTIONS = [
       <li><b>Charge de travail</b> : l'onglet Charge, son mini graphique et les réglages de répartition.</li>
       <li><b>Pointage et congés</b> : l'onglet Pointage et son bandeau.</li>
       <li><b>Tâches récurrentes</b> : l'option Répéter.</li>
-      <li><b>Gestion de projet</b> : en préparation.</li>
+      <li><b>Gestion de projet</b> : l'onglet Projets (étapes, jalons, Gantt, export PDF) et le cadenas « échéance ferme ». Désactivé au départ.</li>
     </ul>
     <p>Sujets, tâches, tableau de bord, boîte de réception, archives et données restent toujours là. <b>Masquer un module ne supprime rien</b> : ses données sont gardées, sauvegardées et synchronisées, et réapparaissent quand tu le réactives. Si un chrono tourne au moment où tu masques le chrono, il est arrêté et son temps enregistré.</p>
     <p>Le choix est rangé avec tes données : il suit la synchro sur tes autres appareils. Ce mode d'emploi n'affiche que les modules actifs.</p>`, tab: 'donnees' },
@@ -182,6 +182,20 @@ const SECTIONS = [
   { id: 'archives', g: 'organize', title: 'Archives', html: () => `
     <p>Rien n'est jamais supprimé : on archive. Une tâche ou un sujet archivé disparaît des listes mais reste dans l'onglet Archives, avec sa date d'archivage, et se restaure d'un clic.</p>
     <p>Archiver un sujet qui a encore des tâches ouvertes demande une confirmation. Juste après un archivage, « Annuler » en bas de l'écran le défait.</p>`, tab: 'archives' },
+
+  { id: 'projets', mod: 'projet', g: 'plan', title: 'Projets et Gantt', html: () => `
+    <p>Pour les gros sujets qui méritent une organisation de projet (achat de machine, chantier…). Trois niveaux seulement : <b>projet → étapes → tâches</b>.</p>
+    <ul>
+      <li><b>Créer un projet</b> : onglet Projets, « + Nouveau projet ».</li>
+      <li><b>Les étapes</b> sont des sujets rattachés au projet : dans un sujet déplié, choisis le <b>Projet</b> ; ou, dans le projet, « + Nouvelle étape ». Chaque étape garde ses tâches ; les tâches du quotidien (emails…) n'apparaissent pas dans le Gantt, elles font juste avancer l'étape.</li>
+      <li><b>Planifier une étape</b> : un début, une durée en jours ouvrés, et « Qui » (Production, Entreprise A, un nom…). Les dates du Gantt sont celles de l'étape, pas celles des tâches, qui restent tes rappels.</li>
+      <li><b>Commence après</b> : coche les étapes qui doivent être finies avant. Son début est alors calculé (plus un décalage éventuel). Quand une étape glisse, les suivantes se décalent toutes seules. Un lien qui ferait une boucle est refusé.</li>
+      <li><b>Jalons</b> : dates fixes (livraison, paiements). Indique les étapes à finir avant chacun. Ils ne bougent jamais seuls : si une étape les dépasse, une <b>alerte</b> s'affiche ; à toi de décaler le jalon ou de réorganiser, puis de ré-exporter.</li>
+      <li><b>Le Gantt</b> : une barre par étape, remplie selon l'avancement, flèches de dépendance, losanges des jalons, ligne d'aujourd'hui. Clic sur une barre pour ouvrir l'étape. À la souris, glisse une étape libre pour la déplacer ou étire sa fin pour changer sa durée.</li>
+      <li><b>Sur téléphone</b> : le Gantt défile horizontalement, les noms restent à gauche ; le bouton <b>Liste</b> affiche les mêmes infos ligne par ligne.</li>
+      <li><b>Exporter en PDF</b> : une version imprimable pour l'équipe (Gantt, tableau des étapes et des jalons). Choisis « Enregistrer en PDF » dans la fenêtre d'impression.</li>
+    </ul>
+    <div class="gd-tip"><b>Échéance ferme</b> : dans les détails d'une tâche, coche « Échéance ferme » si sa date est une vraie échéance (cadenas dans la liste). Un ⚠ signale une tâche datée après la fin prévue de son étape.</div>`, tab: 'projets' },
 
   { id: 'charge', mod: 'charge', g: 'plan', title: 'Vue Charge', html: () => `
     <p>Prévision de ton temps de travail sur 7, 14 ou 28 jours.</p>
@@ -444,6 +458,8 @@ const SPOTS = [
   ['#main h1', 'Données', 'donnees'],
   ['#main h1', 'Charge de travail', 'charge'],
   ['#main h1', 'Pointage', 'pointer'],
+  ['#main h1', 'Projets', 'projets'],
+  ['#main .pj-sec h3', 'Jalons', 'projets'],
   ['#main #qa', '', 'saisie'],
   ['#main .org-filters', '', 'filtres'],
   ['#main .prio-title', '', 'priorites', 'first'],

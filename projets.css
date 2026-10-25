@@ -152,3 +152,11 @@
   #pj-print td.n{text-align:right;font-variant-numeric:tabular-nums}
   #pj-print tr.late td{color:#b4232f;font-weight:600}
 }
+
+/* Cadenas (échéance ferme) et garde-fou */
+.pj-lock{display:inline-flex;color:var(--muted)}
+.pj-lock svg{width:14px;height:14px}
+.pj-lock.late{color:var(--danger)}
+.pj-warn{color:var(--warn);font-size:13px;cursor:help}
+label.tog svg{width:13px;height:13px;vertical-align:-2px}
+.pj-gtools .btn svg{width:16px;height:16px;flex:none}

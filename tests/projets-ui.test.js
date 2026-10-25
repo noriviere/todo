@@ -287,3 +287,41 @@ test('export PDF : page d\'impression avec Gantt, étapes et jalons', async () =
   assert.equal(await page.locator('#pj-print').count(), 0);
   assert.deepEqual(page.errors, []);
 });
+
+/* ---------- Task 9 : échéance ferme, démo, mode d'emploi ---------- */
+test('cadenas : échéance ferme depuis les détails, icône dans la ligne', async () => {
+  const d0 = gantt(); d0.ui.expanded = ['s1']; d0.tasks[0].deadline = '2026-11-04';
+  const page = await openApp(d0, { hash: 'sujets' });
+  await page.click('.task[data-tid="t1"] [data-act="details"]');
+  await page.locator('[data-pj-hard]').check();
+  assert.equal((await page.db()).tasks[0].hardDue, true);
+  assert.equal(await page.locator('.task[data-tid="t1"] .pj-lock').count(), 1);
+  assert.deepEqual(page.errors, []);
+});
+
+test('cadenas masqué quand le module est désactivé', async () => {
+  const d0 = data(false); d0.ui = { expanded: ['s1'] }; d0.tasks[0].hardDue = true;
+  const page = await openApp(d0, { hash: 'sujets' });
+  assert.equal(await page.locator('.pj-lock').count(), 0);
+  await page.click('.task[data-tid="t1"] [data-act="details"]');
+  assert.equal(await page.locator('[data-pj-hard]').count(), 0);
+});
+
+test('garde-fou : tâche datée après la fin prévue de son étape', async () => {
+  const d0 = gantt(); d0.ui.expanded = ['s1']; d0.tasks[0].deadline = '2026-11-20';   // FAT finit le 06/11
+  const page = await openApp(d0, { hash: 'sujets' });
+  assert.equal(await page.locator('.task[data-tid="t1"] .pj-warn').count(), 1);
+});
+
+test('démo : projet d\'exemple avec Gantt et alerte, aide sur l\'onglet', async () => {
+  const page = await openApp(null, { query: '?demo', hash: 'projets' });
+  const d = await page.db();
+  assert.ok(d.settings.modules.projet);
+  assert.ok(d.projects.length >= 1);
+  assert.match(await page.locator('.pj-card').first().innerText(), /Achat presse/);
+  assert.match(await page.locator('.pj-card').first().innerText(), /alerte/);
+  await page.waitForSelector('#main h1 + .gd-i[data-help="projets"], #main .gd-i[data-help="projets"]');
+  await page.click('[data-pj="open-project"]');
+  assert.ok(await page.locator('.pj-bar').count() >= 5);
+  assert.deepEqual(page.errors, []);
+});
