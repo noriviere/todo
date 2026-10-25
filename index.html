@@ -273,6 +273,7 @@ body.demo .brand .dot{background:var(--warn)}
 </style>
 <link rel="stylesheet" href="chrono-charge.css">
 <link rel="stylesheet" href="pointage.css">
+<link rel="stylesheet" href="guide.css">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="theme-color" content="#f5f6fa" media="(prefers-color-scheme: light)">
@@ -725,7 +726,7 @@ views.dashboard = () => {
       <button type="button" class="stat" data-act="goto-sec" data-sec="tomorrow"><span class="v">${groups.tomorrow.length}</span><span class="l">demain${load(groups.tomorrow) ? '<span class="x"> · ' + fmtDur(load(groups.tomorrow)) + '</span>' : ''}</span></button>
       <a class="stat" href="#inbox"><span class="v">${inbox}</span><span class="l">à ranger<span class="x"> (boîte de réception)</span></span></a>
     </div>
-    ${isEmpty ? `<div class="card"><h3>Bienvenue 👋</h3><p>Ajoute une tâche ci-dessus ou crée tes sujets dans l'onglet Sujets. Pour reprendre ton fichier Excel, va dans l'onglet Données.</p><button class="btn" data-act="demo-start">Voir un exemple</button></div>` : ''}
+    ${isEmpty ? `<div class="card"><h3>Bienvenue 👋</h3><p>Ajoute une tâche ci-dessus ou crée tes sujets dans l'onglet Sujets. Pour reprendre ton fichier Excel, va dans l'onglet Données.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="demo-start">Voir un exemple</button><button class="btn" data-help="premiers-pas">Lire le mode d'emploi</button></div></div>` : ''}
     ${sec('late', 'En retard', secOpen('late'))}
     ${sec('today', "Aujourd'hui", secOpen('today'))}
     ${sec('tomorrow', 'Demain', secOpen('tomorrow'))}
@@ -1216,5 +1217,6 @@ setInterval(() => { if (today() !== day) { day = today(); render(); } }, 60000);
 <script src="organisation.js"></script>
 <script src="sync.js"></script>
 <script src="excel-import.js"></script>
+<script src="guide.js"></script>
 </body>
 </html>
