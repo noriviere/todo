@@ -13,6 +13,7 @@ const coarse = () => !!(window.matchMedia && matchMedia('(pointer: coarse)').mat
 
 A.ICON.print = A.ICON.print || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg>';
 
+const safeColor = c => /^#[0-9a-f]{6}$/i.test(c || '') ? c : '#4f63e8';
 const COLORS = ['#4f63e8', '#23915f', '#c77d0e', '#c2559b', '#0f8fa0', '#8e5bd8', '#d43a4a', '#5876b8'];
 
 /* ---------- Données ---------- */
@@ -22,18 +23,24 @@ const project = id => allProjects().find(p => p.id === id) || null;
 const stepsOf = pid => db().subjects.filter(s => !s.archived && s.projectId === pid);
 const workDays = () => Array.isArray(db().settings.workDays) ? db().settings.workDays : [1, 2, 3, 4, 5];
 const milestonesOf = p => (p.milestones || []).filter(m => !m.archived);
-const projectSchedule = p => PL.schedule(stepsOf(p.id), milestonesOf(p), workDays());
+// Les étapes archivées (souvent terminées) restent des ancres pour celles qui en dépendent, sans être dessinées
+function projectSchedule(p) {
+  const all = db().subjects.filter(s => s.projectId === p.id), archived = new Set(all.filter(s => s.archived).map(s => s.id));
+  const sc = PL.schedule(all, milestonesOf(p), workDays());
+  sc.order = sc.order.filter(id => !archived.has(id));
+  sc.unplanned = sc.unplanned.filter(id => !archived.has(id));
+  sc.alerts = sc.alerts.filter(a => !archived.has(a.subjectId));
+  return sc;
+}
 
-// Avancement du projet : moyenne des étapes pondérée par leur temps estimé (comme un sujet)
 function projectProgress(p) {
-  const steps = stepsOf(p.id);
-  if (!steps.length) return 0;
-  let w = 0, s = 0;
-  steps.forEach(st => {
-    const k = A.subjectStats(st), wt = Math.max(1, k.remainMin + 1);
-    w += wt; s += wt * k.progress;
+  // Avancement du projet : moyenne des étapes pondérée par leur temps estimé total (comme un sujet)
+  let w = 0, sum = 0;
+  stepsOf(p.id).forEach(st => {
+    const k = A.subjectStats(st), wt = k.estMin || 60;
+    w += wt; sum += wt * k.progress;
   });
-  return Math.round(s / w);
+  return w ? Math.round(sum / w) : 0;
 }
 
 /* ---------- Onglet ---------- */
@@ -48,7 +55,7 @@ function listView() {
     const sc = projectSchedule(p), prog = projectProgress(p);
     const next = milestonesOf(p).filter(m => m.date >= today()).sort((a, b) => a.date.localeCompare(b.date))[0];
     const nSteps = stepsOf(p.id).length;
-    return `<div class="card pj-card" data-pid="${p.id}" style="--pj:${esc(p.color || COLORS[0])}">
+    return `<div class="card pj-card" data-pid="${p.id}" style="--pj:${safeColor(p.color)}">
       <button class="pj-open" data-pj="open-project" title="Ouvrir le planning">
         <span class="pj-name">${esc(p.name)}</span>
         ${sc.alerts.length ? `<span class="pj-badge late" title="Un jalon est dépassé">⚠ ${sc.alerts.length} alerte${sc.alerts.length > 1 ? 's' : ''}</span>` : ''}
@@ -65,7 +72,17 @@ function listView() {
   return `<h1>Projets</h1>
     <p class="sub">Les gros sujets organisés en étapes, reliées entre elles, avec leurs jalons.</p>
     <div class="toolbar"><button class="btn primary" data-pj="new-project">+ Nouveau projet</button></div>
-    ${ps.length ? `<div class="pj-list">${cards}</div>` : `<div class="card"><p>Aucun projet pour le moment. Crée un projet, puis rattache-lui des sujets existants (champ « Projet » dans le sujet) ou ajoute des étapes.</p></div>`}`;
+    ${ps.length ? `<div class="pj-list">${cards}</div>` : `<div class="card"><p>Aucun projet pour le moment. Crée un projet, puis rattache-lui des sujets existants (champ « Projet » dans le sujet) ou ajoute des étapes.</p></div>`}
+    ${archivedProjects()}`;
+}
+
+// Projets archivés : repliés en bas de la liste, restaurables d'un clic
+function archivedProjects() {
+  const arc = allProjects().filter(p => p.archived);
+  if (!arc.length) return '';
+  const open = !!db().ui.pjShowArchived;
+  return `<div class="pj-arc"><button class="btn" data-pj="show-archived" aria-expanded="${open}">${open ? 'Masquer' : 'Voir'} les projets archivés (${arc.length})</button>
+    ${open ? `<ul class="pj-mlist">${arc.map(p => `<li class="pj-li" data-pid="${p.id}"><span>${esc(p.name)}</span><button class="btn" data-pj="restore-project">Restaurer</button></li>`).join('')}</ul>` : ''}</div>`;
 }
 
 A.views.projets = () => {
@@ -98,6 +115,7 @@ function milestonesSection(p, sc) {
   return `<section class="card pj-sec"><h3>Jalons</h3>
     <p class="pj-hint">Dates fixes du projet (livraison, paiements…). Ils ne bougent jamais seuls : une alerte prévient si une étape les dépasse.</p>
     ${rows}
+    ${(p.milestones || []).filter(m => m.archived).map(m => `<div class="pj-ms arc" data-mid="${m.id}"><span class="pj-dia" aria-hidden="true">◇</span><span>${esc(m.name)} · archivé</span><button class="btn" data-pj="restore-milestone">Restaurer</button></div>`).join('')}
     <div class="pj-ms-add">
       <input data-pjm="new-name" data-k="pjm-new-name" placeholder="+ Nouveau jalon (ex. Livraison machine)" aria-label="Nom du nouveau jalon">
       <input type="date" class="date" data-pjm="new-date" data-k="pjm-new-date" aria-label="Date du nouveau jalon">
@@ -108,10 +126,15 @@ function milestonesSection(p, sc) {
 
 function detailView(p) {
   const sc = projectSchedule(p), prog = projectProgress(p);
-  return `<div class="pj-detail" data-pid="${p.id}" style="--pj:${esc(p.color || COLORS[0])}">
+  return `<div class="pj-detail" data-pid="${p.id}" style="--pj:${safeColor(p.color)}">
     <button class="btn pj-back" data-pj="back">← Projets</button>
     <h1>${esc(p.name)}</h1>
-    <p class="sub">${p.owner ? esc(p.owner) + ' · ' : ''}${stepsOf(p.id).length} étape(s) · avancement ${prog}%</p>
+    <div class="pj-head">
+      <label class="pj-f">Nom <input data-pjh="name" data-k="pjh-name" value="${esc(p.name)}"></label>
+      <label class="pj-f">Chef de projet <input data-pjh="owner" data-k="pjh-owner" value="${esc(p.owner || '')}" placeholder="—"></label>
+      <label class="pj-f">Couleur <input type="color" data-pjh="color" value="${esc(safeColor(p.color))}"></label>
+      <span>${stepsOf(p.id).length} étape(s) · avancement ${prog}%</span>
+    </div>
     ${alertsBanner(p, sc)}
     <div class="toolbar"><button class="btn primary" data-pj="new-step">+ Nouvelle étape</button></div>
     ${ganttSection(p, sc)}
@@ -136,6 +159,7 @@ const colorOf = (s, wc) => wc.get((s.who || '').trim()) || 'var(--p0)';
 
 // Moteur de rendu : dessine une liste de lignes génériques (étapes, jalons ; tâches plus tard)
 function renderGantt(p, sc, { scale = 'week', compact = false, fit = 0 } = {}) {
+  const mk = `pj-arr-${fit ? 'print-' : ''}${p.id}`;   // id unique : la page imprimée a sa propre flèche
   const steps = stepsOf(p.id), byStep = new Map(steps.map(s => [s.id, s]));
   const rows = PL.buildRows(steps, sc, milestonesOf(p));
   if (!rows.length) return '';
@@ -190,8 +214,8 @@ function renderGantt(p, sc, { scale = 'week', compact = false, fit = 0 } = {}) {
       <div class="pj-g-ticks" style="height:${H}px">${ticks.join('')}</div>
       ${rows.map((r, i) => `<div class="pj-g-row" style="top:${HEAD + i * RH}px;height:${RH}px"></div>`).join('')}
       ${todayLine}
-      <svg class="pj-arrows" width="${W}" height="${H}" aria-hidden="true"><defs><marker id="pj-arr-${p.id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker></defs>
-        ${arrows.join('').replace(/<path d/g, `<path marker-end="url(#pj-arr-${p.id})" d`)}</svg>
+      <svg class="pj-arrows" width="${W}" height="${H}" aria-hidden="true"><defs><marker id="${mk}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker></defs>
+        ${arrows.join('').replace(/<path d/g, `<path marker-end="url(#${mk})" d`)}</svg>
       ${marks.join('')}
     </div></div>
   </div>`;
@@ -277,6 +301,17 @@ document.addEventListener('click', e => {
       A.save(); A.render();
       break;
     }
+    case 'show-archived': db().ui.pjShowArchived = !db().ui.pjShowArchived; A.save(); A.render(); break;
+    case 'restore-project':
+      if (!p) return;
+      p.archived = false; p.archivedAt = null; A.save(); A.render(); toast('Projet restauré');
+      break;
+    case 'restore-milestone': {
+      const m = p && (p.milestones || []).find(x => x.id === b.closest('[data-mid]')?.dataset.mid);
+      if (!m) return;
+      m.archived = false; A.save(); A.render(); toast('Jalon restauré');
+      break;
+    }
     case 'archive-milestone': {
       const m = p && (p.milestones || []).find(x => x.id === b.closest('[data-mid]')?.dataset.mid);
       if (!m) return;
@@ -295,7 +330,6 @@ document.addEventListener('click', e => {
 
 /* ---------- Étapes : un sujet rattaché à un projet ---------- */
 const fmt = ymd => ymd ? new Date(ymd + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }) : '';
-const prevIds = (s, steps) => (s.after || []).filter(id => steps.some(x => x.id === id));
 const whoValues = () => [...new Set(db().subjects.filter(s => !s.archived && s.projectId && s.who).map(s => s.who.trim()))].sort((a, b) => a.localeCompare(b, 'fr'));
 
 A.hooks.subjectBody.push(s => {
@@ -306,7 +340,7 @@ A.hooks.subjectBody.push(s => {
     <option value="">—</option>${opts.map(x => `<option value="${x.id}" ${x.id === s.projectId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>`;
   if (p) {
     const steps = stepsOf(p.id), others = steps.filter(x => x.id !== s.id);
-    const sc = projectSchedule(p), c = sc.byId[s.id], hasPrev = prevIds(s, steps).length > 0;
+    const sc = projectSchedule(p), c = sc.byId[s.id], hasPrev = (s.after || []).some(id => id !== s.id && sc.byId[id]);
     const plan = s.plan || {};
     html += hasPrev
       ? `<span class="pj-f pj-calc" title="Placée par les étapes dont elle dépend">Début calculé : <b>${c ? fmt(c.start) : 'à planifier'}</b></span>`
@@ -327,6 +361,19 @@ function detachStep(s) {
   if (p) (p.milestones || []).forEach(m => { if (Array.isArray(m.before)) m.before = m.before.filter(id => id !== s.id); });
   s.projectId = null; s.after = []; s.lagDays = 0;
 }
+
+// En-tête du projet : nom, chef de projet, couleur
+document.addEventListener('change', e => {
+  const el = e.target.closest('[data-pjh]');
+  if (!el || !on()) return;
+  const p = project(el.closest('[data-pid]')?.dataset.pid);
+  if (!p) return;
+  const v = el.value.trim();
+  if (el.dataset.pjh === 'name') { if (v) p.name = v; }
+  else if (el.dataset.pjh === 'owner') p.owner = v;
+  else if (el.dataset.pjh === 'color') p.color = safeColor(v);
+  A.save(); A.render();
+});
 
 // Jalons : nom, date, étapes à finir avant
 document.addEventListener('change', e => {
@@ -505,12 +552,17 @@ document.addEventListener('pointerup', () => {
 // Un glisser ne doit pas ouvrir l'étape
 document.addEventListener('click', e => { if (swallowClick && e.target.closest('.pj-gantt')) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
 
-// À l'ouverture, la frise se place sur aujourd'hui (un tiers de la largeur avant)
+// À l'ouverture, la frise se place sur aujourd'hui (un tiers de la largeur avant) ; ensuite elle garde la position choisie
+const scrollPos = new Map();
 window.addEventListener('todo:rendered', () => {
   if (view() !== 'projets') return;
   document.querySelectorAll('#main .pj-gantt').forEach(g => {
     const sc = g.querySelector('.pj-g-scroll'), t = g.querySelector('.pj-today');
-    if (sc && t && !sc.dataset.placed) { sc.scrollLeft = Math.max(0, t.offsetLeft - sc.clientWidth / 3); sc.dataset.placed = '1'; }
+    if (!sc) return;
+    const key = g.closest('[data-pid]')?.dataset.pid + g.dataset.scale;
+    if (scrollPos.has(key)) sc.scrollLeft = scrollPos.get(key);
+    else if (t) sc.scrollLeft = Math.max(0, t.offsetLeft - sc.clientWidth / 3);
+    sc.addEventListener('scroll', () => scrollPos.set(key, sc.scrollLeft), { passive: true });
   });
 });
 

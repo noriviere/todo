@@ -580,7 +580,7 @@ function subjectStats(s) {
   const live = ts.filter(t => t.status !== 'cancelled');
   const open = ts.filter(isOpen);
   const done = live.filter(t => t.status === 'done').length;
-  let status, progress = 0;
+  let status, progress = 0, estMin = 0;
   if (!ts.length) status = 'empty';
   else if (!live.length) status = 'cancelled';
   else {
@@ -591,6 +591,7 @@ function subjectStats(s) {
       p += wt * (t.status === 'done' ? 100 : t.status === 'doing' ? (t.progress || 0) : 0);
     }
     progress = Math.round(p / w);
+    estMin = w;
     if (done === live.length) status = 'done';
     else if (done > 0 || live.some(t => t.status === 'doing')) status = 'doing';
     else if (open.length && open.every(t => t.status === 'waiting')) status = 'waiting';
@@ -600,7 +601,7 @@ function subjectStats(s) {
   const late = open.filter(t => t.deadline && t.deadline < td).length;
   const next = open.map(t => t.deadline).filter(Boolean).sort()[0] || null;
   const remainMin = open.reduce((a, t) => a + (t.estimateMin || 0) * (1 - (t.status === 'doing' ? t.progress : 0) / 100), 0);
-  return { total: ts.length, live: live.length, open: open.length, done, status, progress, late, next, remainMin: Math.round(remainMin) };
+  return { total: ts.length, live: live.length, open: open.length, done, status, progress, late, next, remainMin: Math.round(remainMin), estMin };
 }
 
 /* ---------- Actions ---------- */

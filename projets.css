@@ -131,6 +131,8 @@
   @page{size:A4 landscape;margin:12mm}
   body.pj-printing{background:#fff!important;color:#111}
   body.pj-printing > :not(#pj-print){display:none!important}
+  /* Couleurs claires imposées à la page imprimée, même si l'appli est en thème sombre */
+  #pj-print{--bg:#fff;--surface:#fff;--surface-2:#f4f5f8;--surface-3:#e8ebf2;--border:#cfd3dc;--text:#111;--muted:#444;--faint:#888;--accent:#4f63e8;--accent-bg:#eaedfd;--danger:#b4232f;--danger-bg:#fdecee;--p0:#9aa1b2;color-scheme:light}
   body.pj-printing #pj-print{display:block;font-size:11pt;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #pj-print header h1{font-size:20pt;margin:0 0 2pt}
   #pj-print header p{margin:0 0 10pt;color:#444}
@@ -160,3 +162,14 @@
 .pj-warn{color:var(--warn);font-size:13px;cursor:help}
 label.tog svg{width:13px;height:13px;vertical-align:-2px}
 .pj-gtools .btn svg{width:16px;height:16px;flex:none}
+
+/* En-tête du projet et archives */
+.pj-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0 0 16px;font-size:13px;color:var(--muted)}
+.pj-head .pj-f input{font-size:13px;padding:5px 8px}
+.pj-head input[data-pjh=name]{width:220px;max-width:100%}
+.pj-head input[type=color]{width:34px;height:28px;padding:2px}
+.pj-arc{margin-top:16px}
+.pj-arc .pj-mlist{margin-top:10px}
+.pj-arc .pj-li{grid-template-columns:1fr auto}
+.pj-ms.arc{color:var(--muted);font-size:13px}
+.pj-ms.arc .btn{margin-left:auto;padding:4px 10px}
