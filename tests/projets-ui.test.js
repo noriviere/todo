@@ -201,3 +201,39 @@ test('Gantt : clic sur une barre ouvre l\'étape dans Sujets', async () => {
   assert.ok((await page.db()).ui.expanded.includes('s2'));
   assert.equal(await page.locator('.subject.open[data-sid="s2"]').count(), 1);
 });
+
+/* ---------- Task 6 : édition directe dans le Gantt ---------- */
+async function drag(page, sel, fromX, dx) {
+  const r = await page.locator(sel).boundingBox();
+  const x = fromX === 'right' ? r.x + r.width - 3 : r.x + r.width / 2, y = r.y + r.height / 2;
+  await page.mouse.move(x, y); await page.mouse.down();
+  for (let i = 1; i <= 5; i++) await page.mouse.move(x + dx * i / 5, y);
+  await page.mouse.up();
+}
+
+test('glisser une étape libre décale les suivantes, jalon fixe', async () => {
+  const page = await openApp(gantt(), { hash: 'projets' });
+  await drag(page, '.pj-bar[data-sid="s1"]', 'mid', 7 * 22);
+  const d = await page.db();
+  assert.equal(d.subjects.find(s => s.id === 's1').plan.start, '2026-11-09');
+  assert.equal(await page.locator('.pj-bar[data-sid="s2"]').getAttribute('data-start'), '2026-11-16');
+  assert.equal(d.projects[0].milestones[0].date, '2026-11-10');
+  assert.equal(await page.evaluate(() => location.hash), '#projets');   // pas d'ouverture après un glisser
+  assert.deepEqual(page.errors, []);
+});
+
+test('étirer le bord droit change la durée', async () => {
+  const page = await openApp(gantt(), { hash: 'projets' });
+  await drag(page, '.pj-bar[data-sid="s2"]', 'right', 2 * 22);
+  const d = await page.db();
+  assert.equal(d.subjects.find(s => s.id === 's2').plan.durDays, 5);
+});
+
+test('une étape placée par ses dépendances ne se déplace pas', async () => {
+  const page = await openApp(gantt(), { hash: 'projets' });
+  await drag(page, '.pj-bar[data-sid="s2"]', 'mid', 7 * 22);
+  const d = await page.db();
+  assert.equal(d.subjects.find(s => s.id === 's2').plan.start, undefined);
+  assert.equal(await page.locator('.pj-bar[data-sid="s2"]').getAttribute('data-start'), '2026-11-09');
+  assert.equal(await page.evaluate(() => location.hash), '#projets');
+});

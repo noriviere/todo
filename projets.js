@@ -164,7 +164,7 @@ function renderGantt(p, sc, { scale = 'week', compact = false } = {}) {
     const s = byStep.get(r.id), st = A.subjectStats(s), col = colorOf(s, wc);
     const late = r.end < td && st.status !== 'done' && st.status !== 'cancelled';
     const prev = (s.after || []).filter(id => sc.byId[id]);
-    const label = `${esc(s.title)}${s.who ? ' · ' + esc(s.who) : ''} · ${fmt(r.start)} → ${fmt(r.end)} · ${st.progress}%${late ? ' · en retard' : ''}`;
+    const label = `${esc(s.title)}${s.who ? ' · ' + esc(s.who) : ''} · ${fmt(r.start)} → ${fmt(r.end)} · ${st.progress}%${late ? ' · en retard' : ''}${prev.length ? ' · placée par ses dépendances' : ''}`;
     names.push(`<button class="pj-g-name" data-pj="open-step" data-sid="${s.id}" style="height:${ROW}px" title="${label}"><span class="sw" style="background:${col}"></span><span class="t">${esc(s.title)}</span>${s.who ? `<span class="w">${esc(s.who)}</span>` : ''}</button>`);
     const w = (dd(r.start, r.end) + 1) * ppd;
     marks.push(`<button class="pj-bar ${late ? 'late' : ''} ${prev.length ? 'chained' : 'free'}" data-pj="open-step" data-sid="${s.id}" data-start="${r.start}" data-end="${r.end}"
@@ -369,6 +369,53 @@ window.addEventListener('todo:rendered', () => {
     box.classList.add('org-flash');
   }, 30);
 });
+
+/* ---------- Édition directe : glisser une étape libre, étirer sa fin (souris, pas sur écran tactile) ---------- */
+let drag = null, swallowClick = false;
+const coarse = () => window.matchMedia && matchMedia('(pointer: coarse)').matches;
+function workdaysBetween(a, b) {   // nombre de jours ouvrés de a à b inclus
+  const wd = workDays();
+  let n = 0;
+  for (let d = a; d <= b; d = shift(d, 1)) if (wd.includes(new Date(T(d)).getUTCDay())) n++;
+  return n;
+}
+document.addEventListener('pointerdown', e => {
+  const bar = e.target.closest('.pj-bar');
+  if (!bar || e.button !== 0 || coarse() || !on()) return;
+  const resize = !!e.target.closest('.pj-grip');
+  if (!resize && !bar.classList.contains('free')) return;
+  const g = bar.closest('.pj-gantt');
+  drag = { bar, resize, x0: e.clientX, ppd: +g.dataset.ppd, left: bar.offsetLeft, width: bar.offsetWidth, days: 0, moved: false };
+  bar.setPointerCapture && bar.setPointerCapture(e.pointerId);
+});
+document.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x0;
+  if (Math.abs(dx) > 4) drag.moved = true;
+  if (!drag.moved) return;
+  drag.days = Math.round(dx / drag.ppd);
+  if (drag.resize) drag.bar.style.width = Math.max(drag.ppd, drag.width + drag.days * drag.ppd) + 'px';
+  else drag.bar.style.left = drag.left + drag.days * drag.ppd + 'px';
+  drag.bar.classList.add('dragging');
+});
+document.addEventListener('pointerup', () => {
+  if (!drag) return;
+  const { bar, resize, days, moved } = drag;
+  drag = null;
+  if (!moved) return;
+  swallowClick = true; setTimeout(() => { swallowClick = false; }, 0);
+  const s = A.subj(bar.dataset.sid);
+  if (!s || !days) { A.render(); return; }
+  const start = bar.dataset.start, end = bar.dataset.end;
+  if (resize) {
+    const newEnd = shift(end, days);
+    s.plan = Object.assign({}, s.plan, { durDays: Math.max(1, newEnd < start ? 1 : workdaysBetween(start, newEnd)) });
+  } else s.plan = Object.assign({}, s.plan, { start: PL.nextWorkday(shift(start, days), workDays()) });
+  s.updatedAt = nowIso();
+  A.save(); A.render();
+});
+// Un glisser ne doit pas ouvrir l'étape
+document.addEventListener('click', e => { if (swallowClick && e.target.closest('.pj-gantt')) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
 
 // À l'ouverture, la frise se place sur aujourd'hui (un tiers de la largeur avant)
 window.addEventListener('todo:rendered', () => {
