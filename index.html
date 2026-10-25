@@ -206,6 +206,28 @@ details.sec>summary .load{margin-left:auto;font-size:12px;color:var(--muted);fon
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px;margin-bottom:14px}
 .card h3{margin:0 0 6px;font-size:15px}
 .card p{margin:0 0 12px;color:var(--muted)}
+/* Modules actifs (onglet Données) */
+.mods{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.mod{display:flex;align-items:center;gap:12px;padding:10px 12px;min-height:56px;cursor:pointer;border-top:1px solid var(--border);background:var(--surface)}
+.mod:first-child{border-top:0}
+.mod:hover{background:var(--surface-2)}
+.mod.soon{cursor:default;background:var(--surface)}
+.mod-ic{width:32px;height:32px;flex:none;border-radius:8px;display:grid;place-items:center;background:var(--surface-2);color:var(--muted)}
+.mod.on .mod-ic{background:var(--accent-bg);color:var(--accent)}
+.mod-ic svg{width:17px;height:17px}
+.mod-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.mod-t b{font-weight:600}
+.mod-t .hint{line-height:1.4}
+.mod-st{font-size:12px;color:var(--muted);min-width:64px;text-align:right}
+.mod.on .mod-st{color:var(--accent)}
+.mod-soon{display:inline-block;vertical-align:1px;margin-left:6px;font-size:11px;font-weight:600;border-radius:10px;padding:1px 8px;background:var(--surface-3);color:var(--muted);white-space:nowrap}
+.switch{appearance:none;-webkit-appearance:none;flex:none;width:40px;height:24px;border-radius:12px;background:var(--surface-3);border:1px solid var(--border);position:relative;cursor:pointer;margin:0;transition:background .15s}
+.switch::before{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+.switch:checked{background:var(--accent);border-color:var(--accent)}
+.switch:checked::before{transform:translateX(16px)}
+.switch:disabled{opacity:.5;cursor:not-allowed}
+@media (prefers-reduced-motion: reduce){.switch,.switch::before{transition:none}}
+@media (max-width:760px){.mod-st{display:none}}
 
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:9px 14px;border-radius:10px;display:flex;gap:12px;align-items:center;z-index:30;box-shadow:var(--shadow);font-size:13px}
 .toast button{border:0;background:none;color:var(--bg);font-weight:700;text-decoration:underline;padding:0}
@@ -375,8 +397,32 @@ const ICON = {
   chev: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
   filter: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18M6 12h12M10 19h4"/></svg>',
   more: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
+  timer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="14" r="7"/><path d="M12 10.5V14l2 1.5M10 3h4M12 3v4"/></svg>',
+  repeat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l3 3-3 3"/><path d="M4 11V9a4 4 0 0 1 4-4h12"/><path d="M7 22l-3-3 3-3"/><path d="M20 13v2a4 4 0 0 1-4 4H4"/></svg>',
+  gantt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4v16h18"/><rect x="6" y="6" width="7" height="3" rx="1"/><rect x="10" y="11" width="8" height="3" rx="1"/><rect x="8" y="16" width="5" height="2" rx="1"/></svg>',
   restore: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>'
 };
+
+/* ---------- Modules activables ---------- */
+// Chaque module peut être masqué dans Données › Modules actifs. Masquer ne supprime rien :
+// les données restent (et restent synchronisées), elles reviennent quand on le réactive.
+// soon : module prévu mais pas encore construit (interrupteur grisé)
+const MODULES = [
+  { id: 'chrono', label: 'Chrono et temps passé', icon: 'timer', desc: 'Bouton ▶ sur chaque tâche, temps réel passé et historique dans les détails.' },
+  { id: 'charge', label: 'Charge de travail', icon: 'chart', desc: 'Onglet Charge (prévision jour par jour, créneaux fixes), mini graphique du tableau de bord, date de début et répartition dans les détails.' },
+  { id: 'pointage', label: 'Pointage et congés', icon: 'clock', desc: 'Onglet Pointage (heures, absences, compteurs de congés) et bandeau du tableau de bord. Les congés réduisent la capacité de la Charge.' },
+  { id: 'recurrence', label: 'Tâches récurrentes', icon: 'repeat', desc: 'Option « Répéter » dans les détails : la tâche suivante se crée toute seule.' },
+  { id: 'projet', label: 'Gestion de projet', icon: 'gantt', soon: true, desc: 'Étapes reliées entre elles, planning type Gantt et vue d\'avancement pour l\'équipe.' }
+];
+function modOn(id) {
+  const m = MODULES.find(x => x.id === id);
+  if (!m) return true;
+  if (m.soon) return false;
+  const v = (db.settings.modules || {})[id];
+  return v == null ? m.def !== false : !!v;
+}
+// Un onglet peut appartenir à un module : 4e case de NAV
+const navOn = n => !n[3] || modOn(n[3]);
 
 /* ---------- Données ---------- */
 function blank() {
@@ -384,7 +430,7 @@ function blank() {
     version: 1,
     subjects: [],
     tasks: [],
-    settings: { theme: 'auto', workdayMin: 420, lastExport: null },
+    settings: { theme: 'auto', workdayMin: 420, lastExport: null, modules: {} },
     ui: { expanded: [], showClosed: false, search: '', dims: { projet: '', secteur: '', produit: '' } }
   };
 }
@@ -414,6 +460,7 @@ function migrate(d) {
   const b = blank();
   d = Object.assign(b, d);
   d.settings = Object.assign(blank().settings, d.settings);
+  if (!d.settings.modules || typeof d.settings.modules !== 'object') d.settings.modules = {};
   d.ui = Object.assign(blank().ui, d.ui);
   d.ui.dims = Object.assign({ projet: '', secteur: '', produit: '' }, d.ui.dims);
   d.subjects = (d.subjects || []).map(normSubject);
@@ -843,6 +890,20 @@ views.archives = () => {
     </details>`;
 };
 
+function modulesCard() {
+  return `<div class="card"><h3>Modules actifs</h3>
+    <p>Garde l'appli aussi simple que tu veux : coupe ce dont tu ne te sers pas. Les sujets, tâches, archives et données restent toujours là. Masquer un module ne supprime rien : ses données sont gardées et reviennent quand tu le réactives.</p>
+    <div class="mods">${MODULES.map(m => {
+      const on = modOn(m.id);
+      return `<label class="mod${on ? ' on' : ''}${m.soon ? ' soon' : ''}">
+        <span class="mod-ic">${ICON[m.icon] || ''}</span>
+        <span class="mod-t"><b>${esc(m.label)}${m.soon ? ' <span class="mod-soon">En préparation</span>' : ''}</b><span class="hint">${esc(m.desc)}</span></span>
+        ${m.soon ? '' : `<span class="mod-st" aria-hidden="true">${on ? 'Activé' : 'Désactivé'}</span>`}
+        <input type="checkbox" role="switch" class="switch" data-mod="${m.id}" data-k="mod-${m.id}" ${on ? 'checked' : ''} ${m.soon ? 'disabled' : ''} aria-label="${esc(m.label)}">
+      </label>`;
+    }).join('')}</div></div>`;
+}
+
 views.donnees = () => {
   const le = db.settings.lastExport;
   return `<h1>Données</h1>
@@ -850,6 +911,7 @@ views.donnees = () => {
     ${DEMO ? '' : `<div class="card"><h3>Mode démo</h3>
       <p>Pour montrer l'appli sans tes données : ouvre une version remplie d'exemples (sujets, tâches, charge, pointage). Tes vraies données ne sont pas touchées et rien n'est synchronisé pendant la démo.</p>
       <button class="btn" data-act="demo-start">Voir l'exemple</button></div>`}
+    ${modulesCard()}
     <div id="autosave-card"></div>
     <div class="card"><h3>Sauvegarde manuelle (export JSON)</h3>
       <p>Télécharge un fichier de sauvegarde à garder dans ton dossier ToDoList. Fais-le régulièrement : si l'historique du navigateur est effacé, c'est ce fichier qui te permet de tout récupérer.<br>Dernière sauvegarde : <b>${le ? new Date(le).toLocaleString('fr-FR') : 'jamais'}</b></p>
@@ -879,13 +941,13 @@ function renderDrawer() {
     </div>
     <div class="row2">
       <div class="f"><label>Deadline</label><input type="date" data-field="deadline" data-k="dr-dl" value="${t.deadline || ''}"></div>
-      <div class="f"><label>Date de début</label><input type="date" data-field="startDate" data-k="dr-sd" value="${t.startDate || ''}"></div>
+      ${modOn('charge') ? `<div class="f"><label>Date de début</label><input type="date" data-field="startDate" data-k="dr-sd" value="${t.startDate || ''}"></div>` : ''}
     </div>
     <div class="row2">
       <div class="f"><label>Temps estimé</label><input data-field="estimate" data-k="dr-est" value="${esc(fmtDur(t.estimateMin))}" placeholder="ex. 1h30"></div>
-      <div class="f"><label>Temps réel passé</label><input data-field="real" data-k="dr-real" value="${esc(fmtDur(t.realMin || null))}" placeholder="ex. 2h"></div>
+      ${modOn('chrono') ? `<div class="f"><label>Temps réel passé</label><input data-field="real" data-k="dr-real" value="${esc(fmtDur(t.realMin || null))}" placeholder="ex. 2h"></div>` : ''}
     </div>
-    <div class="f"><label>Répartition du travail</label>
+    ${modOn('charge') ? `<div class="f"><label>Répartition du travail</label>
       <select data-field="planMode" data-k="dr-plan">
         <option value="deadline" ${t.plan.mode === 'deadline' ? 'selected' : ''}>Tout le jour de la deadline</option>
         <option value="spread" ${t.plan.mode === 'spread' ? 'selected' : ''}>Réparti entre la date de début et la deadline</option>
@@ -893,7 +955,7 @@ function renderDrawer() {
       </select>
       ${t.plan.mode === 'daily' ? `<input data-field="planDaily" data-k="dr-daily" value="${esc(fmtDur(t.plan.dailyMin))}" placeholder="par jour, ex. 2h">` : ''}
       <span class="hint">Utilisée par la vue Charge. Sans date de début, la répartition commence aujourd'hui.</span>
-    </div>
+    </div>` : ''}
     ${hooks.drawer.map(f => f(t)).join('')}
     <div class="f"><label>Notes</label><textarea data-field="notes" data-k="dr-notes" placeholder="Contexte, liens, prochaines étapes…">${esc(t.notes)}</textarea></div>
     <div style="display:flex;gap:8px">
@@ -911,13 +973,16 @@ const NAV = [
   ['archives', 'Archives', 'archive'],
   ['donnees', 'Données', 'data']
 ];
-const currentView = () => { const v = location.hash.slice(1); return views[v] ? v : 'dashboard'; };
+const currentView = () => {
+  const v = location.hash.slice(1), n = NAV.find(x => x[0] === v);
+  return views[v] && (!n || navOn(n)) ? v : 'dashboard';
+};
 
 function render() {
   const v = currentView();
   const late = db.tasks.filter(t => visible(t) && isOpen(t) && bucket(t) === 'late').length;
   const inbox = db.tasks.filter(t => visible(t) && isOpen(t) && !t.subjectId).length;
-  $('#nav').innerHTML = NAV.map(([k, l, i]) => {
+  $('#nav').innerHTML = NAV.filter(navOn).map(([k, l, i]) => {
     let n = '';
     if (k === 'dashboard' && late) n = `<span class="n red" title="En retard">${late}</span>`;
     if (k === 'inbox' && inbox) n = `<span class="n">${inbox}</span>`;
@@ -965,6 +1030,17 @@ function focusKey(k, select) {
 /* ---------- Événements ---------- */
 document.addEventListener('change', e => {
   const el = e.target;
+  if (el.dataset.mod) {
+    const m = MODULES.find(x => x.id === el.dataset.mod);
+    if (!m || m.soon) return;
+    db.settings.modules[m.id] = el.checked;
+    save();
+    window.dispatchEvent(new CustomEvent('todo:modules', { detail: { id: m.id, on: el.checked } }));
+    render();
+    focusKey('mod-' + m.id);
+    toast(`${m.label} : ${el.checked ? 'activé' : 'masqué (rien n\'est supprimé)'}`);
+    return;
+  }
   const f = el.dataset.field;
   if (f) {
     const tr = el.closest('[data-tid]');
@@ -1193,7 +1269,7 @@ window.todoApp = {
 };
 // Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
 const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [] };
-Object.assign(window.todoApp, { hooks, views, NAV, ICON, PRIO, STATUS, DIMS, dimOk, dimsBar, save, scheduleRender, task, subj, visible, isOpen, setTaskField, toast,
+Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, save, scheduleRender, task, subj, visible, isOpen, setTaskField, toast,
   esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur });
 
 if (DEMO) {

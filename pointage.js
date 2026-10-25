@@ -7,6 +7,8 @@ const A = window.todoApp;
 if (!A || !A.hooks) { console.warn('pointage.js : index.html ne fournit pas les points d\'accroche attendus.'); return; }
 const { esc, fmtDur, today, addDays, diffDays, parseYmd, longDate, uid, ymd, toast } = A;
 const db = () => A.getData();
+// Module activable (Données › Modules actifs) : masqué, il ne montre rien et ne retire plus de capacité à la Charge
+const on = () => !A.modOn || A.modOn('pointage');
 
 A.ICON.clock = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
 
@@ -147,6 +149,7 @@ function counter(typeId, y) {
 /* ---------- Charge de travail : absences et fériés retirent la capacité du jour ---------- */
 if (A.hooks.dayOff) A.hooks.dayOff.push(ds => {
   const out = [];
+  if (!on()) return out;
   const h = holiday(ds);
   if (h && workDays().includes(parseYmd(ds).getDay())) out.push({ id: 'pt-hol-' + ds, title: 'Férié : ' + h, durMin: workdayMin(), freq: 'once', start: ds, days: [], virtual: true });
   const d = day(ds);
@@ -399,10 +402,11 @@ A.views.pointage = () => {
 };
 if (!A.NAV.some(x => x[0] === 'pointage')) {
   const i = A.NAV.findIndex(x => x[0] === 'charge');
-  A.NAV.splice(i < 0 ? A.NAV.length - 1 : i + 1, 0, ['pointage', 'Pointage', 'clock']);
+  A.NAV.splice(i < 0 ? A.NAV.length - 1 : i + 1, 0, ['pointage', 'Pointage', 'clock', 'pointage']);
 }
 // Bandeau sur le tableau de bord : où j'en suis aujourd'hui, et le bouton pour pointer
 A.hooks.dashTop.push(() => {
+  if (!on()) return '';
   const ds = today();
   if (!isWork(ds) && !day(ds)) return '';
   return `<div class="card pt-today pt-dash"><div class="pt-today-l"><a href="#pointage" class="hint">Pointage</a><div>${todayLine()}</div></div><div class="pt-today-r">${punchButtons(ds, true)}</div></div>`;

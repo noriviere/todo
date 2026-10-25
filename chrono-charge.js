@@ -6,6 +6,8 @@ const A = window.todoApp;
 if (!A || !A.hooks) { console.warn('chrono-charge.js : index.html ne fournit pas les points d\'accroche attendus.'); return; }
 const { esc, fmtDur, parseDur, today, addDays, diffDays, parseYmd, longDate, uid, nowIso, ymd, toast } = A;
 const db = () => A.getData();
+// Modules activables (Données › Modules actifs) : chrono et charge se masquent séparément
+const on = id => !A.modOn || A.modOn(id);
 
 const WD = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];          // index = getDay()
 const WD_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -213,7 +215,7 @@ function forecast(n) {
 
 /* ---------- Rendu : ligne de tâche et panneau détails ---------- */
 A.hooks.taskRow.push(t => {
-  if (t.archived) return '';
+  if (t.archived || !on('chrono')) return '';
   const run = !!t.timerStart, real = t.realMin || 0;
   const tip = `Temps réel : ${fmtDur(real) || '0min'}${t.estimateMin ? ' / estimé ' + fmtDur(t.estimateMin) : ''}`;
   if (!run && !A.isOpen(t)) return real ? `<span class="cc-real" title="${tip}">${fmtDur(real)}</span>` : '';
@@ -222,6 +224,7 @@ A.hooks.taskRow.push(t => {
 });
 
 A.hooks.drawer.push(t => {
+  if (!on('chrono')) return '';
   const run = !!t.timerStart, real = t.realMin || 0, est = t.estimateMin || 0;
   const pct = est ? Math.round(real / est * 100) : 0;
   const logs = (t.timeLogs || []).slice().sort((a, b) => (b.start || b.date || '').localeCompare(a.start || a.date || '')).slice(0, 12);
@@ -354,11 +357,11 @@ A.views.charge = () => {
         <button class="icon" data-act="details" title="Détails">${A.ICON.more}</button></div>`; }).join('')}</div>
     </details>` : ''}
     <div class="card"><h3>Créneaux fixes</h3>
-      <p>Le temps pris chaque semaine par ce qui n'est pas une tâche : réunions récurrentes, points d'équipe… Il est retiré de ta capacité. Un jour entièrement pris ne reçoit pas de tâche réparties. Les congés posés dans l'onglet <a href="#pointage">Pointage</a> et les jours fériés sont retirés automatiquement.</p>
+      <p>Le temps pris chaque semaine par ce qui n'est pas une tâche : réunions récurrentes, points d'équipe… Il est retiré de ta capacité. Un jour entièrement pris ne reçoit pas de tâche réparties. ${on('pointage') ? `Les congés posés dans l'onglet <a href="#pointage">Pointage</a> et les jours fériés sont retirés automatiquement.` : ''}</p>
       <div class="cc-slots">${act.map(slotRow).join('') || '<div class="empty">Aucun créneau fixe pour le moment.</div>'}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
         <button class="btn primary" data-act="cc-slot-add">+ Ajouter un créneau</button>
-        <a class="btn" href="#pointage" data-act="pt-tab" data-t="conges">+ Congé / absence</a>
+        ${on('pointage') ? '<a class="btn" href="#pointage" data-act="pt-tab" data-t="conges">+ Congé / absence</a>' : ''}
       </div>
       ${arch.length ? `<details class="cc-arch"><summary class="hint">${arch.length} créneau${arch.length > 1 ? 'x' : ''} archivé${arch.length > 1 ? 's' : ''}</summary>
         ${arch.map(sl => `<div class="cc-slot" data-slid="${sl.id}"><span class="cc-st">${esc(sl.title)}</span><span class="hint">${fmtDur(sl.durMin)} · ${esc(describeSlot(sl))}</span><button class="btn" data-act="cc-slot-restore">Restaurer</button></div>`).join('')}</details>` : ''}
@@ -373,14 +376,14 @@ A.views.charge = () => {
 // Entrée dans le menu, juste après « Sujets »
 if (!A.NAV.some(x => x[0] === 'charge')) {
   const i = A.NAV.findIndex(x => x[0] === 'sujets');
-  A.NAV.splice(i + 1, 0, ['charge', 'Charge', 'chart']);
+  A.NAV.splice(i + 1, 0, ['charge', 'Charge', 'chart', 'charge']);
 }
 
 // Bandeau des 7 prochains jours sur le tableau de bord
 const origDash = A.views.dashboard;
 A.views.dashboard = () => {
   const html = origDash();
-  if (!db().tasks.length) return html;
+  if (!db().tasks.length || !on('charge')) return html;
   const fc = forecast(7);
   const strip = `<a class="card cc-mini" href="#charge" title="Ouvrir la vue Charge">
     <div class="cc-mini-h"><b>Charge des 7 prochains jours</b><span class="hint">voir le détail →</span></div>${chart(fc.days, true)}</a>`;
@@ -485,7 +488,7 @@ const baseTitle = document.title;
 let floatEl = document.getElementById('cc-float');
 if (!floatEl) { floatEl = document.createElement('div'); floatEl.id = 'cc-float'; document.body.appendChild(floatEl); }
 function renderFloat() {
-  const r = running()[0];
+  const r = on('chrono') && running()[0];
   if (!r) { floatEl.innerHTML = ''; document.title = baseTitle; return; }
   floatEl.innerHTML = `<div class="cc-float" data-tid="${r.id}">
     <span class="cc-pulse"></span>
@@ -504,6 +507,22 @@ function tick() {
   document.title = '⏱ ' + clock(elapsedSec(rs[0])) + ' · ' + baseTitle;
 }
 window.addEventListener('todo:rendered', renderFloat);
+// Chrono masqué alors qu'il tourne : on l'arrête et le temps déjà passé est gardé
+window.addEventListener('todo:modules', e => {
+  if (e.detail.id !== 'chrono' || e.detail.on) return;
+  const rs = running();
+  if (!rs.length) return;
+  const before = rs.reduce((a, r) => a + (r.realMin || 0), 0);
+  rs.forEach(r => stopTimer(r, Date.now() - Date.parse(r.timerStart) <= 240 * 60000));
+  // Durée à garder refusée : le chrono continue, on garde donc le module affiché
+  const kept = running().length;
+  if (kept) db().settings.modules.chrono = true;
+  const added = rs.reduce((a, r) => a + (r.realMin || 0), 0) - before;
+  A.save(); A.render();
+  // Après le message de index.html
+  setTimeout(() => toast(kept ? 'Chrono gardé : arrête d\'abord le chrono en cours'
+    : `Chrono masqué. Le chrono en cours a été arrêté${added ? ', ' + fmtDur(added) + ' ajoutées au temps réel' : ''}`), 10);
+});
 setInterval(tick, 1000);
 
 A.render();

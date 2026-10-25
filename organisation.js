@@ -280,8 +280,10 @@
     return n;
   }
 
-  A.hooks.taskRow.push(t => t.recur ? `<span class="org-recur" title="Répète : ${esc(recurLabel(t.recur))}">↻</span>` : '');
-  A.hooks.drawer.push(t => `<div class="f"><label>Répéter</label>
+  // Module activable (Données › Modules actifs) : masqué, plus de ↻, plus d'option Répéter, plus de création automatique
+  const recurOn = () => !A.modOn || A.modOn('recurrence');
+  A.hooks.taskRow.push(t => t.recur && recurOn() ? `<span class="org-recur" title="Répète : ${esc(recurLabel(t.recur))}">↻</span>` : '');
+  A.hooks.drawer.push(t => !recurOn() ? '' : `<div class="f"><label>Répéter</label>
       <select data-org-recur data-k="dr-recur">${RECUR.map(([v, l]) => `<option value="${v}" ${v === recurKey(t.recur) ? 'selected' : ''}>${l}</option>`).join('')}</select>
       <span class="hint">Quand elle est faite (ou annulée), la suivante est créée automatiquement${t.deadline ? '' : ', à partir de la date du jour'}.</span>
     </div>`);
@@ -297,7 +299,7 @@
 
   let busy = false;
   function checkRecurring() {
-    if (busy) return;
+    if (busy || !recurOn()) return;
     busy = true;
     try {
       let changed = false, created = null;
