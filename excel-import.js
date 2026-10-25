@@ -161,11 +161,11 @@
 
   function card() {
     const has = A.getData().subjects.length + A.getData().tasks.length;
-    const steps = A.getData().subjects.filter(s => s.projectId && !s.archived).length;
+    const steps = A.getData().subjects.filter(s => (s.parentId || s.isProject) && !s.archived).length;
     if (preview) {
       return `<div class="card"><h3>Import depuis Excel</h3>${summary(preview)}
         <p>${has ? `Tu as déjà ${A.getData().subjects.length} sujets et ${A.getData().tasks.length} tâches dans l'appli. « Remplacer » repart de ton Excel seul, « Ajouter » garde aussi ce qui existe. Dans les deux cas l'état actuel est gardé et tu peux revenir en arrière.` : ''}</p>
-        ${steps ? `<p class="hint">⚠ « Remplacer » retire aussi tes ${steps} étape${steps > 1 ? 's' : ''} de projet (leur planning et leurs liens) : les projets resteraient vides. Préfère « Ajouter » pour les garder.</p>` : ''}
+        ${steps ? `<p class="hint">⚠ « Remplacer » retire aussi tes ${steps} sujet${steps > 1 ? 's' : ''} organisé${steps > 1 ? 's' : ''} en sous-sujets ou en projets (avec leur planning, leurs liens et leurs jalons). Préfère « Ajouter » pour les garder.</p>` : ''}
         <button class="btn primary" data-xl="replace">${has ? 'Remplacer mes données' : 'Importer'}</button>
         ${has ? '<button class="btn" data-xl="add">Ajouter à mes données</button>' : ''}
         <button class="btn" data-xl="cancel">Annuler</button></div>`;

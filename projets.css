@@ -10,7 +10,6 @@
 .pj-meta{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;color:var(--muted)}
 .pj-prog{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
 .pj-prog .bar{flex:1}
-.pj-arch{position:absolute;top:12px;right:10px}
 .pj-badge{font-size:12px;font-weight:600;border-radius:20px;padding:2px 8px}
 .pj-badge.late{background:var(--danger-bg);color:var(--danger)}
 .pj-back{margin-bottom:10px}
@@ -168,8 +167,16 @@ label.tog svg{width:13px;height:13px;vertical-align:-2px}
 .pj-head .pj-f input{font-size:13px;padding:5px 8px}
 .pj-head input[data-pjh=name]{width:220px;max-width:100%}
 .pj-head input[type=color]{width:34px;height:28px;padding:2px}
-.pj-arc{margin-top:16px}
-.pj-arc .pj-mlist{margin-top:10px}
-.pj-arc .pj-li{grid-template-columns:1fr auto}
 .pj-ms.arc{color:var(--muted);font-size:13px}
 .pj-ms.arc .btn{margin-left:auto;padding:4px 10px}
+/* Interrupteur « Mode projet » d'un sujet, et rappel du projet sur une étape */
+.pj-mode{align-items:center}
+.pj-mode .btn svg,.pj-of svg{width:15px;height:15px}
+.pj-mode .pj-hint{margin:0}
+.pj-of{display:inline-flex;align-items:center;gap:5px;color:var(--muted)}
+.pj-of b{color:var(--text)}
+.pj-head .linkish{font-size:13px}
+/* Case « Échéance ferme » dans les détails : case à gauche, cadenas lisible */
+.f .tog{flex-direction:row;font-size:13px;color:var(--text)}
+.f .tog input{width:auto;flex:none;margin:0}
+.f .tog svg{width:14px;height:14px}

@@ -3,13 +3,19 @@ const assert = require('node:assert/strict');
 const { openApp, closeAll } = require('./helpers');
 after(closeAll);
 
-const data = (on, extra = {}) => Object.assign({
-  version: 1,
-  subjects: [{ id: 's1', title: 'CDC machine', priority: 1 }, { id: 's2', title: 'FAT', priority: 2 }],
-  tasks: [{ id: 't1', subjectId: 's1', title: 'Envoyer email', deadline: null }],
-  projects: [{ id: 'p1', name: 'Achat machine', owner: 'Noel', color: '#4f63e8', order: 0, archived: false, createdAt: '2026-10-01T00:00:00Z', milestones: [] }],
-  settings: { modules: on ? { projet: true } : {} }, ui: {}
-}, extra);
+// Le projet p1 est un sujet en mode projet ; les étapes sont ses sous-sujets (parentId)
+const PROJ = () => ({ id: 'p1', title: 'Achat machine', priority: 1, isProject: true, pj: { owner: 'Noel', color: '#4f63e8', milestones: [] } });
+const data = (on, extra = {}) => {
+  const d = Object.assign({
+    version: 1,
+    subjects: [{ id: 's1', title: 'CDC machine', priority: 1 }, { id: 's2', title: 'FAT', priority: 2 }],
+    tasks: [{ id: 't1', subjectId: 's1', title: 'Envoyer email', deadline: null }],
+    settings: { modules: on ? { projet: true } : {} }, ui: {}
+  }, extra);
+  d.subjects = [PROJ(), ...d.subjects];
+  return d;
+};
+const pjOf = d => d.subjects.find(s => s.id === 'p1').pj;
 
 /* ---------- Task 2 : module, données, liste ---------- */
 test('module désactivé par défaut : pas d\'onglet, #projets retombe sur le tableau de bord', async () => {
@@ -20,42 +26,50 @@ test('module désactivé par défaut : pas d\'onglet, #projets retombe sur le ta
 });
 
 test('module désactivé : les données projet survivent à une sauvegarde', async () => {
-  const page = await openApp(data(false, { subjects: [{ id: 's1', title: 'CDC', priority: 1, projectId: 'p1', plan: { start: '2026-11-02', durDays: 3 } }] }), { hash: 'sujets' });
+  const page = await openApp(data(false, { subjects: [{ id: 's1', title: 'CDC', priority: 1, parentId: 'p1', plan: { start: '2026-11-02', durDays: 3 } }] }), { hash: 'sujets' });
   await page.evaluate(() => { window.todoApp.getData().tasks[0].title = 'modifié'; window.todoApp.save(); });
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('todo-noel-v1')));
-  assert.equal(saved.projects[0].name, 'Achat machine');
-  assert.equal(saved.subjects[0].projectId, 'p1');
-  assert.equal(saved.subjects[0].plan.durDays, 3);
+  assert.equal(pjOf(saved).owner, 'Noel');
+  assert.equal(saved.subjects.find(s => s.id === 'p1').isProject, true);
+  assert.equal(saved.subjects.find(s => s.id === 's1').parentId, 'p1');
+  assert.equal(saved.subjects.find(s => s.id === 's1').plan.durDays, 3);
 });
 
-test('module actif : onglet Projets, liste, création et archivage', async () => {
+test('module actif : onglet Projets, liste, création, quitter le mode projet', async () => {
   const page = await openApp(data(true), { hash: 'projets' });
   assert.equal(await page.locator('#nav a[href="#projets"]').count(), 1);
   assert.match(await page.locator('#main').innerText(), /Achat machine/);
   page.__prompt = 'Ligne 2';
   await page.click('[data-pj="new-project"]');
   let d = await page.db();
-  assert.ok(d.projects.some(p => p.name === 'Ligne 2' && !p.archived && Array.isArray(p.milestones)));
-  await page.click('.pj-card[data-pid="p1"] [data-pj="archive-project"]');
+  assert.ok(d.subjects.some(p => p.title === 'Ligne 2' && p.isProject && !p.parentId && Array.isArray(p.pj.milestones)));
+  await page.click('.pj-card[data-pid="p1"] [data-pj="open-project"]');
+  await page.click('[data-pj="unproject"]');
   d = await page.db();
-  assert.equal(d.projects.find(p => p.id === 'p1').archived, true);
+  const p1 = d.subjects.find(p => p.id === 'p1');
+  assert.equal(p1.isProject, false);
+  assert.equal(p1.archived, false);
+  assert.equal(pjOf(d).owner, 'Noel');   // gardé pour un retour en mode projet
   assert.doesNotMatch(await page.locator('#main').innerText(), /Achat machine/);
   assert.deepEqual(page.errors, []);
 });
 
 /* ---------- Task 3 : étapes ---------- */
-const sujets = (d) => Object.assign(d, { ui: { expanded: ['s1', 's2'] } });
+const sujets = (d) => Object.assign(d, { ui: { expanded: ['p1', 's1', 's2'] } });
 
-test('module désactivé : pas de champ Projet dans le sujet', async () => {
-  const page = await openApp(sujets(data(false)), { hash: 'sujets' });
-  assert.equal(await page.locator('[data-pjf="project"]').count(), 0);
+test('module désactivé : ni mode projet ni champs d\'étape dans le sujet', async () => {
+  const page = await openApp(sujets(data(false, { subjects: [{ id: 's1', title: 'A', priority: 1, parentId: 'p1' }] })), { hash: 'sujets' });
+  assert.equal(await page.locator('[data-pjf]').count(), 0);
+  assert.equal(await page.locator('.subject[data-sid="p1"] .subject[data-sid="s1"]').count(), 1);   // les sous-sujets restent
 });
 
 test('rattacher un sujet, régler durée, début et lien « Après »', async () => {
   const page = await openApp(sujets(data(true)), { hash: 'sujets' });
   const box = id => page.locator(`.subject[data-sid="${id}"]`);
-  await box('s1').locator('[data-pjf="project"]').selectOption('p1');
-  await box('s2').locator('[data-pjf="project"]').selectOption('p1');
+  await box('s1').locator('[data-field="s-parent"]').selectOption('p1');
+  await page.waitForTimeout(30);
+  await box('s2').locator('[data-field="s-parent"]').selectOption('p1');
+  await page.waitForTimeout(30);
   await box('s1').locator('[data-pjf="start"]').fill('2026-11-02');
   await box('s1').locator('[data-pjf="start"]').dispatchEvent('change');
   await box('s1').locator('[data-pjf="dur"]').fill('5');
@@ -67,7 +81,7 @@ test('rattacher un sujet, régler durée, début et lien « Après »', async ()
   await box('s2').locator('[data-pjf="who"]').dispatchEvent('change');
   const d = await page.db();
   const s1 = d.subjects.find(s => s.id === 's1'), s2 = d.subjects.find(s => s.id === 's2');
-  assert.equal(s1.projectId, 'p1');
+  assert.equal(s1.parentId, 'p1');
   assert.deepEqual(s1.plan, { start: '2026-11-02', durDays: 5 });
   assert.deepEqual(s2.after, ['s1']);
   assert.equal(s2.who, 'Entreprise A');
@@ -78,8 +92,8 @@ test('rattacher un sujet, régler durée, début et lien « Après »', async ()
 
 test('un lien en boucle est refusé', async () => {
   const d0 = sujets(data(true, { subjects: [
-    { id: 's1', title: 'A', priority: 1, projectId: 'p1', plan: { start: '2026-11-02', durDays: 2 } },
-    { id: 's2', title: 'B', priority: 1, projectId: 'p1', plan: { durDays: 2 }, after: ['s1'] }] }));
+    { id: 's1', title: 'A', priority: 1, parentId: 'p1', plan: { start: '2026-11-02', durDays: 2 } },
+    { id: 's2', title: 'B', priority: 1, parentId: 'p1', plan: { durDays: 2 }, after: ['s1'] }] }));
   const page = await openApp(d0, { hash: 'sujets' });
   await page.locator('.subject[data-sid="s1"] [data-pj-after="s2"]').click();
   const d = await page.db();
@@ -90,16 +104,17 @@ test('un lien en boucle est refusé', async () => {
 
 test('détacher une étape nettoie liens et jalons', async () => {
   const d0 = sujets(data(true, { subjects: [
-    { id: 's1', title: 'A', priority: 1, projectId: 'p1', plan: { start: '2026-11-02', durDays: 2 }, who: 'X' },
-    { id: 's2', title: 'B', priority: 1, projectId: 'p1', plan: { durDays: 2 }, after: ['s1'] }] }));
-  d0.projects[0].milestones = [{ id: 'm1', name: 'Livraison', date: '2026-12-01', before: ['s1', 's2'] }];
+    { id: 's1', title: 'A', priority: 1, parentId: 'p1', plan: { start: '2026-11-02', durDays: 2 }, who: 'X' },
+    { id: 's2', title: 'B', priority: 1, parentId: 'p1', plan: { durDays: 2 }, after: ['s1'] }] }));
+  pjOf(d0).milestones = [{ id: 'm1', name: 'Livraison', date: '2026-12-01', before: ['s1', 's2'] }];
   const page = await openApp(d0, { hash: 'sujets' });
-  await page.locator('.subject[data-sid="s1"] [data-pjf="project"]').selectOption('');
+  await page.locator('.subject[data-sid="s1"] [data-field="s-parent"]').selectOption('');
+  await page.waitForTimeout(30);
   const d = await page.db();
   const s1 = d.subjects.find(s => s.id === 's1');
-  assert.equal(s1.projectId || null, null);
+  assert.equal(s1.parentId || null, null);
   assert.deepEqual(d.subjects.find(s => s.id === 's2').after, []);
-  assert.deepEqual(d.projects[0].milestones[0].before, ['s2']);
+  assert.deepEqual(pjOf(d).milestones[0].before, ['s2']);
   assert.equal(s1.title, 'A');
 });
 
@@ -111,15 +126,16 @@ test('« Nouvelle étape » crée un sujet rattaché et l\'ouvre', async () => {
   await page.waitForFunction(() => location.hash === '#sujets');
   const d = await page.db();
   const s = d.subjects.find(x => x.title === 'Déchargement');
-  assert.equal(s.projectId, 'p1');
+  assert.equal(s.parentId, 'p1');
   assert.ok(d.ui.expanded.includes(s.id));
+  assert.ok(d.ui.expanded.includes('p1'));
 });
 
 /* ---------- Task 4 : jalons ---------- */
 const planned = () => {
   const d = data(true, { subjects: [
-    { id: 's1', title: 'FAT', priority: 1, projectId: 'p1', plan: { start: '2026-11-02', durDays: 5 } },
-    { id: 's2', title: 'SAT', priority: 1, projectId: 'p1', plan: { durDays: 3 }, after: ['s1'] }] });
+    { id: 's1', title: 'FAT', priority: 1, parentId: 'p1', plan: { start: '2026-11-02', durDays: 5 } },
+    { id: 's2', title: 'SAT', priority: 1, parentId: 'p1', plan: { durDays: 3 }, after: ['s1'] }] });
   d.ui = { pjOpen: 'p1' };
   return d;
 };
@@ -130,15 +146,15 @@ test('créer un jalon, le relier à une étape, alerte de dépassement', async (
   await page.fill('[data-pjm="new-date"]', '2026-11-10');
   await page.click('[data-pj="add-milestone"]');
   let d = await page.db();
-  const m = d.projects[0].milestones[0];
+  const m = pjOf(d).milestones[0];
   assert.equal(m.name, 'Livraison machine');
   assert.equal(m.date, '2026-11-10');
   await page.locator(`[data-mid="${m.id}"] [data-pj-before="s2"]`).check();
   assert.match(await page.locator('.pj-alert').innerText(), /Livraison machine/);
   assert.match(await page.locator('.pj-alert').innerText(), /SAT/);
   d = await page.db();
-  assert.equal(d.projects[0].milestones[0].date, '2026-11-10');   // le jalon ne bouge pas
-  assert.deepEqual(d.projects[0].milestones[0].before, ['s2']);
+  assert.equal(pjOf(d).milestones[0].date, '2026-11-10');   // le jalon ne bouge pas
+  assert.deepEqual(pjOf(d).milestones[0].before, ['s2']);
   // Raccourcir la FAT supprime le dépassement
   await page.evaluate(() => { const s = window.todoApp.subj('s1'); s.plan.durDays = 2; window.todoApp.save(); window.todoApp.render(); });
   assert.equal(await page.locator('.pj-alert').count(), 0);
@@ -147,23 +163,23 @@ test('créer un jalon, le relier à une étape, alerte de dépassement', async (
 
 test('alerte visible sur la carte du projet, jalon archivable', async () => {
   const d0 = planned();
-  d0.projects[0].milestones = [{ id: 'm1', name: 'Paiement 30 %', date: '2026-11-05', before: ['s1'] }];
+  pjOf(d0).milestones = [{ id: 'm1', name: 'Paiement 30 %', date: '2026-11-05', before: ['s1'] }];
   d0.ui = {};
   const page = await openApp(d0, { hash: 'projets' });
   assert.match(await page.locator('.pj-card[data-pid="p1"]').innerText(), /alerte/);
   await page.click('[data-pj="open-project"]');
   await page.click('[data-mid="m1"] [data-pj="archive-milestone"]');
   const d = await page.db();
-  assert.equal(d.projects[0].milestones[0].archived, true);
+  assert.equal(pjOf(d).milestones[0].archived, true);
   assert.equal(await page.locator('.pj-alert').count(), 0);
 });
 
 /* ---------- Task 5 : Gantt bureau ---------- */
 const gantt = () => {
   const d = planned();
-  d.subjects.push({ id: 's3', title: 'Raccordement', priority: 2, projectId: 'p1', plan: {}, who: 'Entreprise A' });
-  d.subjects[1].who = 'Production';
-  d.projects[0].milestones = [{ id: 'm1', name: 'Livraison', date: '2026-11-10', before: ['s2'] }];
+  d.subjects.push({ id: 's3', title: 'Raccordement', priority: 2, parentId: 'p1', plan: {}, who: 'Entreprise A' });
+  d.subjects.find(x => x.id === 's2').who = 'Production';
+  pjOf(d).milestones = [{ id: 'm1', name: 'Livraison', date: '2026-11-10', before: ['s2'] }];
   return d;
 };
 
@@ -217,7 +233,7 @@ test('glisser une étape libre décale les suivantes, jalon fixe', async () => {
   const d = await page.db();
   assert.equal(d.subjects.find(s => s.id === 's1').plan.start, '2026-11-09');
   assert.equal(await page.locator('.pj-bar[data-sid="s2"]').getAttribute('data-start'), '2026-11-16');
-  assert.equal(d.projects[0].milestones[0].date, '2026-11-10');
+  assert.equal(pjOf(d).milestones[0].date, '2026-11-10');
   assert.equal(await page.evaluate(() => location.hash), '#projets');   // pas d'ouverture après un glisser
   assert.deepEqual(page.errors, []);
 });
@@ -290,7 +306,7 @@ test('export PDF : page d\'impression avec Gantt, étapes et jalons', async () =
 
 /* ---------- Task 9 : échéance ferme, démo, mode d'emploi ---------- */
 test('cadenas : échéance ferme depuis les détails, icône dans la ligne', async () => {
-  const d0 = gantt(); d0.ui.expanded = ['s1']; d0.tasks[0].deadline = '2026-11-04';
+  const d0 = gantt(); d0.ui.expanded = ['p1', 's1']; d0.tasks[0].deadline = '2026-11-04';
   const page = await openApp(d0, { hash: 'sujets' });
   await page.click('.task[data-tid="t1"] [data-act="details"]');
   await page.locator('[data-pj-hard]').check();
@@ -308,7 +324,7 @@ test('cadenas masqué quand le module est désactivé', async () => {
 });
 
 test('garde-fou : tâche datée après la fin prévue de son étape', async () => {
-  const d0 = gantt(); d0.ui.expanded = ['s1']; d0.tasks[0].deadline = '2026-11-20';   // FAT finit le 06/11
+  const d0 = gantt(); d0.ui.expanded = ['p1', 's1']; d0.tasks[0].deadline = '2026-11-20';   // FAT finit le 06/11
   const page = await openApp(d0, { hash: 'sujets' });
   assert.equal(await page.locator('.task[data-tid="t1"] .pj-warn').count(), 1);
 });
@@ -317,7 +333,7 @@ test('démo : projet d\'exemple avec Gantt et alerte, aide sur l\'onglet', async
   const page = await openApp(null, { query: '?demo', hash: 'projets' });
   const d = await page.db();
   assert.ok(d.settings.modules.projet);
-  assert.ok(d.projects.length >= 1);
+  assert.ok(d.subjects.some(s => s.isProject && d.subjects.some(x => x.parentId === s.id)));
   assert.match(await page.locator('.pj-card').first().innerText(), /Achat presse/);
   assert.match(await page.locator('.pj-card').first().innerText(), /alerte/);
   await page.waitForSelector('#main h1 + .gd-i[data-help="projets"], #main .gd-i[data-help="projets"]');

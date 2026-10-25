@@ -17,15 +17,19 @@ const safeColor = c => /^#[0-9a-f]{6}$/i.test(c || '') ? c : '#4f63e8';
 const COLORS = ['#4f63e8', '#23915f', '#c77d0e', '#c2559b', '#0f8fa0', '#8e5bd8', '#d43a4a', '#5876b8'];
 
 /* ---------- Données ---------- */
-const allProjects = () => Array.isArray(db().projects) ? db().projects : (db().projects = []);
-const projects = () => allProjects().filter(p => !p.archived).sort((a, b) => (a.order || 0) - (b.order || 0) || a.name.localeCompare(b.name, 'fr'));
-const project = id => allProjects().find(p => p.id === id) || null;
-const stepsOf = pid => db().subjects.filter(s => !s.archived && s.projectId === pid);
+// Un projet est un sujet de premier niveau en mode projet ; ses étapes sont ses sous-sujets.
+// pj garde chef de projet, couleur et jalons, même quand le mode projet est retiré.
+const pjOf = s => s.pj && typeof s.pj === 'object' ? s.pj : (s.pj = { owner: '', color: '', milestones: [] });
+const isProj = s => !!(s && s.isProject && !A.parentOf(s));
+const projects = () => db().subjects.filter(s => isProj(s) && !s.archived).sort((a, b) => a.priority - b.priority || (a.order || 0) - (b.order || 0) || a.title.localeCompare(b.title, 'fr'));
+const project = id => { const s = A.subj(id); return isProj(s) ? s : null; };
+const stepsOf = pid => { const p = A.subj(pid); return p ? A.childrenOf(p) : []; };
+const projectOfStep = s => { const p = A.parentOf(s); return isProj(p) ? p : null; };
 const workDays = () => Array.isArray(db().settings.workDays) ? db().settings.workDays : [1, 2, 3, 4, 5];
-const milestonesOf = p => (p.milestones || []).filter(m => !m.archived);
+const milestonesOf = p => (pjOf(p).milestones || []).filter(m => !m.archived);
 // Les étapes archivées (souvent terminées) restent des ancres pour celles qui en dépendent, sans être dessinées
 function projectSchedule(p) {
-  const all = db().subjects.filter(s => s.projectId === p.id), archived = new Set(all.filter(s => s.archived).map(s => s.id));
+  const all = A.childrenOf(p, true), archived = new Set(all.filter(s => s.archived).map(s => s.id));
   const sc = PL.schedule(all, milestonesOf(p), workDays());
   sc.order = sc.order.filter(id => !archived.has(id));
   sc.unplanned = sc.unplanned.filter(id => !archived.has(id));
@@ -33,15 +37,8 @@ function projectSchedule(p) {
   return sc;
 }
 
-function projectProgress(p) {
-  // Avancement du projet : moyenne des étapes pondérée par leur temps estimé total (comme un sujet)
-  let w = 0, sum = 0;
-  stepsOf(p.id).forEach(st => {
-    const k = A.subjectStats(st), wt = k.estMin || 60;
-    w += wt; sum += wt * k.progress;
-  });
-  return w ? Math.round(sum / w) : 0;
-}
+// Avancement du projet = celui du sujet : ses tâches de niveau 1 et celles de ses étapes
+const projectProgress = p => A.subjectStats(p).progress;
 
 /* ---------- Onglet ---------- */
 if (!A.NAV.some(x => x[0] === 'projets')) {
@@ -55,34 +52,23 @@ function listView() {
     const sc = projectSchedule(p), prog = projectProgress(p);
     const next = milestonesOf(p).filter(m => m.date >= today()).sort((a, b) => a.date.localeCompare(b.date))[0];
     const nSteps = stepsOf(p.id).length;
-    return `<div class="card pj-card" data-pid="${p.id}" style="--pj:${safeColor(p.color)}">
+    return `<div class="card pj-card" data-pid="${p.id}" style="--pj:${safeColor(pjOf(p).color)}">
       <button class="pj-open" data-pj="open-project" title="Ouvrir le planning">
-        <span class="pj-name">${esc(p.name)}</span>
+        <span class="pj-name">${esc(p.title)}</span>
         ${sc.alerts.length ? `<span class="pj-badge late" title="Un jalon est dépassé">⚠ ${sc.alerts.length} alerte${sc.alerts.length > 1 ? 's' : ''}</span>` : ''}
       </button>
       <div class="pj-meta">
-        ${p.owner ? `<span>${esc(p.owner)}</span>` : ''}
+        ${pjOf(p).owner ? `<span>${esc(pjOf(p).owner)}</span>` : ''}
         <span>${nSteps} étape${nSteps > 1 ? 's' : ''}</span>
         ${next ? `<span title="Prochain jalon">◆ ${esc(next.name)} · ${A.longDate(next.date)}</span>` : ''}
       </div>
       <div class="pj-prog"><span class="bar" title="${prog}%"><i style="width:${prog}%"></i></span><span>${prog}%</span></div>
-      <button class="icon pj-arch" data-pj="archive-project" title="Archiver le projet">${A.ICON.archive}</button>
     </div>`;
   }).join('');
   return `<h1>Projets</h1>
-    <p class="sub">Les gros sujets organisés en étapes, reliées entre elles, avec leurs jalons.</p>
+    <p class="sub">Les sujets passés en mode projet : leurs sous-sujets sont les étapes du planning, avec leurs jalons.</p>
     <div class="toolbar"><button class="btn primary" data-pj="new-project">+ Nouveau projet</button></div>
-    ${ps.length ? `<div class="pj-list">${cards}</div>` : `<div class="card"><p>Aucun projet pour le moment. Crée un projet, puis rattache-lui des sujets existants (champ « Projet » dans le sujet) ou ajoute des étapes.</p></div>`}
-    ${archivedProjects()}`;
-}
-
-// Projets archivés : repliés en bas de la liste, restaurables d'un clic
-function archivedProjects() {
-  const arc = allProjects().filter(p => p.archived);
-  if (!arc.length) return '';
-  const open = !!db().ui.pjShowArchived;
-  return `<div class="pj-arc"><button class="btn" data-pj="show-archived" aria-expanded="${open}">${open ? 'Masquer' : 'Voir'} les projets archivés (${arc.length})</button>
-    ${open ? `<ul class="pj-mlist">${arc.map(p => `<li class="pj-li" data-pid="${p.id}"><span>${esc(p.name)}</span><button class="btn" data-pj="restore-project">Restaurer</button></li>`).join('')}</ul>` : ''}</div>`;
+    ${ps.length ? `<div class="pj-list">${cards}</div>` : `<div class="card"><p>Aucun projet pour le moment. Crée un projet, ou coche « Mode projet » dans la fiche d'un sujet (onglet Sujets) : ses sous-sujets deviennent les étapes.</p></div>`}`;
 }
 
 A.views.projets = () => {
@@ -93,7 +79,7 @@ A.views.projets = () => {
 /* ---------- Détail d'un projet ---------- */
 function alertsBanner(p, sc) {
   if (!sc.alerts.length) return '';
-  const ms = new Map((p.milestones || []).map(m => [m.id, m]));
+  const ms = new Map((pjOf(p).milestones || []).map(m => [m.id, m]));
   const lines = sc.alerts.map(a => {
     const m = ms.get(a.milestoneId), st = A.subj(a.subjectId);
     return `<li><b>${esc(m.name)}</b> (${fmt(m.date)}) est dépassé par <button class="linkish" data-pj="open-step" data-sid="${a.subjectId}">${esc(st ? st.title : '?')}</button>, qui finit le ${fmt(sc.byId[a.subjectId].end)}</li>`;
@@ -115,7 +101,7 @@ function milestonesSection(p, sc) {
   return `<section class="card pj-sec"><h3>Jalons</h3>
     <p class="pj-hint">Dates fixes du projet (livraison, paiements…). Ils ne bougent jamais seuls : une alerte prévient si une étape les dépasse.</p>
     ${rows}
-    ${(p.milestones || []).filter(m => m.archived).map(m => `<div class="pj-ms arc" data-mid="${m.id}"><span class="pj-dia" aria-hidden="true">◇</span><span>${esc(m.name)} · archivé</span><button class="btn" data-pj="restore-milestone">Restaurer</button></div>`).join('')}
+    ${(pjOf(p).milestones || []).filter(m => m.archived).map(m => `<div class="pj-ms arc" data-mid="${m.id}"><span class="pj-dia" aria-hidden="true">◇</span><span>${esc(m.name)} · archivé</span><button class="btn" data-pj="restore-milestone">Restaurer</button></div>`).join('')}
     <div class="pj-ms-add">
       <input data-pjm="new-name" data-k="pjm-new-name" placeholder="+ Nouveau jalon (ex. Livraison machine)" aria-label="Nom du nouveau jalon">
       <input type="date" class="date" data-pjm="new-date" data-k="pjm-new-date" aria-label="Date du nouveau jalon">
@@ -126,14 +112,17 @@ function milestonesSection(p, sc) {
 
 function detailView(p) {
   const sc = projectSchedule(p), prog = projectProgress(p);
-  return `<div class="pj-detail" data-pid="${p.id}" style="--pj:${safeColor(p.color)}">
+  const pj = pjOf(p);
+  return `<div class="pj-detail" data-pid="${p.id}" style="--pj:${safeColor(pj.color)}">
     <button class="btn pj-back" data-pj="back">← Projets</button>
-    <h1>${esc(p.name)}</h1>
+    <h1>${esc(p.title)}</h1>
     <div class="pj-head">
-      <label class="pj-f">Nom <input data-pjh="name" data-k="pjh-name" value="${esc(p.name)}"></label>
-      <label class="pj-f">Chef de projet <input data-pjh="owner" data-k="pjh-owner" value="${esc(p.owner || '')}" placeholder="—"></label>
-      <label class="pj-f">Couleur <input type="color" data-pjh="color" value="${esc(safeColor(p.color))}"></label>
+      <label class="pj-f">Nom <input data-pjh="name" data-k="pjh-name" value="${esc(p.title)}"></label>
+      <label class="pj-f">Chef de projet <input data-pjh="owner" data-k="pjh-owner" value="${esc(pj.owner || '')}" placeholder="—"></label>
+      <label class="pj-f">Couleur <input type="color" data-pjh="color" value="${esc(safeColor(pj.color))}"></label>
       <span>${stepsOf(p.id).length} étape(s) · avancement ${prog}%</span>
+      <button class="linkish" data-pj="open-step" data-sid="${p.id}" title="Le sujet du projet, avec ses tâches de niveau 1">Voir le sujet</button>
+      <button class="linkish" data-pj="unproject" title="Le sujet et ses sous-sujets restent, avec leur planning">Quitter le mode projet</button>
     </div>
     ${alertsBanner(p, sc)}
     <div class="toolbar"><button class="btn primary" data-pj="new-step">+ Nouvelle étape</button></div>
@@ -265,13 +254,19 @@ function ganttSection(p, sc) {
 }
 
 /* ---------- Actions ---------- */
+// Nouveau projet : un sujet de premier niveau, directement en mode projet
 function newProject() {
   const name = (prompt('Nom du projet ?') || '').trim();
   if (!name) return;
-  const ps = allProjects();
-  ps.push({ id: uid(), name, owner: '', color: COLORS[ps.length % COLORS.length], order: ps.length,
-    archived: false, archivedAt: null, createdAt: nowIso(), milestones: [] });
-  A.save(); A.render();
+  A.createSubject({ title: name, priority: 2, isProject: true,
+    pj: { owner: '', color: COLORS[projects().length % COLORS.length], milestones: [] } });
+  A.render();
+}
+function setProject(s, on) {
+  s.isProject = !!on;
+  if (on && !pjOf(s).color) pjOf(s).color = COLORS[projects().length % COLORS.length];
+  if (!on && db().ui.pjOpen === s.id) db().ui.pjOpen = null;
+  s.updatedAt = nowIso();
 }
 
 document.addEventListener('click', e => {
@@ -281,15 +276,14 @@ document.addEventListener('click', e => {
   const p = pid && project(pid);
   switch (b.dataset.pj) {
     case 'new-project': newProject(); break;
-    case 'archive-project':
-      if (!p || !confirm(`Archiver le projet « ${p.name} » ? Ses étapes restent des sujets.`)) return;
-      p.archived = true; p.archivedAt = nowIso();
-      if (db().ui.pjOpen === p.id) db().ui.pjOpen = null;
-      A.save(); A.render(); toast('Projet archivé');
+    case 'unproject':
+      if (!p || !confirm(`Quitter le mode projet pour « ${p.title} » ? Le sujet, ses sous-sujets, leur planning et les jalons sont gardés : il suffit de recocher « Mode projet » pour les retrouver.`)) return;
+      setProject(p, false); A.save(); A.render(); toast('Mode projet retiré');
       break;
     case 'open-project':
       if (!p) return;
-      db().ui.pjOpen = p.id; A.save(); A.render(); window.scrollTo(0, 0);
+      db().ui.pjOpen = p.id; A.save();
+      if (view() === 'projets') { A.render(); window.scrollTo(0, 0); } else location.hash = 'projets';
       break;
     case 'new-step': if (p) newStep(p); break;
     case 'add-milestone': {
@@ -297,23 +291,18 @@ document.addEventListener('click', e => {
       const box = b.closest('.pj-ms-add');
       const name = box.querySelector('[data-pjm="new-name"]').value.trim(), date = box.querySelector('[data-pjm="new-date"]').value;
       if (!name || !date) { toast('Indique un nom et une date pour le jalon'); return; }
-      (p.milestones = p.milestones || []).push({ id: uid(), name, date, before: [], archived: false });
+      (pjOf(p).milestones = pjOf(p).milestones || []).push({ id: uid(), name, date, before: [], archived: false });
       A.save(); A.render();
       break;
     }
-    case 'show-archived': db().ui.pjShowArchived = !db().ui.pjShowArchived; A.save(); A.render(); break;
-    case 'restore-project':
-      if (!p) return;
-      p.archived = false; p.archivedAt = null; A.save(); A.render(); toast('Projet restauré');
-      break;
     case 'restore-milestone': {
-      const m = p && (p.milestones || []).find(x => x.id === b.closest('[data-mid]')?.dataset.mid);
+      const m = p && (pjOf(p).milestones || []).find(x => x.id === b.closest('[data-mid]')?.dataset.mid);
       if (!m) return;
       m.archived = false; A.save(); A.render(); toast('Jalon restauré');
       break;
     }
     case 'archive-milestone': {
-      const m = p && (p.milestones || []).find(x => x.id === b.closest('[data-mid]')?.dataset.mid);
+      const m = p && (pjOf(p).milestones || []).find(x => x.id === b.closest('[data-mid]')?.dataset.mid);
       if (!m) return;
       m.archived = true; A.save(); A.render(); toast('Jalon archivé');
       break;
@@ -328,17 +317,23 @@ document.addEventListener('click', e => {
   }
 });
 
-/* ---------- Étapes : un sujet rattaché à un projet ---------- */
+/* ---------- Étapes : les sous-sujets d'un sujet en mode projet ---------- */
 const fmt = ymd => ymd ? new Date(ymd + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }) : '';
-const whoValues = () => [...new Set(db().subjects.filter(s => !s.archived && s.projectId && s.who).map(s => s.who.trim()))].sort((a, b) => a.localeCompare(b, 'fr'));
+const whoValues = () => [...new Set(db().subjects.filter(s => !s.archived && projectOfStep(s) && s.who).map(s => s.who.trim()))].sort((a, b) => a.localeCompare(b, 'fr'));
 
 A.hooks.subjectBody.push(s => {
   if (!on()) return '';
-  const p = s.projectId && project(s.projectId);
-  const opts = projects().concat(p && p.archived ? [p] : []);
-  let html = `<div class="pj-step"><label class="pj-f">Projet <select data-pjf="project" data-k="pjp-${s.id}">
-    <option value="">—</option>${opts.map(x => `<option value="${x.id}" ${x.id === s.projectId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>`;
-  if (p) {
+  // Sujet de premier niveau : interrupteur « Mode projet »
+  if (!A.parentOf(s)) {
+    const n = A.childrenOf(s).length;
+    return `<div class="pj-step pj-mode" data-pid="${s.id}"><label class="tog"><input type="checkbox" data-pjf="is-project" data-k="pjm-${s.id}" ${s.isProject ? 'checked' : ''}> Mode projet</label>
+      ${s.isProject ? `<button class="btn" data-pj="open-project">${A.ICON.gantt}Ouvrir le planning</button><span class="pj-hint">${n} étape${n > 1 ? 's' : ''} : ses sous-sujets.</span>`
+        : `<span class="pj-hint">Ses sous-sujets deviennent les étapes d'un planning Gantt, avec des jalons.</span>`}</div>`;
+  }
+  const p = projectOfStep(s);
+  if (!p) return '';
+  let html = `<div class="pj-step"><span class="pj-f pj-of" title="Étape du projet">${A.ICON.gantt}<b>${esc(p.title)}</b></span>`;
+  {
     const steps = stepsOf(p.id), others = steps.filter(x => x.id !== s.id);
     const sc = projectSchedule(p), c = sc.byId[s.id], hasPrev = (s.after || []).some(id => id !== s.id && sc.byId[id]);
     const plan = s.plan || {};
@@ -355,13 +350,6 @@ A.hooks.subjectBody.push(s => {
   return html + '</div>';
 });
 
-function detachStep(s) {
-  const pid = s.projectId, p = project(pid);
-  db().subjects.forEach(x => { if (x.projectId === pid && Array.isArray(x.after)) x.after = x.after.filter(id => id !== s.id); });
-  if (p) (p.milestones || []).forEach(m => { if (Array.isArray(m.before)) m.before = m.before.filter(id => id !== s.id); });
-  s.projectId = null; s.after = []; s.lagDays = 0;
-}
-
 // En-tête du projet : nom, chef de projet, couleur
 document.addEventListener('change', e => {
   const el = e.target.closest('[data-pjh]');
@@ -369,9 +357,9 @@ document.addEventListener('change', e => {
   const p = project(el.closest('[data-pid]')?.dataset.pid);
   if (!p) return;
   const v = el.value.trim();
-  if (el.dataset.pjh === 'name') { if (v) p.name = v; }
-  else if (el.dataset.pjh === 'owner') p.owner = v;
-  else if (el.dataset.pjh === 'color') p.color = safeColor(v);
+  if (el.dataset.pjh === 'name') { if (v) { p.title = v; p.updatedAt = nowIso(); } }
+  else if (el.dataset.pjh === 'owner') pjOf(p).owner = v;
+  else if (el.dataset.pjh === 'color') pjOf(p).color = safeColor(v);
   A.save(); A.render();
 });
 
@@ -380,7 +368,7 @@ document.addEventListener('change', e => {
   const el = e.target.closest('[data-mid] [data-pjm], [data-mid] [data-pj-before]');
   if (!el || !on()) return;
   const p = project(el.closest('[data-pid]')?.dataset.pid);
-  const m = p && (p.milestones || []).find(x => x.id === el.closest('[data-mid]').dataset.mid);
+  const m = p && (pjOf(p).milestones || []).find(x => x.id === el.closest('[data-mid]').dataset.mid);
   if (!m) return;
   if (el.dataset.pjBefore) {
     m.before = (m.before || []).filter(x => x !== el.dataset.pjBefore);
@@ -400,14 +388,13 @@ document.addEventListener('change', e => {
     const id = el.dataset.pjAfter;
     s.after = (s.after || []).filter(x => x !== id);
     if (el.checked) {
-      if (PL.wouldCycle(stepsOf(s.projectId), id, s.id)) { el.checked = false; toast('Ce lien créerait une boucle entre étapes'); return; }
+      if (PL.wouldCycle(A.childrenOf(A.parentOf(s), true), id, s.id)) { el.checked = false; toast('Ce lien créerait une boucle entre étapes'); return; }
       s.after.push(id);
     }
   } else switch (el.dataset.pjf) {
-    case 'project':
-      if (s.projectId && s.projectId !== v) detachStep(s);
-      s.projectId = v || null;
-      if (v && !s.plan) s.plan = {};
+    case 'is-project':
+      if (A.parentOf(s)) return;
+      setProject(s, el.checked);
       break;
     case 'start': s.plan = Object.assign({}, s.plan, { start: v || null }); break;
     case 'dur': s.plan = Object.assign({}, s.plan, { durDays: v ? Math.max(1, Math.round(+v) || 1) : null }); break;
@@ -424,15 +411,12 @@ let goTo = null;
 function newStep(p) {
   const title = (prompt('Nom de la nouvelle étape ?') || '').trim();
   if (!title) return;
-  const s = { id: uid(), title, priority: 3, description: '', code: '', secteur: '', produit: '', archived: false, archivedAt: null,
-    createdAt: nowIso(), updatedAt: nowIso(), source: null, projectId: p.id, plan: {}, after: [], lagDays: 0, who: '' };
-  db().subjects.push(s);
-  if (!db().ui.expanded.includes(s.id)) db().ui.expanded.push(s.id);
-  A.save();
+  const s = A.createSubject({ title, priority: p.priority, code: p.code, secteur: p.secteur, produit: p.produit,
+    parentId: p.id, plan: {}, after: [], lagDays: 0, who: '' });
   openStep(s.id);
 }
 function openStep(sid) {
-  if (!db().ui.expanded.includes(sid)) { db().ui.expanded.push(sid); A.save(); }
+  A.expandTo(sid); A.save();
   goTo = sid;
   if (view() === 'sujets') A.render(); else location.hash = 'sujets';
 }
@@ -450,7 +434,7 @@ window.addEventListener('todo:rendered', () => {
 /* ---------- Échéance ferme (cadenas) et garde-fou sur les tâches ---------- */
 A.ICON.lock = A.ICON.lock || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
 function stepEnd(t) {   // fin calculée de l'étape de la tâche, ou null
-  const s = t.subjectId && A.subj(t.subjectId), p = s && s.projectId && project(s.projectId);
+  const s = t.subjectId && A.subj(t.subjectId), p = s && projectOfStep(s);
   const c = p && projectSchedule(p).byId[s.id];
   return c ? c.end : null;
 }
@@ -489,7 +473,7 @@ function exportPdf(p) {
   document.getElementById('pj-print')?.remove();
   const el = document.createElement('div');
   el.id = 'pj-print';
-  el.innerHTML = `<header><h1>${esc(p.name)}</h1><p>${p.owner ? 'Chef de projet : ' + esc(p.owner) + ' · ' : ''}Exporté le ${A.longDate(today())} · avancement ${projectProgress(p)} %</p></header>
+  el.innerHTML = `<header><h1>${esc(p.title)}</h1><p>${pjOf(p).owner ? 'Chef de projet : ' + esc(pjOf(p).owner) + ' · ' : ''}Exporté le ${A.longDate(today())} · avancement ${projectProgress(p)} %</p></header>
     ${sc.alerts.length ? `<p class="pj-p-alert">⚠ ${sc.alerts.length} dépassement(s) de jalon, voir le tableau des jalons.</p>` : ''}
     ${renderGantt(p, sc, { scale, fit: 740 }) || '<p>Aucune étape planifiée.</p>'}
     ${legend(steps)}
@@ -567,6 +551,6 @@ window.addEventListener('todo:rendered', () => {
 });
 
 // Accès pour les étapes suivantes du module (même fichier)
-Object.assign(A, { pj: { on, project, projects, stepsOf, projectSchedule } });
+Object.assign(A, { pj: { on, project, projects, stepsOf, projectSchedule, projectOfStep } });
 A.render();
 })();

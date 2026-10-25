@@ -44,22 +44,23 @@ function data(td) {
     S('s5', 'Administratif', 3, '', 'Interne', '', ''),
     S('s6', 'Veille et formation', 3, '', 'Interne', '', ''),
     S('s7', 'Salon professionnel de printemps', 2, 'Événements', 'Commerce', '', 'Terminé.', { archived: true, archivedAt: at(add(td, -20)) }),
-    // Projet « Achat machine » (module Gestion de projet) : chaque sujet est une étape
-    S('s8', 'CDC presse à injecter', 1, 'Presse 450T', 'Industrie', '', 'Cahier des charges de la nouvelle presse.', { projectId: 'pj1', plan: { start: add(td, -24), durDays: 10 }, who: 'Moi' }),
-    S('s9', "Validation d'étude fournisseur", 1, 'Presse 450T', 'Industrie', '', '', { projectId: 'pj1', plan: { durDays: 5 }, after: ['s8'], who: "Bureau d'études" }),
-    S('s10', 'FAT chez le fournisseur', 1, 'Presse 450T', 'Industrie', '', 'Essais de réception en usine.', { projectId: 'pj1', plan: { durDays: 4 }, after: ['s9'], lagDays: 5, who: 'Fournisseur' }),
-    S('s11', 'Raccordement électrique', 2, 'Presse 450T', 'Industrie', '', '', { projectId: 'pj1', plan: { durDays: 6 }, after: ['s9'], who: 'Entreprise A' }),
-    S('s12', 'Déchargement et mise en place', 2, 'Presse 450T', 'Industrie', '', '', { projectId: 'pj1', plan: { durDays: 2 }, after: ['s10'], lagDays: 3, who: 'Entreprise B' }),
-    S('s13', 'SAT et mise en production', 1, 'Presse 450T', 'Industrie', '', 'Essais sur site puis démarrage.', { projectId: 'pj1', plan: { durDays: 5 }, after: ['s10', 's11', 's12'], who: 'Production' })
+    S('s14', 'Renégociation des emballages', 1, 'Achats 2026', 'Achats', '', 'Un sous-sujet de « Réduction des coûts achats ».', { parentId: 's2' }),
+    // Projet « Achat machine » (module Gestion de projet) : un sujet en mode projet, chaque sous-sujet est une étape
+    S('pj1', 'Achat presse 450T', 1, 'Presse 450T', 'Industrie', '', "Achat et mise en service de la nouvelle presse.", {
+      createdAt: at(add(td, -40)), isProject: true,
+      pj: { owner: 'Moi', color: '#4f63e8', milestones: [
+        { id: 'm1', name: 'Livraison machine', date: work(td, 6), before: ['s10'] },
+        { id: 'm2', name: 'Paiement 30 % à la commande', date: add(td, -20), before: [] },
+        { id: 'm3', name: 'Mise en production', date: add(td, 40), before: ['s13'] }
+      ] }
+    }),
+    S('s8', 'CDC presse à injecter', 1, 'Presse 450T', 'Industrie', '', 'Cahier des charges de la nouvelle presse.', { parentId: 'pj1', plan: { start: add(td, -24), durDays: 10 }, who: 'Moi' }),
+    S('s9', "Validation d'étude fournisseur", 1, 'Presse 450T', 'Industrie', '', '', { parentId: 'pj1', plan: { durDays: 5 }, after: ['s8'], who: "Bureau d'études" }),
+    S('s10', 'FAT chez le fournisseur', 1, 'Presse 450T', 'Industrie', '', 'Essais de réception en usine.', { parentId: 'pj1', plan: { durDays: 4 }, after: ['s9'], lagDays: 5, who: 'Fournisseur' }),
+    S('s11', 'Raccordement électrique', 2, 'Presse 450T', 'Industrie', '', '', { parentId: 'pj1', plan: { durDays: 6 }, after: ['s9'], who: 'Entreprise A' }),
+    S('s12', 'Déchargement et mise en place', 2, 'Presse 450T', 'Industrie', '', '', { parentId: 'pj1', plan: { durDays: 2 }, after: ['s10'], lagDays: 3, who: 'Entreprise B' }),
+    S('s13', 'SAT et mise en production', 1, 'Presse 450T', 'Industrie', '', 'Essais sur site puis démarrage.', { parentId: 'pj1', plan: { durDays: 5 }, after: ['s10', 's11', 's12'], who: 'Production' })
   ];
-  const projects = [{
-    id: 'pj1', name: 'Achat presse 450T', owner: 'Moi', color: '#4f63e8', order: 0, archived: false, archivedAt: null, createdAt: at(add(td, -40)),
-    milestones: [
-      { id: 'm1', name: 'Livraison machine', date: work(td, 6), before: ['s10'] },
-      { id: 'm2', name: 'Paiement 30 % à la commande', date: add(td, -20), before: [] },
-      { id: 'm3', name: 'Mise en production', date: add(td, 40), before: ['s13'] }
-    ]
-  }];
 
   let n = 0;
   const T = (subjectId, title, deadline, o = {}) => {
@@ -105,6 +106,8 @@ function data(td) {
     T(null, 'Idée : partager un modèle de compte rendu', null, { estimateMin: null }),
     T(null, 'Répondre au sondage interne', work(td, 2), { estimateMin: 10 }),
     // Projet presse : des tâches du quotidien dans les étapes (elles ne vont pas dans le Gantt)
+    T('pj1', 'Faire le point budget avec le contrôle de gestion', work(td, 3), { estimateMin: 45 }),
+    T('s14', 'Comparer les trois offres reçues', work(td, 4), { estimateMin: 90 }),
     T('s8', 'Rédiger le CDC', work(td, -14), { estimateMin: 480, status: 'done' }),
     T('s8', 'Faire relire le CDC par la production', work(td, -11), { estimateMin: 60, status: 'done' }),
     T('s9', "Envoyer les remarques sur l'étude au fournisseur", work(td, -1), { estimateMin: 30, status: 'doing', progress: 50 }),
@@ -146,7 +149,6 @@ function data(td) {
     version: 1,
     subjects,
     tasks,
-    projects,
     fixedSlots,
     settings: { theme: 'auto', workdayMin: 420, lastExport: null, workDays: [1, 2, 3, 4, 5], modules: { projet: true } },
     ui: { expanded: ['s1', 's3'], showClosed: false, search: '', dims: { code: '', secteur: '', produit: '' } },

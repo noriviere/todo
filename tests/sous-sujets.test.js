@@ -147,3 +147,21 @@ test('une tâche de la boîte de réception devient un sujet', async () => {
   assert.ok(s && !s.parentId);
   assert.equal(d.tasks.find(x => x.id === 'x').subjectId, s.id);
 });
+
+/* ---------- Task 4 : mode projet sur un sujet ---------- */
+test('« Mode projet » sur un sujet le fait apparaître dans Projets, ses sous-sujets en étapes', async () => {
+  const page = await openApp(nest({ settings: { modules: { projet: true } }, ui: { expanded: ['p', 'c'] } }), { hash: 'sujets' });
+  assert.equal(await box(page, 'c').locator('[data-pjf="is-project"]').count(), 0);   // pas sur un sous-sujet
+  await box(page, 'p').locator('> .s-body [data-pjf="is-project"]').click();
+  let d = await page.db();
+  assert.equal(d.subjects.find(s => s.id === 'p').isProject, true);
+  assert.equal(await box(page, 'c').locator('[data-pjf="dur"]').count(), 1);   // champs d'étape sur le sous-sujet
+  await box(page, 'p').locator('[data-pj="open-project"]').click();
+  await page.waitForFunction(() => location.hash === '#projets');
+  assert.match(await page.locator('#main h1').innerText(), /Achat machine/);
+  assert.match(await page.locator('.pj-unplanned').innerText(), /CDC/);
+  // Avancement global : la tâche faite du niveau 1 compte
+  await page.click('[data-pj="back"]');
+  assert.match(await page.locator('.pj-card').innerText(), /50%/);
+  assert.deepEqual(page.errors, []);
+});

@@ -45,7 +45,8 @@
     if (!active(f)) return true;
     const s = A.subj(t.subjectId);
     if (f.prios.length && !f.prios.includes(s && !s.archived ? s.priority : 0)) return false;
-    if (f.subjectId && t.subjectId !== f.subjectId) return false;
+    // Filtre sur un sujet parent : ses sous-sujets compris
+    if (f.subjectId && t.subjectId !== f.subjectId && !(s && s.parentId === f.subjectId && A.parentOf(s))) return false;
     const q = f.q.trim().toLowerCase();
     if (q && !(`${t.title} ${t.notes || ''} ${s ? s.title : ''}`.toLowerCase().includes(q))) return false;
     return true;
@@ -54,12 +55,12 @@
   A.hooks.dashTop.push(() => {
     const f = F();
     const chip = (v, label, cls) => `<button type="button" class="chip ${cls} ${f.prios.includes(v) ? 'on' : ''}" data-org-prio="${v}">${label}</button>`;
-    const subs = db().subjects.filter(s => !s.archived).sort((a, b) => a.priority - b.priority || a.title.localeCompare(b.title, 'fr'));
+    const subs = db().subjects.filter(s => !s.archived).sort((a, b) => a.priority - b.priority || A.subjLabel(a).localeCompare(A.subjLabel(b), 'fr'));
     return `<div class="org-filters">
       ${chip(1, 'P1', 'p1')}${chip(2, 'P2', 'p2')}${chip(3, 'P3', 'p3')}${chip(0, A.ICON.inbox + 'À ranger', 'inb')}
       <select data-org-subj data-k="org-subj" title="Filtrer sur un sujet">
         <option value="">Tous les sujets</option>
-        ${subs.map(s => `<option value="${s.id}" ${s.id === f.subjectId ? 'selected' : ''}>P${s.priority} · ${esc(s.title || 'Sans titre')}</option>`).join('')}
+        ${subs.map(s => `<option value="${s.id}" ${s.id === f.subjectId ? 'selected' : ''}>P${s.priority} · ${esc(A.subjLabel(s))}</option>`).join('')}
       </select>
       <input data-org-q data-k="org-q" placeholder="Filtrer par mot…" value="${esc(f.q)}">
       ${active(f) ? '<button type="button" class="clear" data-org-clear>Effacer les filtres</button>' : ''}
@@ -352,7 +353,7 @@
     const t = A.task(b.closest('[data-tid]').dataset.tid);
     if (!t || !t.subjectId) return;
     const ui = db().ui;
-    if (!ui.expanded.includes(t.subjectId)) ui.expanded.push(t.subjectId);
+    A.expandTo(t.subjectId);
     A.save();
     goTo = { sid: t.subjectId, tid: t.id };
     location.hash = 'sujets';

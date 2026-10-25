@@ -53,7 +53,7 @@ const SECTIONS = [
       <li><b>Charge de travail</b> : l'onglet Charge, son mini graphique et les réglages de répartition.</li>
       <li><b>Pointage et congés</b> : l'onglet Pointage et son bandeau.</li>
       <li><b>Tâches récurrentes</b> : l'option Répéter.</li>
-      <li><b>Gestion de projet</b> : l'onglet Projets (étapes, jalons, Gantt, export PDF) et le cadenas « échéance ferme ». Désactivé au départ.</li>
+      <li><b>Gestion de projet</b> : « Mode projet » sur un sujet, l'onglet Projets (étapes, jalons, Gantt, export PDF) et le cadenas « échéance ferme ». Désactivé au départ.</li>
     </ul>
     <p>Sujets, tâches, tableau de bord, boîte de réception, archives et données restent toujours là. <b>Masquer un module ne supprime rien</b> : ses données sont gardées, sauvegardées et synchronisées, et réapparaissent quand tu le réactives. Si un chrono tourne au moment où tu masques le chrono, il est arrêté et son temps enregistré.</p>
     <p>Le choix est rangé avec tes données : il suit la synchro sur tes autres appareils. Ce mode d'emploi n'affiche que les modules actifs.</p>`, tab: 'donnees' },
@@ -106,6 +106,7 @@ const SECTIONS = [
       ${when('chrono', "<li><b>Temps passé</b> : chrono et ajout de temps à la main, avec l'historique.</li>")}
       ${when('recurrence', '<li><b>Répéter</b> : rend la tâche récurrente.</li>')}
       <li><b>Notes</b> : contexte, liens, prochaines étapes.</li>
+      <li><b>Transformer en sous-sujet</b> : quand la tâche devient un petit dossier à découper.</li>
     </ul>
     <p>Échap ou un clic à côté ferme le panneau. Les dates de création, de modification et de fin sont notées en bas.</p>
     ${see(['repartition', 'chrono', 'recurrence', 'durees'])}` },
@@ -155,7 +156,19 @@ const SECTIONS = [
       <li>La barre d'outils : recherche, « Afficher faites et annulées », Tout déplier / Tout replier, « + Nouveau sujet ».</li>
       <li>Les tâches faites ou annulées d'un sujet peuvent être archivées d'un coup avec « tout archiver ».</li>
     </ul>
-    ${see(['priorites', 'glisser', 'archives'])}`, tab: 'sujets' },
+    ${see(['sous-sujets', 'priorites', 'glisser', 'archives'])}`, tab: 'sujets' },
+
+  { id: 'sous-sujets', g: 'organize', title: 'Sous-sujets', html: () => `
+    <p>Quand un sujet grossit, découpe-le en <b>sous-sujets</b> (un seul niveau : un sous-sujet ne contient que des tâches). Le sujet garde ses propres tâches à côté.</p>
+    <ul>
+      <li><b>Créer</b> : « + Sous-sujet » en bas d'un sujet déplié.</li>
+      <li><b>Ranger un sujet existant</b> dans un autre : liste <b>Dans</b> de sa fiche (« — Sujet principal » pour le ressortir).</li>
+      <li><b>Transformer une tâche</b> : dans ses détails, « Transformer en sous-sujet ». Le sous-sujet prend son nom et contient la tâche, avec sa date, son temps passé et ses notes ; ajoute-lui d'autres tâches pour la découper.</li>
+      <li>Le sujet parent compte les tâches de ses sous-sujets dans son avancement et ses retards. Le tableau de bord, lui, montre toujours toutes les tâches.</li>
+      <li>Archiver un sujet archive aussi ses sous-sujets ; le restaurer les ramène.</li>
+      ${when('projet', "<li>Pour avoir un planning Gantt, coche <b>Mode projet</b> dans la fiche du sujet : ses sous-sujets deviennent les étapes.</li>")}
+    </ul>
+    ${see(['sujets', 'projets'])}`, tab: 'sujets' },
 
   { id: 'priorites', g: 'organize', title: 'Priorités P1, P2, P3', html: () => `
     <ul>
@@ -184,10 +197,11 @@ const SECTIONS = [
     <p>Archiver un sujet qui a encore des tâches ouvertes demande une confirmation. Juste après un archivage, « Annuler » en bas de l'écran le défait.</p>`, tab: 'archives' },
 
   { id: 'projets', mod: 'projet', g: 'plan', title: 'Projets et Gantt', html: () => `
-    <p>Pour les gros sujets qui méritent une organisation de projet (achat de machine, chantier…). Trois niveaux seulement : <b>projet → étapes → tâches</b>.</p>
+    <p>Pour les gros sujets qui méritent une organisation de projet (achat de machine, chantier…). Un projet est un <b>sujet en mode projet</b> : ses <b>sous-sujets</b> sont les étapes, chacune avec ses tâches.</p>
     <ul>
-      <li><b>Créer un projet</b> : onglet Projets, « + Nouveau projet ».</li>
-      <li><b>Les étapes</b> sont des sujets rattachés au projet : dans un sujet déplié, choisis le <b>Projet</b> ; ou, dans le projet, « + Nouvelle étape ». Chaque étape garde ses tâches ; les tâches du quotidien (emails…) n'apparaissent pas dans le Gantt, elles font juste avancer l'étape.</li>
+      <li><b>Passer un sujet en projet</b> : dans sa fiche (onglet Sujets), coche « Mode projet ». Il reste dans la liste des sujets et apparaît dans l'onglet Projets. Le décocher ne perd rien.</li>
+      <li><b>Créer un projet de zéro</b> : onglet Projets, « + Nouveau projet ».</li>
+      <li><b>Les étapes</b> sont les sous-sujets du projet : « + Nouvelle étape » dans le projet, « + Sous-sujet » dans le sujet, ou la liste « Dans » d'un sujet existant. Les tâches du quotidien (emails…) n'apparaissent pas dans le Gantt, elles font juste avancer l'étape. Les tâches posées directement dans le sujet du projet comptent dans l'avancement global, hors Gantt.</li>
       <li><b>Planifier une étape</b> : un début, une durée en jours ouvrés, et « Qui » (Production, Entreprise A, un nom…). Les dates du Gantt sont celles de l'étape, pas celles des tâches, qui restent tes rappels.</li>
       <li><b>Commence après</b> : coche les étapes qui doivent être finies avant. Son début est alors calculé (plus un décalage éventuel). Quand une étape glisse, les suivantes se décalent toutes seules. Un lien qui ferait une boucle est refusé.</li>
       <li><b>Jalons</b> : dates fixes (livraison, paiements). Indique les étapes à finir avant chacun. Ils ne bougent jamais seuls : si une étape les dépasse, une <b>alerte</b> s'affiche ; à toi de décaler le jalon ou de réorganiser, puis de ré-exporter.</li>
