@@ -70,7 +70,7 @@ Un module optionnel **intégré à l'app** (pas une app séparée) pour piloter 
 - Échelle semaine ou mois.
 - Clic sur une barre : ouvre la fiche de l'étape (sujet) avec ses tâches.
 - Glisser une barre sans prédécesseur la déplace ; étirer son bord droit change sa durée. Les dépendantes suivent.
-- Mobile : liste des étapes (dates, qui, avancement, alertes) au lieu du Gantt.
+- Mobile : Gantt aussi, en version compacte. Colonne des noms étroite et figée à gauche, frise défilante horizontalement (centrée sur aujourd'hui à l'ouverture), échelle semaine ou mois, lignes assez hautes pour le doigt. Appui sur une barre = fiche de l'étape ; pas de glisser-déposer des barres sur mobile (modification par la fiche). Un bouton bascule vers une vue liste des étapes (dates, qui, avancement, alertes).
 
 ### Export PDF
 
@@ -127,4 +127,4 @@ Un module optionnel **intégré à l'app** (pas une app séparée) pour piloter 
 ## Tests
 
 - `schedule()` : chaîne simple, plusieurs prédécesseurs, décalage, jours non ouvrés, étape sans dates, alerte de jalon, cycle refusé.
-- Vérification dans le navigateur (Playwright) : module off = app identique ; module on avec les données de démo = Gantt, glissement en cascade, alerte de jalon, aperçu d'impression lisible ; vue mobile.
+- Vérification dans le navigateur (Playwright) : module off = app identique ; module on avec les données de démo = Gantt, glissement en cascade, alerte de jalon, aperçu d’impression lisible ; Gantt mobile compact (défilement, appui sur une barre, bascule liste).
