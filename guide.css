@@ -1,0 +1,89 @@
+/* Mode d'emploi : bouton d'aide, petits « i » contextuels et panneau du guide */
+
+/* Bouton « Mode d'emploi » dans la barre latérale (toujours au même endroit) */
+.gd-open{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:8px 10px;border-radius:8px;color:var(--muted);font-weight:500;text-align:left;margin-top:8px}
+.gd-open:hover{background:var(--surface-2);color:var(--text)}
+.gd-open svg{width:17px;height:17px;flex:none}
+.gd-open kbd{margin-left:auto}
+
+/* Petit « i » à côté d'un titre, d'une case ou d'un bouton */
+.gd-i{position:relative;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0;margin:0 0 0 6px;border:0;background:none;color:var(--faint);border-radius:50%;vertical-align:middle;flex:none;font-weight:400;text-transform:none;letter-spacing:0}
+.gd-i svg{width:16px;height:16px}
+.gd-i:hover,.gd-i:focus-visible{color:var(--accent);background:var(--accent-bg)}
+/* Zone de clic agrandie sans grossir l'icône */
+.gd-i::before{content:"";position:absolute;inset:-7px}
+h1 .gd-i{width:20px;height:20px}
+h1 .gd-i svg{width:18px;height:18px}
+.qa .gd-i{margin:0 2px}
+.f label .gd-i{width:16px;height:16px;margin-left:4px}
+.f label .gd-i svg{width:14px;height:14px}
+
+/* Panneau */
+.gd-bg{position:fixed;inset:0;background:rgba(10,15,30,.3);z-index:40}
+.gd{position:fixed;top:0;right:0;bottom:0;width:min(600px,100%);background:var(--bg);border-left:1px solid var(--border);z-index:41;display:flex;flex-direction:column;box-shadow:-10px 0 30px rgba(0,0,0,.14)}
+.gd-head{display:flex;align-items:center;gap:10px;padding:14px 18px;padding-top:max(14px,env(safe-area-inset-top));background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.gd-head h2{margin:0;font-size:17px;display:flex;align-items:center;gap:8px;flex:1}
+.gd-head h2 svg{width:19px;height:19px;color:var(--accent)}
+.gd-search{flex:1 1 100%;order:3;border:1px solid var(--border);background:var(--surface-2);border-radius:8px;padding:8px 10px;outline:none}
+.gd-search:focus{border-color:var(--accent);background:var(--surface)}
+.gd-body{flex:1;overflow:auto;padding:16px 18px 60px;padding-bottom:max(60px,calc(40px + env(safe-area-inset-bottom)));}
+.gd-body:focus{outline:0}
+
+/* Sommaire */
+.gd-intro{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:14px}
+.gd-intro p{margin:0 0 8px;color:var(--muted)}
+.gd-intro p:last-child{margin:0}
+.gd-feats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:16px}
+.gd-feat{display:flex;flex-direction:column;gap:2px;text-align:left;border:1px solid var(--border);background:var(--surface);border-radius:10px;padding:10px 12px;color:var(--text);min-width:0}
+.gd-feat:hover{border-color:var(--accent)}
+.gd-feat b{display:flex;align-items:center;gap:7px;font-size:14px}
+.gd-feat b svg{width:16px;height:16px;color:var(--accent);flex:none}
+.gd-feat span{font-size:12px;color:var(--muted);line-height:1.4}
+.gd-toc{margin:0 0 18px}
+.gd-toc h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:14px 0 6px 2px}
+.gd-toc-list{display:flex;flex-wrap:wrap;gap:6px}
+.gd-toc-list button{border:1px solid var(--border);background:var(--surface);border-radius:20px;padding:5px 11px;font-size:13px;color:var(--text)}
+.gd-toc-list button:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Sections */
+.gd-sec{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px;scroll-margin-top:12px}
+.gd-sec.flash{animation:gd-flash 1.6s ease-out}
+@keyframes gd-flash{0%,30%{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg)}100%{border-color:var(--border);box-shadow:none}}
+.gd-sec h3{margin:0 0 8px;font-size:15px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.gd-sec h3 .gd-kicker{font-size:11px;font-weight:600;color:var(--muted);background:var(--surface-3);border-radius:10px;padding:1px 8px;text-transform:uppercase;letter-spacing:.04em}
+.gd-sec p,.gd-sec li{color:var(--text);line-height:1.55}
+.gd-sec p{margin:0 0 8px}
+.gd-sec ul{margin:0 0 8px;padding-left:20px}
+.gd-sec li{margin-bottom:4px}
+.gd-sec li::marker{color:var(--faint)}
+.gd-sec .hint{display:block;margin:0 0 8px}
+.gd-sec code{font:12px ui-monospace,monospace;background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:0 4px}
+.gd-tip{background:var(--accent-bg);color:var(--text);border-radius:8px;padding:8px 10px;margin:8px 0;font-size:13px}
+.gd-tip b{color:var(--accent)}
+.gd-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)}
+.gd-actions .btn{padding:5px 10px;font-size:13px;text-decoration:none;color:var(--text)}
+.gd-actions .gd-top{margin-left:auto;border:0;background:none;color:var(--muted);font-size:12px;padding:6px 4px}
+.gd-actions .gd-top:hover{color:var(--accent)}
+.gd-see{font-size:13px;color:var(--muted)}
+.gd-see button{border:0;background:none;padding:0;color:var(--accent);text-decoration:underline;font-size:13px}
+.gd-pill{display:inline-block;border-radius:20px;padding:0 7px;font-size:12px;font-weight:600}
+.gd-empty{color:var(--faint);padding:20px 4px;text-align:center}
+.gd [hidden]{display:none!important}
+
+@media (max-width:860px){
+  /* Barre du haut sur téléphone : icône seule, cible de 44px */
+  /* Collé au bord droit de la barre, même quand les onglets défilent : toujours visible */
+  .gd-open{width:auto;min-width:44px;min-height:44px;margin:0;padding:0 8px;justify-content:center;flex:none;position:sticky;right:-8px;z-index:1;background:var(--surface);border-left:1px solid var(--border);border-radius:0}
+  .gd-open .lbl,.gd-open kbd{display:none}
+  .gd-open svg{width:20px;height:20px}
+  .gd-feats{grid-template-columns:1fr}
+  .gd-body{padding:14px 12px 60px}
+  .gd-head{padding:10px 12px;padding-top:max(10px,env(safe-area-inset-top))}
+  .gd-search{font-size:16px}
+}
+@media (pointer:coarse){
+  .gd-i{width:24px;height:24px}
+  .gd-i svg{width:18px;height:18px}
+  .gd-i::before{inset:-10px}
+  .gd-toc-list button{padding:8px 12px}
+}
