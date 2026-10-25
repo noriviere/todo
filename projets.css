@@ -14,3 +14,18 @@
 .pj-badge{font-size:12px;font-weight:600;border-radius:20px;padding:2px 8px}
 .pj-badge.late{background:var(--danger-bg);color:var(--danger)}
 .pj-back{margin-bottom:10px}
+
+/* Bloc « étape de projet » dans un sujet */
+.pj-step{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:8px 14px 0;background:var(--surface-2);font-size:12px;color:var(--muted)}
+.pj-f{display:flex;align-items:center;gap:4px}
+.pj-f input,.pj-f select{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:6px;padding:3px 6px;font-size:12px;outline:none;max-width:100%}
+.pj-f input:focus,.pj-f select:focus{border-color:var(--accent)}
+.pj-f input[type=number]{width:56px}
+.pj-f input[data-pjf=who]{width:150px}
+.pj-calc b,.pj-end b{color:var(--text);font-weight:600}
+.pj-after{display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex-basis:100%}
+.pj-lbl{margin-right:2px}
+.pj-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);background:var(--surface);border-radius:20px;padding:3px 10px 3px 7px;cursor:pointer;color:var(--text);min-height:28px}
+.pj-chip:has(input:checked){background:var(--accent-bg);border-color:var(--accent);color:var(--accent)}
+.pj-chip input{accent-color:var(--accent);margin:0}
+@media (pointer:coarse){.pj-chip{min-height:40px}.pj-f input,.pj-f select{min-height:36px;font-size:14px}}

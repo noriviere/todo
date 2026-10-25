@@ -75,6 +75,7 @@ function detailView(p) {
   return `<div class="pj-detail" data-pid="${p.id}">
     <button class="btn pj-back" data-pj="back">← Projets</button>
     <h1>${esc(p.name)}</h1>
+    <div class="toolbar"><button class="btn primary" data-pj="new-step">+ Nouvelle étape</button></div>
   </div>`;
 }
 
@@ -105,10 +106,104 @@ document.addEventListener('click', e => {
       if (!p) return;
       db().ui.pjOpen = p.id; A.save(); A.render(); window.scrollTo(0, 0);
       break;
+    case 'new-step': if (p) newStep(p); break;
+    case 'open-step': openStep(b.dataset.sid); break;
     case 'back':
       db().ui.pjOpen = null; A.save(); A.render();
       break;
   }
+});
+
+/* ---------- Étapes : un sujet rattaché à un projet ---------- */
+const fmt = ymd => ymd ? new Date(ymd + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }) : '';
+const prevIds = (s, steps) => (s.after || []).filter(id => steps.some(x => x.id === id));
+const whoValues = () => [...new Set(db().subjects.filter(s => !s.archived && s.projectId && s.who).map(s => s.who.trim()))].sort((a, b) => a.localeCompare(b, 'fr'));
+
+A.hooks.subjectBody.push(s => {
+  if (!on()) return '';
+  const p = s.projectId && project(s.projectId);
+  const opts = projects().concat(p && p.archived ? [p] : []);
+  let html = `<div class="pj-step"><label class="pj-f">Projet <select data-pjf="project" data-k="pjp-${s.id}">
+    <option value="">—</option>${opts.map(x => `<option value="${x.id}" ${x.id === s.projectId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>`;
+  if (p) {
+    const steps = stepsOf(p.id), others = steps.filter(x => x.id !== s.id);
+    const sc = projectSchedule(p), c = sc.byId[s.id], hasPrev = prevIds(s, steps).length > 0;
+    const plan = s.plan || {};
+    html += hasPrev
+      ? `<span class="pj-f pj-calc" title="Placée par les étapes dont elle dépend">Début calculé : <b>${c ? fmt(c.start) : 'à planifier'}</b></span>`
+      : `<label class="pj-f">Début <input type="date" data-pjf="start" data-k="pjs-${s.id}" value="${esc(plan.start || '')}"></label>`;
+    html += `<label class="pj-f">Durée <input type="number" min="1" step="1" inputmode="numeric" data-pjf="dur" data-k="pjd-${s.id}" value="${plan.durDays || ''}" placeholder="1"> j ouvrés</label>`;
+    if (hasPrev) html += `<label class="pj-f">Décalage <input type="number" min="0" step="1" inputmode="numeric" data-pjf="lag" data-k="pjl-${s.id}" value="${s.lagDays || ''}" placeholder="0"> j</label>`;
+    html += `<label class="pj-f">Qui <input data-pjf="who" data-k="pjw-${s.id}" value="${esc(s.who || '')}" list="pj-who-${s.id}" placeholder="Production, Entreprise A…"></label>
+      <datalist id="pj-who-${s.id}">${whoValues().map(v => `<option value="${esc(v)}">`).join('')}</datalist>
+      <span class="pj-f pj-end">${c ? `Fin prévue : <b>${fmt(c.end)}</b>` : 'À planifier : indique un début et une durée'}</span>`;
+    if (others.length) html += `<div class="pj-after"><span class="pj-lbl">Commence après</span>${others.map(o => `<label class="pj-chip"><input type="checkbox" data-pj-after="${o.id}" ${(s.after || []).includes(o.id) ? 'checked' : ''}><span>${esc(o.title)}</span></label>`).join('')}</div>`;
+  }
+  return html + '</div>';
+});
+
+function detachStep(s) {
+  const pid = s.projectId, p = project(pid);
+  db().subjects.forEach(x => { if (x.projectId === pid && Array.isArray(x.after)) x.after = x.after.filter(id => id !== s.id); });
+  if (p) (p.milestones || []).forEach(m => { if (Array.isArray(m.before)) m.before = m.before.filter(id => id !== s.id); });
+  s.projectId = null; s.after = []; s.lagDays = 0;
+}
+
+document.addEventListener('change', e => {
+  const el = e.target.closest('[data-pjf], [data-pj-after]');
+  if (!el || !on()) return;
+  const s = A.subj(el.closest('[data-sid]')?.dataset.sid);
+  if (!s) return;
+  const v = el.value;
+  if (el.dataset.pjAfter) {
+    const id = el.dataset.pjAfter;
+    s.after = (s.after || []).filter(x => x !== id);
+    if (el.checked) {
+      if (PL.wouldCycle(stepsOf(s.projectId), id, s.id)) { el.checked = false; toast('Ce lien créerait une boucle entre étapes'); return; }
+      s.after.push(id);
+    }
+  } else switch (el.dataset.pjf) {
+    case 'project':
+      if (s.projectId && s.projectId !== v) detachStep(s);
+      s.projectId = v || null;
+      if (v && !s.plan) s.plan = {};
+      break;
+    case 'start': s.plan = Object.assign({}, s.plan, { start: v || null }); break;
+    case 'dur': s.plan = Object.assign({}, s.plan, { durDays: v ? Math.max(1, Math.round(+v) || 1) : null }); break;
+    case 'lag': s.lagDays = Math.max(0, Math.round(+v) || 0); break;
+    case 'who': s.who = v.trim(); break;
+    default: return;
+  }
+  s.updatedAt = nowIso();
+  A.save(); A.render();
+});
+
+// Nouvelle étape depuis un projet : un sujet rattaché, ouvert dans l'onglet Sujets
+let goTo = null;
+function newStep(p) {
+  const title = (prompt('Nom de la nouvelle étape ?') || '').trim();
+  if (!title) return;
+  const s = { id: uid(), title, priority: 3, description: '', code: '', secteur: '', produit: '', archived: false, archivedAt: null,
+    createdAt: nowIso(), updatedAt: nowIso(), source: null, projectId: p.id, plan: {}, after: [], lagDays: 0, who: '' };
+  db().subjects.push(s);
+  if (!db().ui.expanded.includes(s.id)) db().ui.expanded.push(s.id);
+  A.save();
+  openStep(s.id);
+}
+function openStep(sid) {
+  if (!db().ui.expanded.includes(sid)) { db().ui.expanded.push(sid); A.save(); }
+  goTo = sid;
+  if (view() === 'sujets') A.render(); else location.hash = 'sujets';
+}
+window.addEventListener('todo:rendered', () => {
+  if (!goTo || view() !== 'sujets') return;
+  const sid = goTo; goTo = null;
+  setTimeout(() => {
+    const box = document.querySelector(`#main .subject[data-sid="${sid}"]`);
+    if (!box) { toast('Cette étape est masquée par un filtre'); return; }
+    box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    box.classList.add('org-flash');
+  }, 30);
 });
 
 // Accès pour les étapes suivantes du module (même fichier)

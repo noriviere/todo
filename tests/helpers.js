@@ -9,6 +9,7 @@ async function openApp(data, { hash = '', viewport = { width: 1280, height: 900 
   browser = browser || await chromium.launch();
   const ctx = await browser.newContext({ viewport, hasTouch: touch, isMobile: touch });
   const page = await ctx.newPage();
+  page.setDefaultTimeout(4000);
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   page.on('dialog', d => d.accept(page.__prompt || undefined));
