@@ -162,7 +162,7 @@ details.sec>summary .load{margin-left:auto;font-size:12px;color:var(--muted);fon
 .s-head{display:flex;align-items:center;gap:8px;padding:8px 10px;flex-wrap:wrap}
 .s-head .chev{border:0;background:none;color:var(--faint);padding:4px;border-radius:6px;transition:transform .15s;display:inline-flex}
 .s-head .chev:hover{background:var(--surface-2)}
-.subject.open .s-head .chev{transform:rotate(90deg)}
+.subject.open > .s-head .chev{transform:rotate(90deg)}
 .s-head .stitle{flex:1 1 220px;font-weight:600;font-size:15px}
 .prio-sel{background:var(--pbg);color:var(--pc);font-weight:700}
 .bar{width:90px;height:6px;border-radius:4px;background:var(--surface-3);overflow:hidden;flex:none}
@@ -187,6 +187,18 @@ details.sec>summary .load{margin-left:auto;font-size:12px;color:var(--muted);fon
 .addrow .date{width:130px}
 .addrow .est{width:70px;border:1px solid var(--border)}
 .closed-head{font-size:12px;color:var(--faint);padding:6px 14px;border-top:1px solid var(--border);background:var(--surface-2)}
+/* Sous-sujets : cartes imbriquées dans le corps du parent */
+.s-children{padding:8px 10px 10px 18px;border-top:1px solid var(--border);background:var(--surface-2);display:flex;flex-direction:column;gap:6px}
+.s-children .subject.child{margin:0;box-shadow:none;border-left-width:3px}
+.subject.child .s-head{padding:6px 8px}
+.subject.child .s-head .stitle{font-size:14px;flex-basis:180px}
+.s-addchild{align-self:flex-start;font-size:12px;padding:4px 10px;background:var(--surface);color:var(--muted)}
+.s-addchild:hover{color:var(--accent);border-color:var(--accent)}
+.s-dims select{border:1px solid var(--border);background:var(--surface);border-radius:6px;padding:3px 6px;font-size:12px;max-width:220px;outline:none}
+.s-dims select:focus{border-color:var(--accent)}
+.s-kids{font-size:12px;color:var(--muted);align-self:center}
+.s-kidn{display:inline-flex;align-items:center;gap:3px}
+@media (max-width:760px){.s-children{padding-left:8px}}
 
 /* Panneau détails */
 .drawer-bg{position:fixed;inset:0;background:rgba(10,15,30,.25);z-index:20}
@@ -438,7 +450,7 @@ function blank() {
 function normSubject(s) {
   return Object.assign({
     id: uid(), title: '', priority: 3, description: '', code: '', secteur: '', produit: '', archived: false, archivedAt: null,
-    createdAt: nowIso(), updatedAt: nowIso(), source: null
+    createdAt: nowIso(), updatedAt: nowIso(), source: null, parentId: null
   }, s);
 }
 function normTask(t) {
@@ -472,9 +484,38 @@ function migrate(d) {
     return normSubject(s);
   });
   d.tasks = (d.tasks || []).map(normTask);
-  // Projets (module Gestion de projet) : gardés même module désactivé
-  d.projects = Array.isArray(d.projects) ? d.projects : [];
+  migrateProjects(d);
   return d;
+}
+// Anciens projets séparés (db.projects) : chaque projet devient un sujet en mode projet, ses étapes ses sous-sujets
+function migrateProjects(d) {
+  const ps = Array.isArray(d.projects) ? d.projects : [];
+  for (const p of ps) {
+    if (!p || !p.id) continue;
+    const steps = d.subjects.filter(s => s.projectId === p.id);
+    const pj = { owner: p.owner || '', color: p.color || '', milestones: Array.isArray(p.milestones) ? p.milestones : [] };
+    let s = d.subjects.find(x => x.id === p.id);
+    if (!s) {
+      const common = k => { const v = [...new Set(steps.map(x => (x[k] || '').trim()))]; return v.length === 1 ? v[0] : ''; };
+      s = normSubject({ id: p.id, title: p.name || 'Projet', priority: steps.length ? Math.min(...steps.map(x => +x.priority || 3)) : 2,
+        code: common('code'), secteur: common('secteur'), produit: common('produit'),
+        archived: !!p.archived, archivedAt: p.archivedAt || null, createdAt: p.createdAt || nowIso() });
+      d.subjects.push(s);
+    }
+    s.isProject = true; s.pj = pj; s.parentId = null;
+    steps.forEach(x => {
+      // Un seul niveau : une étape qui a ses propres sous-sujets reste au premier niveau
+      if (x === s || d.subjects.some(y => y.parentId === x.id && y !== x)) return;
+      const old = x.parentId && x.parentId !== p.id ? d.subjects.find(y => y.id === x.parentId) : null;
+      if (old) {   // rangée ailleurs entre-temps (autre appareil) : ses liens d'étape ne valent plus
+        x.after = []; x.lagDays = 0;
+        ((old.pj && old.pj.milestones) || []).forEach(m => { if (Array.isArray(m.before)) m.before = m.before.filter(id => id !== x.id); });
+      }
+      x.parentId = p.id;
+    });
+  }
+  d.subjects.forEach(s => { delete s.projectId; });
+  delete d.projects;
 }
 function load() {
   const s = store.getItem(KEY);
@@ -536,12 +577,47 @@ const isOpen = t => t.status === 'todo' || t.status === 'doing' || t.status === 
 const visible = t => !t.archived && !(subj(t.subjectId)?.archived);
 const activeSubjects = () => db.subjects.filter(s => !s.archived)
   .sort((a, b) => a.priority - b.priority || a.title.localeCompare(b.title, 'fr'));
+// Sous-sujets : un seul niveau. Un parent introuvable ou lui-même rangé ailleurs ne compte pas (le sujet reste au premier niveau).
+const parentOf = s => { const p = s && s.parentId && s.parentId !== s.id ? subj(s.parentId) : null; return p && !p.parentId ? p : null; };
+// Premier niveau à l'affichage : sans parent, ou dont le parent est archivé (sous-sujet restauré seul)
+const isTop = s => { const p = parentOf(s); return !p || p.archived; };
+const childrenOf = (s, all) => db.subjects.filter(x => x.parentId === s.id && x !== s && (all || !x.archived) && parentOf(x) === s);
+const subjLabel = s => s ? (parentOf(s) ? parentOf(s).title + ' › ' : '') + (s.title || 'Sans titre') : '';
+// Peut devenir sous-sujet : pas de sous-sujets à lui (même archivés), pas en mode projet ; la cible est de premier niveau
+const canBeChild = s => !childrenOf(s, true).length && !db.subjects.some(x => x.parentId === s.id && x !== s) && !s.isProject;
+const canNest = (s, np) => np !== s && !np.parentId && !np.archived && canBeChild(s);
+// Change le parent d'un sujet ; une étape qui quitte son parent perd ses liens de planning
+function setParent(s, pid) {
+  const np = pid ? subj(pid) : null;
+  if (np && !canNest(s, np)) return false;
+  const old = parentOf(s);
+  if ((old && old.id) === (np && np.id)) return false;
+  if (old) {
+    childrenOf(old, true).forEach(x => { if (Array.isArray(x.after)) x.after = x.after.filter(id => id !== s.id); });
+    ((old.pj && old.pj.milestones) || []).forEach(m => { if (Array.isArray(m.before)) m.before = m.before.filter(id => id !== s.id); });
+    s.after = []; s.lagDays = 0;
+  }
+  s.parentId = np ? np.id : null;
+  s.updatedAt = nowIso();
+  if (np) expandTo(s.id);
+  return true;
+}
+// Déplie un sujet et son parent
+function expandTo(sid) {
+  const s = subj(sid), ex = new Set(db.ui.expanded);
+  if (!s) return;
+  ex.add(s.id);
+  if (parentOf(s)) ex.add(parentOf(s).id);
+  db.ui.expanded = [...ex];
+}
 
 // Filtre Code / Secteur / Produit fini, commun à toutes les pages
 const dimVal = (s, k) => (s && s[k] || '').trim();
 const dimsActive = () => Object.keys(DIMS).some(k => db.ui.dims[k]);
-const dimOkSubject = s => Object.keys(DIMS).every(k => !db.ui.dims[k] || dimVal(s, k) === db.ui.dims[k]);
-const dimOk = t => !dimsActive() || dimOkSubject(subj(t.subjectId));
+const dimOkOne = s => Object.keys(DIMS).every(k => !db.ui.dims[k] || dimVal(s, k) === db.ui.dims[k]);
+const dimOkSubject = s => !!s && (dimOkOne(s) || childrenOf(s).some(dimOkOne));
+// Une tâche passe si son sujet correspond, ou, pour un sous-sujet, si son parent correspond (comme dans l'onglet Sujets)
+const dimOk = t => { const s = subj(t.subjectId); return !dimsActive() || !!s && (dimOkOne(s) || (!isTop(s) && dimOkOne(parentOf(s)))); };
 function dimValues(k) {
   return [...new Set(db.subjects.filter(s => !s.archived).map(s => dimVal(s, k)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
 }
@@ -576,7 +652,9 @@ function taskCmp(a, b) {
 
 // État d'un sujet déduit de ses tâches (hors archivées)
 function subjectStats(s) {
-  const ts = db.tasks.filter(t => t.subjectId === s.id && !t.archived);
+  // Un parent compte aussi les tâches de ses sous-sujets actifs
+  const ids = new Set([s.id, ...childrenOf(s).map(c => c.id)]);
+  const ts = db.tasks.filter(t => ids.has(t.subjectId) && !t.archived);
   const live = ts.filter(t => t.status !== 'cancelled');
   const open = ts.filter(isOpen);
   const done = live.filter(t => t.status === 'done').length;
@@ -601,7 +679,7 @@ function subjectStats(s) {
   const late = open.filter(t => t.deadline && t.deadline < td).length;
   const next = open.map(t => t.deadline).filter(Boolean).sort()[0] || null;
   const remainMin = open.reduce((a, t) => a + (t.estimateMin || 0) * (1 - (t.status === 'doing' ? t.progress : 0) / 100), 0);
-  return { total: ts.length, live: live.length, open: open.length, done, status, progress, late, next, remainMin: Math.round(remainMin), estMin };
+  return { total: ts.length, live: live.length, open: open.length, done, status, progress, late, next, remainMin: Math.round(remainMin), estMin, children: ids.size - 1 };
 }
 
 /* ---------- Actions ---------- */
@@ -658,6 +736,11 @@ function setTaskField(t, f, v) {
   return true;
 }
 function setSubjectField(s, f, v) {
+  if (f === 's-parent') {
+    if (setParent(s, v)) return true;
+    if (v !== (s.parentId || '')) toast('Ce sujet ne peut pas être rangé là (un seul niveau de sous-sujets)');
+    return false;
+  }
   if (f === 's-title') s.title = v.trim();
   else if (f === 's-priority') s.priority = +v;
   else if (f === 's-desc') s.description = v;
@@ -670,7 +753,13 @@ function archiveTask(t, on = true) {
   t.archived = on; t.archivedAt = on ? nowIso() : null; t.updatedAt = nowIso();
 }
 function archiveSubject(s, on = true) {
+  // Les sous-sujets suivent leur parent ; ceux archivés avant restent archivés à la restauration
+  childrenOf(s, true).forEach(c => {
+    if (on && !c.archived) { c.archivedWithParent = true; c.archived = true; c.archivedAt = nowIso(); c.updatedAt = nowIso(); }
+    else if (!on && c.archivedWithParent) { c.archivedWithParent = false; c.archived = false; c.archivedAt = null; c.updatedAt = nowIso(); }
+  });
   s.archived = on; s.archivedAt = on ? nowIso() : null; s.updatedAt = nowIso();
+  if (!on) s.archivedWithParent = false;
 }
 
 /* ---------- Toast ---------- */
@@ -686,11 +775,12 @@ function toast(msg, undo) {
 /* ---------- Rendu : éléments ---------- */
 function subjectOptions(selected) {
   let h = `<option value="" ${!selected ? 'selected' : ''}>📥 Boîte de réception</option>`;
+  const opt = (s, pre) => `<option value="${s.id}" ${s.id === selected ? 'selected' : ''}>${pre}${esc(s.title || 'Sans titre')}</option>`;
   for (const p of [1, 2, 3]) {
-    const list = activeSubjects().filter(s => s.priority === p);
+    const list = activeSubjects().filter(s => s.priority === p && isTop(s));
     if (!list.length) continue;
     h += `<optgroup label="${PRIO[p].short} · ${PRIO[p].name}">` +
-      list.map(s => `<option value="${s.id}" ${s.id === selected ? 'selected' : ''}>${esc(s.title || 'Sans titre')}</option>`).join('') +
+      list.map(s => opt(s, '') + childrenOf(s).sort((a, b) => a.title.localeCompare(b.title, 'fr')).map(c => opt(c, '\u00a0\u00a0↳ ')).join('')).join('') +
       '</optgroup>';
   }
   // Sujet archivé encore rattaché : on l'affiche pour ne pas le perdre
@@ -797,16 +887,12 @@ const dashOpen = {};
 views.sujets = () => {
   const q = db.ui.search.trim().toLowerCase();
   const exp = new Set(db.ui.expanded);
-  const match = s => !q || s.title.toLowerCase().includes(q) ||
+  const matchOne = s => !q || s.title.toLowerCase().includes(q) ||
     db.tasks.some(t => t.subjectId === s.id && !t.archived && t.title.toLowerCase().includes(q));
-  const list = activeSubjects().filter(match).filter(dimOkSubject);
-  const withStats = list.map(s => ({ s, st: subjectStats(s) }));
-  withStats.sort((a, b) => a.s.priority - b.s.priority
-    || (a.s.order || 0) - (b.s.order || 0)
-    || (a.st.status === 'done') - (b.st.status === 'done')
-    || b.st.late - a.st.late
-    || (a.st.next || '9999').localeCompare(b.st.next || '9999')
-    || a.s.title.localeCompare(b.s.title, 'fr'));
+  // Un parent s'affiche si lui ou un de ses sous-sujets correspond
+  const match = s => matchOne(s) || childrenOf(s).some(matchOne);
+  const list = activeSubjects().filter(isTop).filter(match).filter(dimOkSubject);
+  const withStats = sortSubjects(list.map(s => ({ s, st: subjectStats(s) })));
   let html = `<h1>Sujets</h1><p class="sub">${list.length} sujet${list.length > 1 ? 's' : ''} actif${list.length > 1 ? 's' : ''}, classés par priorité puis par urgence.</p>
     <div class="toolbar">
       <input class="search" id="search" data-k="search" placeholder="Rechercher un sujet ou une tâche…" value="${esc(db.ui.search)}">
@@ -828,13 +914,41 @@ views.sujets = () => {
   }
   return html;
 };
+function sortSubjects(arr) {
+  return arr.sort((a, b) => a.s.priority - b.s.priority
+    || (a.s.order || 0) - (b.s.order || 0)
+    || (a.st.status === 'done') - (b.st.status === 'done')
+    || b.st.late - a.st.late
+    || (a.st.next || '9999').localeCompare(b.st.next || '9999')
+    || a.s.title.localeCompare(b.s.title, 'fr'));
+}
+// Sous-sujets d'un parent, avec la même recherche et les mêmes filtres que la liste
+function childrenBlock(s) {
+  const q = db.ui.search.trim().toLowerCase(), exp = new Set(db.ui.expanded);
+  const matchOne = c => !q || c.title.toLowerCase().includes(q) ||
+    db.tasks.some(t => t.subjectId === c.id && !t.archived && t.title.toLowerCase().includes(q));
+  const self = !q || s.title.toLowerCase().includes(q);
+  const kids = sortSubjects(childrenOf(s).filter(c => self || matchOne(c)).filter(c => !dimsActive() || dimOkOne(c) || dimOkOne(s))
+    .map(c => ({ s: c, st: subjectStats(c) })));
+  return `<div class="s-children">${kids.map(({ s: c, st }) => subjectBlock(c, st, exp.has(c.id) || (!!q && matchOne(c)))).join('')}
+    <button class="btn s-addchild" data-act="add-child">+ Sous-sujet</button></div>`;
+}
+const opts0 = (x, s) => !x.archived && canNest(s, x);
+// Liste « Dans » : premier niveau, ou rangé dans un autre sujet de premier niveau
+function parentField(s, st) {
+  if (!parentOf(s) && !canBeChild(s)) return st.children ? `<span class="s-kids">${st.children} sous-sujet${st.children > 1 ? 's' : ''}</span>` : '';
+  const cur = parentOf(s);
+  const opts = activeSubjects().filter(x => canNest(s, x)).concat(cur && !opts0(cur, s) ? [cur] : []);
+  return `<label>Dans <select data-field="s-parent" data-k="spar-${s.id}" title="Ranger ce sujet dans un autre (sous-sujet)">
+    <option value="">— Sujet principal</option>${opts.map(x => `<option value="${x.id}" ${cur === x ? 'selected' : ''}>${PRIO[x.priority].short} · ${esc(x.title || 'Sans titre')}</option>`).join('')}</select></label>`;
+}
 function subjectBlock(s, st, open) {
-  const p = s.priority;
+  const p = s.priority, child = !isTop(s);
   const tasks = db.tasks.filter(t => t.subjectId === s.id && !t.archived);
   const openT = tasks.filter(isOpen).sort(taskCmp);
   const closedT = tasks.filter(t => !isOpen(t)).sort((a, b) => (b.doneAt || b.updatedAt).localeCompare(a.doneAt || a.updatedAt));
   const stLabel = st.status === 'empty' ? 'Vide' : STATUS[st.status];
-  return `<div class="subject ${open ? 'open' : ''}" data-sid="${s.id}" style="--pc:var(--p${p});--pbg:var(--p${p}-bg)">
+  return `<div class="subject ${open ? 'open' : ''}${child ? ' child' : ''}" data-sid="${s.id}" style="--pc:var(--p${p});--pbg:var(--p${p}-bg)">
     <div class="s-head">
       <button class="chev" data-act="toggle-subject" title="Déplier / replier">${ICON.chev}</button>
       <select class="pill prio-sel" data-field="s-priority" data-k="sp-${s.id}" title="Priorité du sujet">
@@ -846,14 +960,15 @@ function subjectBlock(s, st, open) {
         ${st.late ? `<span class="late">⚠ ${st.late} en retard</span>` : ''}
         ${st.next ? `<span title="Prochaine deadline">⏱ ${relDate(st.next)}</span>` : ''}
         ${st.remainMin ? `<span title="Temps estimé restant">${fmtDur(st.remainMin)}</span>` : ''}
-        <span>${st.done}/${st.live}</span>
+        ${st.children ? `<span class="s-kidn" title="Sous-sujets (comptés dans l'avancement)">${ICON.list.replace('<svg', '<svg width="13" height="13"')} ${st.children}</span>` : ''}
+        <span title="${st.children ? 'Tâches faites, sous-sujets compris' : 'Tâches faites'}">${st.done}/${st.live}</span>
       </span>
       <span class="bar" title="${st.progress}%"><i style="width:${st.progress}%"></i></span>
       <span class="pill s-${st.status}" style="cursor:default" title="État déduit des tâches">${stLabel}${st.status === 'doing' ? ' ' + st.progress + '%' : ''}</span>
       <button class="icon" data-act="archive-subject" title="Archiver le sujet">${ICON.archive}</button>
     </div>
     ${open ? `<div class="s-body">
-      <div class="s-dims">${Object.entries(DIMS).map(([k, l]) => `<label>${l} <input data-field="s-dim-${k}" data-k="sdim-${k}-${s.id}" value="${esc(dimVal(s, k))}" list="dl-${k}" placeholder="—"></label>`).join('')}</div>
+      <div class="s-dims">${parentField(s, st)}${Object.entries(DIMS).map(([k, l]) => `<label>${l} <input data-field="s-dim-${k}" data-k="sdim-${k}-${s.id}" value="${esc(dimVal(s, k))}" list="dl-${k}" placeholder="—"></label>`).join('')}</div>
       ${hooks.subjectBody.map(f => f(s)).join('')}
       <textarea class="s-desc" data-field="s-desc" data-k="sd-${s.id}" rows="1" placeholder="Description / contexte du sujet (facultatif)">${esc(s.description)}</textarea>
       ${openT.map(t => taskRow(t)).join('')}
@@ -866,6 +981,7 @@ function subjectBlock(s, st, open) {
       ${closedT.length ? (db.ui.showClosed
         ? `<div class="closed-head">Faites et annulées (${closedT.length}) · <button class="icon" style="display:inline" data-act="archive-closed">tout archiver</button></div>${closedT.map(t => taskRow(t)).join('')}`
         : `<div class="closed-head">${closedT.length} faite${closedT.length > 1 ? 's' : ''} ou annulée${closedT.length > 1 ? 's' : ''} masquée${closedT.length > 1 ? 's' : ''} · <button class="icon" style="display:inline" data-act="archive-closed">tout archiver</button></div>`) : ''}
+      ${child ? '' : childrenBlock(s)}
     </div>` : ''}
   </div>`;
 }
@@ -880,7 +996,7 @@ views.inbox = () => {
 
 views.archives = () => {
   const q = db.ui.search.trim().toLowerCase();
-  const subs = db.subjects.filter(s => s.archived && (!q || s.title.toLowerCase().includes(q)))
+  const subs = db.subjects.filter(s => s.archived && !(s.archivedWithParent && parentOf(s)?.archived) && (!q || s.title.toLowerCase().includes(q)))
     .sort((a, b) => (b.archivedAt || '').localeCompare(a.archivedAt || ''));
   const tasks = db.tasks.filter(t => t.archived && (!q || t.title.toLowerCase().includes(q)))
     .sort((a, b) => (b.archivedAt || '').localeCompare(a.archivedAt || ''));
@@ -890,7 +1006,7 @@ views.archives = () => {
     <details class="sec" open><summary><span class="chev">${ICON.chev}</span>Sujets archivés<span class="cnt">${subs.length}</span></summary>
       <div class="list">${subs.length ? subs.map(s => `<div class="task" data-sid="${s.id}" style="--pc:var(--p${s.priority})">
         <span class="title" style="flex:1">${esc(s.title || 'Sans titre')}</span>
-        <span class="hint">${PRIO[s.priority].short} · ${db.tasks.filter(t => t.subjectId === s.id).length} tâches · archivé le ${fmt(s.archivedAt)}</span>
+        <span class="hint">${PRIO[s.priority].short} · ${db.tasks.filter(t => t.subjectId === s.id).length} tâches${childrenOf(s, true).length ? ` · ${childrenOf(s, true).length} sous-sujet(s)` : ''} · archivé le ${fmt(s.archivedAt)}</span>
         <button class="btn" data-act="restore-subject">${ICON.restore.replace('<svg', '<svg width="14" height="14"')} Restaurer</button></div>`).join('') : '<div class="empty">Aucun sujet archivé.</div>'}</div>
     </details>
     <details class="sec" open><summary><span class="chev">${ICON.chev}</span>Tâches archivées<span class="cnt">${tasks.length}</span></summary>
@@ -970,7 +1086,8 @@ function renderDrawer() {
     ${hooks.drawer.map(f => f(t)).join('')}
     <div class="f"><label>Notes</label><textarea data-field="notes" data-k="dr-notes" placeholder="Contexte, liens, prochaines étapes…">${esc(t.notes)}</textarea></div>
     <div style="display:flex;gap:8px">
-      ${t.archived ? '<button class="btn" data-act="restore-task">Restaurer</button>' : '<button class="btn" data-act="archive-task">Archiver</button>'}
+      ${t.archived ? '<button class="btn" data-act="restore-task">Restaurer</button>' : `<button class="btn" data-act="archive-task">Archiver</button>
+      <button class="btn" data-act="to-subject" title="La tâche devient un sous-sujet qui la contient, pour la découper en plusieurs tâches">Transformer en sous-sujet</button>`}
     </div>
     <div class="ts">Créée le ${fmt(t.createdAt)}<br>Modifiée le ${fmt(t.updatedAt)}${t.doneAt ? '<br>Faite le ' + fmt(t.doneAt) : ''}</div>
   </div>`;
@@ -1174,6 +1291,33 @@ document.addEventListener('click', e => {
     case 'expand-all': db.ui.expanded = activeSubjects().map(x => x.id); save(); render(); break;
     case 'collapse-all': db.ui.expanded = []; save(); render(); break;
     case 'toggle-closed': db.ui.showClosed = b.checked; save(); render(); break;
+    case 'add-child': {
+      if (!s || parentOf(s)) break;
+      const ns = createSubject({ title: 'Nouveau sous-sujet', priority: s.priority, parentId: s.id,
+        code: s.code, secteur: s.secteur, produit: s.produit });
+      expandTo(ns.id); db.ui.search = ''; save(); render();
+      focusKey('st-' + ns.id, true);
+      break;
+    }
+    case 'to-subject': {
+      if (!t) break;
+      const from = subj(t.subjectId);
+      // Profondeur 1 : la tâche d'un sous-sujet donne un frère ; un parent archivé ne reçoit rien
+      const parent = !from || from.archived ? null : !from.parentId ? from : !isTop(from) ? parentOf(from) : null;
+      const ns = createSubject({ title: t.title || 'Nouveau sujet', priority: from ? from.priority : 3, parentId: parent ? parent.id : null,
+        code: from ? from.code : '', secteur: from ? from.secteur : '', produit: from ? from.produit : '' });
+      const prev = t.subjectId;
+      t.subjectId = ns.id; t.updatedAt = nowIso();
+      expandTo(ns.id); drawerId = null; save();
+      if (currentView() === 'sujets') render(); else location.hash = 'sujets';
+      toast(parent ? `Sous-sujet « ${ns.title} » créé dans « ${parent.title} »` : `Sujet « ${ns.title} » créé`, () => {
+        t.subjectId = prev;
+        db.subjects = db.subjects.filter(x => x !== ns);   // créé à l'instant et vide : on peut le retirer
+        db.ui.expanded = db.ui.expanded.filter(id => id !== ns.id);
+        save(); render();
+      });
+      break;
+    }
     case 'add-subject': {
       const ns = createSubject({ title: 'Nouveau sujet', priority: 3 });
       db.ui.expanded.push(ns.id); db.ui.search = ''; save(); render();
@@ -1281,6 +1425,7 @@ window.todoApp = {
 // Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
 const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [], subjectBody: [] };
 Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, save, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats,
+  parentOf, childrenOf, subjLabel, setParent, expandTo, archiveSubject, createSubject,
   esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur });
 
 if (DEMO) {
