@@ -137,7 +137,14 @@ const T = ymd => Date.UTC(+ymd.slice(0, 4), +ymd.slice(5, 7) - 1, +ymd.slice(8, 
 const dd = (a, b) => Math.round((T(b) - T(a)) / 864e5);
 const shift = (ymd, n) => new Date(T(ymd) + n * 864e5).toISOString().slice(0, 10);
 const MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
-const PPD = { week: 22, month: 5 };   // pixels par jour
+const PPD = { week: 22, month: 5 };   // pixels par jour des deux échelles prêtes à l'emploi
+const ZMIN = 0.6, ZMAX = 40;           // zoom libre : de quelques années à quelques jours à l'écran
+const clampPpd = v => Math.min(ZMAX, Math.max(ZMIN, v));
+// Repères adaptés au zoom : semaines, mois, ou trimestres quand les mois deviennent trop étroits
+const tickMode = ppd => ppd >= 10 ? 'week' : ppd >= 1.4 ? 'month' : 'quarter';
+// Début de frise calé sur le premier repère : lundi, 1er du mois ou 1er du trimestre
+const alignLo = (d, mode) => mode === 'quarter' ? d.slice(0, 5) + String(Math.floor((+d.slice(5, 7) - 1) / 3) * 3 + 1).padStart(2, '0') + '-01'
+  : mode === 'month' ? d.slice(0, 8) + '01' : shift(d, -((new Date(T(d)).getUTCDay() + 6) % 7));
 const ROW = 40, HEAD = 34;
 
 // Une couleur par responsable (ordre alphabétique), gris sans responsable ; le nom est toujours écrit à côté
@@ -148,7 +155,7 @@ function whoColors(steps) {
 const colorOf = (s, wc) => wc.get((s.who || '').trim()) || 'var(--p0)';
 
 // Moteur de rendu : dessine une liste de lignes génériques (étapes, jalons ; tâches plus tard)
-function renderGantt(p, sc, { scale = 'week', compact = false, fit = 0 } = {}) {
+function renderGantt(p, sc, { scale = 'week', ppd: zoom = 0, compact = false, fit = 0, fitH = 0 } = {}) {
   const mk = `pj-arr-${fit ? 'print-' : ''}${p.id}`;   // id unique : la page imprimée a sa propre flèche
   const steps = stepsOf(p.id), byStep = new Map(steps.map(s => [s.id, s]));
   const rows = PL.buildRows(steps, sc, milestonesOf(p));
@@ -158,18 +165,26 @@ function renderGantt(p, sc, { scale = 'week', compact = false, fit = 0 } = {}) {
   const wc = whoColors(steps), td = today();
   let lo = [td, ...rows.map(r => r.start)].sort()[0], hi = [td, ...rows.map(r => r.end)].sort().pop();
   lo = shift(lo, -3); hi = shift(hi, 10);
-  if (scale === 'month') lo = lo.slice(0, 8) + '01';
-  else lo = shift(lo, -((new Date(T(lo)).getUTCDay() + 6) % 7));          // lundi
-  // fit : largeur imposée (export PDF), la frise entière tient dans la page
-  const ppd = fit ? fit / (dd(lo, hi) + 1) : PPD[scale] || PPD.week;
-  const RH = compact ? 46 : ROW;   // lignes plus hautes au doigt
+  // fit : largeur imposée (export PDF), la frise entière tient dans la page ; sinon le zoom choisi
+  const mode = fit ? (scale === 'month' ? 'month' : 'week') : tickMode(zoom || PPD[scale] || PPD.week);
+  lo = alignLo(lo, mode);
+  const ppd = fit ? fit / (dd(lo, hi) + 1) : zoom || PPD[scale] || PPD.week;
+  // fitH : hauteur imposée (export PDF) ; les lignes se resserrent pour que tout le Gantt tienne sur une page
+  const RH = fitH ? Math.max(12, Math.min(ROW, Math.floor((fitH - HEAD) / rows.length))) : compact ? 46 : ROW;   // lignes plus hautes au doigt
+  const BH = Math.min(24, Math.round(RH * .6));   // hauteur des barres
   const days = dd(lo, hi) + 1, W = days * ppd, H = HEAD + rows.length * RH;
   const X = d => dd(lo, d) * ppd, Y = i => HEAD + i * RH + RH / 2;
   const ticks = [];
   for (let d = lo; d <= hi; d = shift(d, 1)) {
     const t = new Date(T(d));
-    if (scale === 'month' ? t.getUTCDate() === 1 : t.getUTCDay() === 1)
-      ticks.push(`<div class="pj-tick" style="left:${X(d)}px"><span>${scale === 'month' ? MONTHS[t.getUTCMonth()] + ' ' + t.getUTCFullYear() : t.getUTCDate() + ' ' + MONTHS[t.getUTCMonth()]}</span></div>`);
+    const m = t.getUTCMonth(), y = t.getUTCFullYear();
+    let lab = null;
+    if (mode === 'week') { if (t.getUTCDay() === 1) lab = t.getUTCDate() + ' ' + MONTHS[m]; }
+    else if (t.getUTCDate() === 1) {
+      if (mode === 'month') lab = ppd * 30 >= 70 || m === 0 ? MONTHS[m] + ' ' + y : MONTHS[m];   // mois étroits : l'année seulement en janvier
+      else if (m % 3 === 0) lab = 'T' + (m / 3 + 1) + ' ' + y;
+    }
+    if (lab != null) ticks.push(`<div class="pj-tick" style="left:${X(d)}px"><span>${lab}</span></div>`);
   }
   const idx = new Map(rows.map((r, i) => [r.kind + r.id, i]));
   const names = [], marks = [], arrows = [];
@@ -184,11 +199,12 @@ function renderGantt(p, sc, { scale = 'week', compact = false, fit = 0 } = {}) {
     const late = r.end < td && st.status !== 'done' && st.status !== 'cancelled';
     const prev = (s.after || []).filter(id => sc.byId[id]);
     const label = `${esc(s.title)}${s.who ? ' · ' + esc(s.who) : ''} · ${fmt(r.start)} → ${fmt(r.end)} · ${st.progress}%${late ? ' · en retard' : ''}${prev.length ? ' · placée par ses dépendances' : ''}`;
-    names.push(`<button class="pj-g-name" data-pj="open-step" data-sid="${s.id}" style="height:${RH}px" title="${label}"><span class="sw" style="background:${col}"></span><span class="t">${esc(s.title)}</span>${s.who ? `<span class="w">${esc(s.who)}</span>` : ''}</button>`);
+    // Avancement aussi sous le nom : lisible même quand la barre est trop courte pour l'afficher
+    names.push(`<button class="pj-g-name st ${late ? 'late' : ''}" data-pj="open-step" data-sid="${s.id}" style="height:${RH}px;--c:${col}" title="${label}"><span class="sw"></span><span class="t">${esc(s.title)}</span>${s.who ? `<span class="w">${esc(s.who)}</span>` : ''}<span class="pg"><span class="bar"><i style="width:${st.progress}%"></i></span><span class="pc">${st.progress} %</span></span></button>`);
     const w = (dd(r.start, r.end) + 1) * ppd;
     marks.push(`<button class="pj-bar ${late ? 'late' : ''} ${prev.length ? 'chained' : 'free'}" data-pj="open-step" data-sid="${s.id}" data-start="${r.start}" data-end="${r.end}"
-      style="left:${X(r.start)}px;top:${Y(i) - 12}px;width:${w}px;--c:${col}" title="${label}" aria-label="${label}">
-      <i class="pj-fill" style="width:${st.progress}%"></i>${w >= 44 ? `<span>${st.progress}%</span>` : ''}${compact || fit || coarse() ? '' : '<b class="pj-grip" aria-hidden="true"></b>'}</button>`);
+      style="left:${X(r.start)}px;top:${Y(i) - BH / 2}px;height:${BH}px;width:${w}px;--c:${col}" title="${label}" aria-label="${label}">
+      <i class="pj-fill" style="width:${st.progress}%"></i>${w >= 44 && BH >= 14 ? `<span>${st.progress}%</span>` : ''}${compact || fit || coarse() ? '' : '<b class="pj-grip" aria-hidden="true"></b>'}</button>`);
     prev.forEach(id => {
       const j = idx.get('etape' + id);
       if (j == null) return;
@@ -198,7 +214,9 @@ function renderGantt(p, sc, { scale = 'week', compact = false, fit = 0 } = {}) {
     });
   });
   const todayLine = td >= lo && td <= hi ? `<div class="pj-today" style="left:${X(td) + ppd / 2}px" title="Aujourd'hui"></div>` : '';
-  return `<div class="pj-gantt ${compact ? 'compact' : ''}" data-scale="${scale}" data-lo="${lo}" data-ppd="${ppd}">
+  // Au-delà d'une ligne de 12 px, le Gantt imprimé est réduit d'un bloc (zoom) pour rester sur une page
+  const css = fitH ? ` style="--rh:${RH}px${H > fitH ? ';zoom:' + (fitH / H).toFixed(3) : ''}"` : '';
+  return `<div class="pj-gantt ${compact ? 'compact' : ''}${fitH && RH < 24 ? ' dense' : ''}" data-mode="${mode}" data-lo="${lo}" data-ppd="${ppd}"${css}>
     <div class="pj-g-names"><div class="pj-g-head" style="height:${HEAD}px">Étape</div>${names.join('')}</div>
     <div class="pj-g-scroll"><div class="pj-g-track" style="width:${W}px;height:${H}px">
       <div class="pj-g-ticks" style="height:${H}px">${ticks.join('')}</div>
@@ -236,15 +254,21 @@ function listRows(p, sc) {
 
 function ganttSection(p, sc) {
   const ui = db().ui, scale = ui.pjScale === 'month' ? 'month' : 'week', list = ui.pjView === 'list';
+  const ppd = curPpd(), preset = ppd === PPD.week ? 'week' : ppd === PPD.month ? 'month' : '';
   const compact = !!(window.matchMedia && matchMedia('(max-width: 760px)').matches);
   const un = sc.unplanned.map(id => A.subj(id)).filter(Boolean);
-  const body = list ? listRows(p, sc) : renderGantt(p, sc, { scale, compact });
+  const body = list ? listRows(p, sc) : renderGantt(p, sc, { scale, ppd, compact });
   const seg = (act, cur, opts, label) => `<div class="theme pj-seg" role="group" aria-label="${label}">${opts.map(([k, l]) => `<button class="${k === cur ? 'on' : ''}" data-pj="${act}" data-v="${k}" aria-pressed="${k === cur}">${l}</button>`).join('')}</div>`;
   return `<section class="card pj-sec pj-gsec">
     <div class="pj-gbar"><h3>Planning</h3>
       <div class="pj-gtools">
         ${seg('pview', list ? 'list' : 'gantt', [['gantt', 'Gantt'], ['list', 'Liste']], 'Affichage')}
-        ${list ? '' : seg('scale', scale, [['week', 'Semaines'], ['month', 'Mois']], 'Échelle')}
+        ${list ? '' : `<div class="pj-zoom">${seg('scale', preset, [['week', 'Semaines'], ['month', 'Mois']], 'Échelle')}
+          <div class="theme pj-seg pj-zbtn" role="group" aria-label="Zoom (Ctrl + molette, ou pincer)">
+            <button data-pj="zoom" data-v="out" title="Dézoomer : plus de mois à l'écran (Ctrl + molette)" aria-label="Dézoomer" ${ppd <= ZMIN ? 'disabled' : ''}>−</button>
+            <button data-pj="zoom" data-v="in" title="Zoomer (Ctrl + molette)" aria-label="Zoomer" ${ppd >= ZMAX ? 'disabled' : ''}>+</button>
+            <button data-pj="zoom" data-v="all" title="Tout le projet dans la largeur de l'écran">Tout voir</button>
+          </div></div>`}
         <button class="btn" data-pj="export-pdf" title="Version imprimable pour l'équipe : choisis « Enregistrer en PDF »">${A.ICON.print}Exporter en PDF</button>
       </div>
     </div>
@@ -309,7 +333,14 @@ document.addEventListener('click', e => {
       break;
     }
     case 'open-step': openStep(b.dataset.sid); break;
-    case 'scale': db().ui.pjScale = b.dataset.v; A.save(); A.render(); break;
+    case 'scale': db().ui.pjScale = b.dataset.v; db().ui.pjPpd = null; A.save(); A.render(); break;
+    case 'zoom': {
+      const g = b.closest('.pj-gsec')?.querySelector('.pj-gantt'), sc = g?.querySelector('.pj-g-scroll');
+      if (!g || !sc) return;
+      if (b.dataset.v === 'all') zoomAll(g, sc);
+      else zoomTo(g, curPpd() * (b.dataset.v === 'in' ? 1.4 : 1 / 1.4), sc.clientWidth / 2);
+      break;
+    }
     case 'export-pdf': { const q = project(db().ui.pjOpen); if (q) exportPdf(q); break; }
     case 'pview': db().ui.pjView = b.dataset.v; A.save(); A.render(); break;
     case 'back':
@@ -484,7 +515,7 @@ function exportPdf(p) {
   el.id = 'pj-print';
   el.innerHTML = `<header><h1>${esc(p.title)}</h1><p>${pjOf(p).owner ? 'Chef de projet : ' + esc(pjOf(p).owner) + ' · ' : ''}Exporté le ${A.longDate(today())} · avancement ${projectProgress(p)} %</p></header>
     ${sc.alerts.length ? `<p class="pj-p-alert">⚠ ${sc.alerts.length} dépassement(s) de jalon, voir le tableau des jalons.</p>` : ''}
-    ${renderGantt(p, sc, { scale, fit: 740 }) || '<p>Aucune étape planifiée.</p>'}
+    ${renderGantt(p, sc, { scale, fit: 740, fitH: sc.alerts.length ? 540 : 565 }) || '<p>Aucune étape planifiée.</p>'}
     ${legend(steps)}
     <div class="pj-p-tables">
       <table class="pj-steps"><caption>Étapes</caption><thead><tr><th>Étape</th><th>Qui</th><th>Début</th><th>Fin</th><th>Avancement</th></tr></thead><tbody>${stepRows}</tbody></table>
@@ -545,19 +576,88 @@ document.addEventListener('pointerup', () => {
 // Un glisser ne doit pas ouvrir l'étape
 document.addEventListener('click', e => { if (swallowClick && e.target.closest('.pj-gantt')) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
 
-// À l'ouverture, la frise se place sur aujourd'hui (un tiers de la largeur avant) ; ensuite elle garde la position choisie
+// À l'ouverture, la frise se place sur aujourd'hui (un tiers de la largeur avant) ; ensuite elle garde la position choisie.
+// La position est gardée en jours (date du bord gauche), pour rester au même endroit quand le zoom change.
 const scrollPos = new Map();
+const DAY0 = g => T(g.dataset.lo) / 864e5;
 window.addEventListener('todo:rendered', () => {
   if (view() !== 'projets') return;
   document.querySelectorAll('#main .pj-gantt').forEach(g => {
     const sc = g.querySelector('.pj-g-scroll'), t = g.querySelector('.pj-today');
     if (!sc) return;
-    const key = g.closest('[data-pid]')?.dataset.pid + g.dataset.scale;
-    if (scrollPos.has(key)) sc.scrollLeft = scrollPos.get(key);
+    const key = g.closest('[data-pid]')?.dataset.pid, ppd = +g.dataset.ppd;
+    if (scrollPos.has(key)) sc.scrollLeft = (scrollPos.get(key) - DAY0(g)) * ppd;
     else if (t) sc.scrollLeft = Math.max(0, t.offsetLeft - sc.clientWidth / 3);
-    sc.addEventListener('scroll', () => scrollPos.set(key, sc.scrollLeft), { passive: true });
+    sc.addEventListener('scroll', () => scrollPos.set(key, DAY0(g) + sc.scrollLeft / ppd), { passive: true });
   });
 });
+
+/* ---------- Zoom libre : boutons − / + / Tout voir, Ctrl + molette, pincement à deux doigts ---------- */
+function curPpd() {
+  const ui = db().ui;
+  return clampPpd(+ui.pjPpd || PPD[ui.pjScale === 'month' ? 'month' : 'week']);
+}
+// Zoome en gardant fixe la date située à ax pixels du bord gauche de la frise
+function zoomTo(g, ppd, ax) {
+  ppd = clampPpd(Math.round(ppd * 100) / 100);
+  const sc = g.querySelector('.pj-g-scroll'), old = +g.dataset.ppd;
+  if (!sc || ppd === old) return;
+  const key = g.closest('[data-pid]')?.dataset.pid, at = DAY0(g) + (sc.scrollLeft + ax) / old;
+  scrollPos.set(key, at - ax / ppd);
+  db().ui.pjPpd = ppd; A.save(); A.render();
+}
+function zoomAll(g, sc) {
+  const p = project(g.closest('[data-pid]')?.dataset.pid);
+  if (!p) return;
+  const rows = PL.buildRows(stepsOf(p.id), projectSchedule(p), milestonesOf(p));
+  if (!rows.length) return;
+  const td = today(), lo = [td, ...rows.map(r => r.start)].sort()[0], hi = [td, ...rows.map(r => r.end)].sort().pop();
+  // Même début que la frise (3 jours avant, aligné sur le repère) et 10 jours après : on garde le zoom dont les repères correspondent
+  const w = sc.clientWidth;
+  const fits = ['week', 'month', 'quarter'].map(m => [m, w / (dd(alignLo(shift(lo, -3), m), shift(hi, 10)) + 1)]);
+  const ppd = (fits.find(([m, v]) => tickMode(v) === m) || fits[2])[1];
+  scrollPos.set(g.closest('[data-pid]').dataset.pid, -1e9);   // bord gauche
+  db().ui.pjPpd = clampPpd(Math.floor(ppd * 100) / 100); A.save(); A.render();
+}
+// Ctrl + molette (et pincement du pavé tactile, qui arrive en Ctrl + molette)
+let wheelAcc = 0, wheelRaf = 0;
+document.addEventListener('wheel', e => {
+  if (!e.ctrlKey || !on()) return;
+  const sc = e.target.closest?.('#main .pj-g-scroll');
+  if (!sc) return;
+  e.preventDefault();
+  wheelAcc += e.deltaY;
+  const ax = e.clientX - sc.getBoundingClientRect().left;
+  if (!wheelRaf) wheelRaf = requestAnimationFrame(() => {
+    wheelRaf = 0;
+    const g = document.querySelector('#main .pj-gantt');
+    if (g) zoomTo(g, +g.dataset.ppd * Math.exp(-wheelAcc * 0.004), ax);
+    wheelAcc = 0;
+  });
+}, { passive: false });
+// Pincement à deux doigts sur la frise (écran tactile)
+const pinch = new Map();
+let pinch0 = null;
+document.addEventListener('pointerdown', e => {
+  if (e.pointerType !== 'touch' || !e.target.closest('#main .pj-g-scroll')) return;
+  pinch.set(e.pointerId, e.clientX);
+  if (pinch.size === 2) {
+    const [a, b] = [...pinch.values()], g = document.querySelector('#main .pj-gantt');
+    pinch0 = { d: Math.abs(a - b) || 1, ppd: +g.dataset.ppd, ax: (a + b) / 2 - g.querySelector('.pj-g-scroll').getBoundingClientRect().left };
+  }
+});
+let pinchRaf = 0;
+document.addEventListener('pointermove', e => {
+  if (!pinch.has(e.pointerId)) return;
+  pinch.set(e.pointerId, e.clientX);
+  if (!pinch0 || pinch.size !== 2 || pinchRaf) return;
+  pinchRaf = requestAnimationFrame(() => {
+    pinchRaf = 0;
+    const [a, b] = [...pinch.values()], g = document.querySelector('#main .pj-gantt');
+    if (pinch0 && g) zoomTo(g, pinch0.ppd * (Math.abs(a - b) || 1) / pinch0.d, pinch0.ax);
+  });
+});
+['pointerup', 'pointercancel'].forEach(t => document.addEventListener(t, e => { pinch.delete(e.pointerId); if (pinch.size < 2) pinch0 = null; }));
 
 // Accès pour les étapes suivantes du module (même fichier)
 Object.assign(A, { pj: { on, project, projects, stepsOf, projectSchedule, projectOfStep } });
