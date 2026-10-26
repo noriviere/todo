@@ -26,8 +26,13 @@
 .task:hover .org-grip,.s-head:hover .org-grip{opacity:1}
 .org-dragging{opacity:.4}
 .org-before{box-shadow:inset 0 3px 0 var(--accent)}
-.subject.org-before{box-shadow:0 -3px 0 var(--accent),var(--shadow)}
+/* Sujets et sous-sujets : un trait d'insertion qui glisse entre les cartes */
+.org-zone{position:relative}
+.org-line{position:absolute;left:0;top:0;height:3px;border-radius:3px;background:var(--accent);pointer-events:none;z-index:5;
+  transition:transform .12s ease-out,width .12s ease-out;box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 18%,transparent)}
+.org-line::before{content:"";position:absolute;left:-5px;top:-3.5px;width:10px;height:10px;border-radius:50%;background:var(--surface);border:2.5px solid var(--accent);box-sizing:border-box}
 .org-into{outline:2px dashed var(--accent);outline-offset:-2px;border-radius:8px}
+@media (prefers-reduced-motion:reduce){.org-line{transition:none}}
 .org-recur{color:var(--accent);font-size:13px;padding:0 2px;cursor:default}
 `;
   document.head.appendChild(css);
@@ -99,7 +104,8 @@
   // Tâche → autre tâche : se place juste avant (prend sa deadline, et son sujet sur la page Sujets)
   // Tâche → en-tête d'un sujet : rangée dans ce sujet
   // Tâche → section Aujourd'hui / Demain / 7 prochains jours / Sans deadline : nouvelle deadline
-  // Sujet → autre sujet : se place avant (prend sa priorité) ; Sujet → groupe P1/P2/P3 : change de priorité
+  // Sujet → place dans un groupe P1/P2/P3 (trait d'insertion) : prend la priorité du groupe
+  // Sous-sujet → place parmi les sous-sujets d'un parent (le sien ou un autre), ou en-tête d'un autre sujet : y est rangé
   let drag = null;
 
   function addGrips() {
@@ -127,14 +133,19 @@
     const el = e.target;
     if (!el.draggable) return;
     if (el.matches('.task[data-tid]')) drag = { kind: 'task', id: el.dataset.tid, el };
-    else if (el.matches('.subject[data-sid]')) drag = { kind: 'subject', id: el.dataset.sid, el };
+    else if (el.matches('.subject[data-sid]')) drag = { kind: 'subject', id: el.dataset.sid, el, child: el.classList.contains('child') };
     else return;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', drag.id);
     setTimeout(() => el.classList.add('org-dragging'), 0);
   });
+  // Trait d'insertion unique, déplacé d'une position à l'autre (sujets et sous-sujets)
+  const line = document.createElement('div');
+  line.className = 'org-line';
   function clearMarks() {
     document.querySelectorAll('.org-before,.org-into').forEach(x => x.classList.remove('org-before', 'org-into'));
+    document.querySelectorAll('.org-zone').forEach(x => x.classList.remove('org-zone'));
+    line.remove(); line._key = null;
   }
   document.addEventListener('dragend', () => {
     if (drag) { drag.el.classList.remove('org-dragging'); drag.el.draggable = false; }
@@ -142,6 +153,44 @@
   });
 
   const SEC_DROP = ['today', 'tomorrow', 'week', 'nodate'];
+  const cards = zone => [...zone.children].filter(x => x.matches('.subject[data-sid]'));
+  // Sujet glissé : zone = groupe P1/P2/P3 (premier niveau) ou liste des sous-sujets d'un parent.
+  // La place se lit à la hauteur du pointeur (milieu des cartes), donc on vise aussi les interstices.
+  function subjectTarget(e) {
+    const t = e.target, s = A.subj(drag.id);
+    if (!s) return null;
+    let zone, parent = null;
+    if (drag.child) {
+      zone = t.closest('#main .s-children');
+      if (zone) parent = A.subj(zone.closest('.subject[data-sid]').dataset.sid);
+      else {
+        // En-tête d'un autre sujet de premier niveau (même replié) : rangé à la fin de ses sous-sujets
+        const head = t.closest('#main .subject[data-sid]:not(.child) > .s-head');
+        const hp = head && A.subj(head.parentElement.dataset.sid);
+        if (hp && hp.id !== s.parentId && A.canNest(s, hp)) return { type: 'into', el: head, parent: hp };
+        return null;
+      }
+      if (!parent || (parent.id !== s.parentId && !A.canNest(s, parent))) return null;
+    } else {
+      zone = t.closest('#main .prio-group');
+      if (!zone) return null;
+    }
+    const list = cards(zone).filter(x => x !== drag.el);
+    let i = list.findIndex(x => { const r = x.getBoundingClientRect(); return e.clientY < r.top + r.height / 2; });
+    if (i < 0) i = list.length;
+    return { type: 'place', zone, parent, list, i };
+  }
+  function showLine(tg) {
+    const { zone, list, i } = tg, zr = zone.getBoundingClientRect();
+    const prev = list[i - 1] && list[i - 1].getBoundingClientRect(), next = list[i] && list[i].getBoundingClientRect();
+    if (!prev && !next) { line.remove(); zone.classList.add('org-into'); return; }
+    const ref = next || prev;
+    const y = prev && next ? (prev.bottom + next.top) / 2 : next ? next.top - 4 : prev.bottom + 4;
+    if (line.parentElement !== zone) { clearMarks(); zone.classList.add('org-zone'); zone.appendChild(line); line.style.transition = 'none'; }
+    else line.style.transition = '';
+    line.style.width = ref.width + 'px';
+    line.style.transform = `translate(${ref.left - zr.left}px,${y - zr.top - 1.5}px)`;
+  }
   function findTarget(e) {
     if (!drag) return null;
     const t = e.target;
@@ -152,20 +201,22 @@
       if (head) return { type: 'subject', el: head, cls: 'org-into' };
       const sec = t.closest('#main details.sec[data-sec]');
       if (sec && SEC_DROP.includes(sec.dataset.sec)) return { type: 'sec', el: sec, cls: 'org-into' };
-    } else {
-      const s = t.closest('#main .subject[data-sid]');
-      if (s && s.dataset.sid !== drag.id && !drag.el.contains(s)) return { type: 'subject', el: s, cls: 'org-before' };
-      const g = t.closest('#main .prio-group');
-      if (g) return { type: 'group', el: g, cls: 'org-into' };
+      return null;
     }
-    return null;
+    return subjectTarget(e);
   }
   document.addEventListener('dragover', e => {
     const tg = findTarget(e);
-    if (!tg) return;
+    if (!tg) { if (drag && drag.kind === 'subject') clearMarks(); return; }
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    if (!tg.el.classList.contains(tg.cls)) { clearMarks(); tg.el.classList.add(tg.cls); }
+    if (tg.type === 'place') {
+      const key = tg.list.map(x => x.dataset.sid).join() + '|' + tg.i;
+      if (line._key !== key || line.parentElement !== tg.zone) { showLine(tg); line._key = key; }
+      return;
+    }
+    const cls = tg.cls || 'org-into';
+    if (!tg.el.classList.contains(cls)) { clearMarks(); tg.el.classList.add(cls); }
   });
   document.addEventListener('drop', e => {
     const tg = findTarget(e);
@@ -177,7 +228,6 @@
     if (d.kind === 'task') dropTask(A.task(d.id), tg);
     else dropSubject(A.subj(d.id), tg);
   });
-
   function cmp(a, b) {
     const pa = A.subj(a.subjectId)?.priority ?? 4, pb = A.subj(b.subjectId)?.priority ?? 4;
     return (a.deadline || '9999').localeCompare(b.deadline || '9999')
@@ -221,28 +271,46 @@
     A.save(); A.render();
     if (msg) A.toast(msg, undo);
   }
+  // Sujet ou sous-sujet posé à une place (trait d'insertion) ou sur l'en-tête d'un autre sujet
   function dropSubject(s, tg) {
     if (!s) return;
-    // Un sous-sujet reste dans son parent : on le range avec la liste « Dans » de sa fiche
-    if (A.parentOf(s) && !A.parentOf(s).archived && tg.type === 'group') { A.toast('Sous-sujet : change son parent avec « Dans » dans sa fiche'); return; }
-    const prev = s.priority;
-    let p;
-    if (tg.type === 'group') {
-      p = +tg.el.querySelector('.prio-title').textContent.trim().match(/^P(\d)/)[1];
-      if (p === s.priority) return;
+    const parent = tg.parent || null, moving = !!parent && parent.id !== s.parentId;
+    let sibs, p;
+    if (tg.type === 'into') {
+      sibs = A.childrenOf(parent).filter(x => x !== s).sort((a, b) => a.priority - b.priority || (a.order || 0) - (b.order || 0));
+      sibs.push(s);
+      p = s.priority;
     } else {
-      p = A.subj(tg.el.dataset.sid).priority;
+      sibs = tg.list.map(x => A.subj(x.dataset.sid)).filter(Boolean);
+      if (parent) {
+        // Les sous-sujets restent triés par priorité : il prend celle de son voisin
+        const nb = sibs[tg.i] || sibs[tg.i - 1];
+        p = nb ? nb.priority : s.priority;
+      } else p = +tg.zone.dataset.p || s.priority;
+      const was = cards(tg.zone).map(x => x.dataset.sid).join();
+      sibs.splice(tg.i, 0, s);
+      if (!moving && p === s.priority && sibs.map(x => x.id).join() === was) return;
     }
+    // Annuler : on garde tout ce que le déplacement peut toucher
+    const before = sibs.map(x => [x, x.order]);
+    const prev = { priority: s.priority, parentId: s.parentId, after: s.after, lagDays: s.lagDays };
+    const old = moving && A.parentOf(s);
+    const links = old ? A.childrenOf(old, true).map(x => [x, x.after && x.after.slice()]) : [];
+    const ms = old && old.pj && old.pj.milestones ? old.pj.milestones.map(m => [m, m.before && m.before.slice()]) : [];
+    if (moving && !A.setParent(s, parent.id)) { A.toast('Ce sujet ne peut pas être rangé là (un seul niveau de sous-sujets)'); return; }
     s.priority = p;
-    // Ordre tel qu'affiché, avec le sujet déplacé inséré au bon endroit
-    const shown = [...document.querySelectorAll('#main .subject[data-sid]')].map(x => A.subj(x.dataset.sid))
-      .filter(x => x && x !== s && x.priority === p);
-    const idx = tg.type === 'group' ? shown.length : shown.indexOf(A.subj(tg.el.dataset.sid));
-    shown.splice(idx < 0 ? shown.length : idx, 0, s);
-    shown.forEach((x, i) => { x.order = (i + 1) * 10; });
+    sibs.forEach((x, i) => { x.order = (i + 1) * 10; });
     s.updatedAt = A.nowIso();
     A.save(); A.render();
-    if (prev !== p) A.toast(`« ${s.title} » passe en P${p}`, () => { s.priority = prev; A.save(); A.render(); });
+    const msg = [moving ? `« ${s.title || 'Sans titre'} » rangé dans « ${parent.title || 'Sans titre'} »` : '',
+      prev.priority !== p ? `${moving ? 'passe' : `« ${s.title || 'Sans titre'} » passe`} en P${p}` : ''].filter(Boolean).join(', ');
+    if (msg) A.toast(msg, () => {
+      before.forEach(([x, o]) => { x.order = o; });
+      links.forEach(([x, a]) => { x.after = a; });
+      ms.forEach(([m, b]) => { m.before = b; });
+      Object.assign(s, prev);
+      A.save(); A.render();
+    });
   }
 
   /* ================= Tâches récurrentes ================= */
