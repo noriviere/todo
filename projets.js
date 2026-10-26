@@ -249,7 +249,7 @@ function ganttSection(p, sc) {
       </div>
     </div>
     ${un.length ? `<div class="pj-unplanned"><span class="pj-lbl">À planifier</span>${un.map(s => `<button class="pj-chip" data-pj="open-step" data-sid="${s.id}">${esc(s.title)} · Planifier</button>`).join('')}</div>` : ''}
-    ${body || '<p class="pj-hint">Aucune étape planifiée. Ouvre une étape et indique son début et sa durée.</p>'}
+    ${body || '<p class="pj-hint">Aucune étape planifiée. Ouvre une étape et indique son début, puis sa durée ou sa fin.</p>'}
     ${list ? '' : legend(stepsOf(p.id))}
   </section>`;
 }
@@ -342,10 +342,11 @@ A.hooks.subjectBody.push(s => {
       ? `<span class="pj-f pj-calc" title="Placée par les étapes dont elle dépend">Début calculé : <b>${c ? fmt(c.start) : 'à planifier'}</b></span>`
       : `<label class="pj-f">Début <input type="date" data-pjf="start" data-k="pjs-${s.id}" value="${esc(plan.start || '')}"></label>`;
     html += `<label class="pj-f">Durée <input type="number" min="1" step="1" inputmode="numeric" data-pjf="dur" data-k="pjd-${s.id}" value="${plan.durDays || ''}" placeholder="1"> j ouvrés</label>`;
+    html += c ? `<label class="pj-f pj-end" title="Choisis la fin : la durée se recalcule en jours ouvrés">Fin prévue <input type="date" data-pjf="end" data-k="pje-${s.id}" value="${c.end}" min="${c.start}"></label>`
+      : '<span class="pj-f pj-end">À planifier : indique un début, puis une durée ou une fin</span>';
     if (hasPrev) html += `<label class="pj-f">Décalage <input type="number" min="0" step="1" inputmode="numeric" data-pjf="lag" data-k="pjl-${s.id}" value="${s.lagDays || ''}" placeholder="0"> j</label>`;
     html += `<label class="pj-f">Qui <input data-pjf="who" data-k="pjw-${s.id}" value="${esc(s.who || '')}" list="pj-who-${s.id}" placeholder="Production, Entreprise A…"></label>
-      <datalist id="pj-who-${s.id}">${whoValues().map(v => `<option value="${esc(v)}">`).join('')}</datalist>
-      <span class="pj-f pj-end">${c ? `Fin prévue : <b>${fmt(c.end)}</b>` : 'À planifier : indique un début et une durée'}</span>`;
+      <datalist id="pj-who-${s.id}">${whoValues().map(v => `<option value="${esc(v)}">`).join('')}</datalist>`;
     if (others.length) html += `<div class="pj-after"><span class="pj-lbl">Commence après</span>${others.map(o => `<label class="pj-chip"><input type="checkbox" data-pj-after="${o.id}" ${(s.after || []).includes(o.id) ? 'checked' : ''}><span>${esc(o.title)}</span></label>`).join('')}</div>`;
   }
   return html + '</div>';
@@ -399,6 +400,13 @@ document.addEventListener('change', e => {
       break;
     case 'start': s.plan = Object.assign({}, s.plan, { start: v || null }); break;
     case 'dur': s.plan = Object.assign({}, s.plan, { durDays: v ? Math.max(1, Math.round(+v) || 1) : null }); break;
+    case 'end': {   // fin choisie : la durée devient le nombre de jours ouvrés depuis le début (choisi ou calculé)
+      const c = projectSchedule(projectOfStep(s)).byId[s.id];
+      if (!c || !v) { A.render(); return; }
+      if (v < c.start) { toast('La fin ne peut pas être avant le début de l\'étape'); A.render(); return; }
+      s.plan = Object.assign({}, s.plan, { durDays: Math.max(1, workdaysBetween(c.start, v)) });
+      break;
+    }
     case 'lag': s.lagDays = Math.max(0, Math.round(+v) || 0); break;
     case 'who': s.who = v.trim(); break;
     default: return;
