@@ -188,7 +188,8 @@ const SECTIONS = [
       <li><b>Tâche sur une autre tâche</b> : elle se place juste avant et prend sa deadline.</li>
       <li><b>Tâche sur l'en-tête d'un sujet</b> : elle est rangée dans ce sujet.</li>
       <li><b>Tâche sur une section</b> du tableau de bord (Aujourd'hui, Demain, 7 prochains jours, Sans deadline) : sa deadline change.</li>
-      <li><b>Sujet sur un autre sujet</b> : il se place avant et prend sa priorité. Sur un groupe P1/P2/P3 : il change de priorité.</li>
+      <li><b>Sujet</b> : un trait bleu montre où il va se poser, entre deux sujets. Posé dans un autre groupe P1/P2/P3, il prend cette priorité.</li>
+      <li><b>Sous-sujet (étape)</b> : le même trait le place entre deux sous-sujets de son parent, ou dans la liste d'un autre sujet. Lâché sur l'en-tête d'un autre sujet, même replié, il y est rangé à la fin (ses liens « commence après » sont alors retirés, et Annuler les remet).</li>
     </ul>
     <p>Après un classement à la main, le bouton <b>Ordre auto</b> de l'onglet Sujets revient au tri par urgence.</p>` },
 

@@ -908,7 +908,7 @@ views.sujets = () => {
   for (const p of [1, 2, 3]) {
     const grp = withStats.filter(x => x.s.priority === p);
     if (!grp.length) continue;
-    html += `<div class="prio-group"><div class="prio-title" style="--pc:var(--p${p})"><i class="sw"></i>${PRIO[p].short} · ${PRIO[p].name}<span style="font-weight:400;text-transform:none;letter-spacing:0">${PRIO[p].desc}</span></div>`;
+    html += `<div class="prio-group" data-p="${p}"><div class="prio-title" style="--pc:var(--p${p})"><i class="sw"></i>${PRIO[p].short} · ${PRIO[p].name}<span style="font-weight:400;text-transform:none;letter-spacing:0">${PRIO[p].desc}</span></div>`;
     for (const { s, st } of grp) html += subjectBlock(s, st, exp.has(s.id) || !!q);
     html += '</div>';
   }
@@ -1448,7 +1448,7 @@ window.todoApp = {
 // Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
 const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [], subjectBody: [] };
 Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, save, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats,
-  parentOf, childrenOf, subjLabel, setParent, expandTo, archiveSubject, createSubject,
+  parentOf, childrenOf, subjLabel, setParent, canNest, expandTo, archiveSubject, createSubject,
   esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur });
 
 if (DEMO) {
