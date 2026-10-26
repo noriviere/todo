@@ -207,6 +207,8 @@ const SECTIONS = [
       <li><b>Commence après</b> : coche les étapes qui doivent être finies avant. Son début est alors calculé (plus un décalage éventuel). Quand une étape glisse, les suivantes se décalent toutes seules. Un lien qui ferait une boucle est refusé.</li>
       <li><b>Jalons</b> : dates fixes (livraison, paiements). Indique les étapes à finir avant chacun. Ils ne bougent jamais seuls : si une étape les dépasse, une <b>alerte</b> s'affiche ; à toi de décaler le jalon ou de réorganiser, puis de ré-exporter.</li>
       <li><b>Le Gantt</b> : une barre par étape, remplie selon l'avancement, flèches de dépendance, losanges des jalons, ligne d'aujourd'hui. Clic sur une barre pour ouvrir l'étape. À la souris, glisse une étape libre pour la déplacer ou étire sa fin pour changer sa durée.</li>
+      <li><b>Zoom</b> : « Semaines » et « Mois » sont deux échelles prêtes ; <b>−</b> et <b>+</b> resserrent ou élargissent les mois à la volée (aussi Ctrl + molette, ou pincer à deux doigts sur téléphone), « Tout voir » fait tenir tout le projet dans l'écran. Le zoom est mémorisé.</li>
+      <li><b>Avancement</b> : une petite jauge et le % sous le nom de chaque étape, lisibles même quand la barre est trop courte.</li>
       <li><b>Sur téléphone</b> : le Gantt défile horizontalement, les noms restent à gauche ; le bouton <b>Liste</b> affiche les mêmes infos ligne par ligne.</li>
       <li><b>Exporter en PDF</b> : une version imprimable pour l'équipe (Gantt, tableau des étapes et des jalons). Choisis « Enregistrer en PDF » dans la fenêtre d'impression.</li>
     </ul>
