@@ -1156,6 +1156,29 @@ function focusKey(k, select) {
 }
 
 /* ---------- Événements ---------- */
+// Champs date tapés au clavier : le navigateur émet « change » dès qu'une date est complète en cours de frappe
+// (ex. année 0002), et le re-rendu remettait le curseur au début. On garde ces « change » jusqu'à Entrée ou la sortie du champ.
+// Un choix au calendrier (sans frappe) passe tout de suite. (document.activeElement n'est pas fiable ici : Chromium le met
+// parfois sur body quand le curseur passe d'une partie de la date à l'autre.)
+const dateTyping = new WeakSet(), datePending = new WeakSet();
+const isDateInput = el => el && el.tagName === 'INPUT' && el.type === 'date';
+function flushDate(el) {
+  if (!datePending.has(el)) return;
+  datePending.delete(el); dateTyping.delete(el);
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+}
+document.addEventListener('keydown', e => {
+  const el = e.target;
+  if (!isDateInput(el)) return;
+  if (e.key === 'Enter') flushDate(el);
+  else if (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete' || e.key === 'ArrowUp' || e.key === 'ArrowDown') dateTyping.add(el);
+}, true);
+document.addEventListener('change', e => {
+  const el = e.target;
+  if (isDateInput(el) && e.isTrusted && dateTyping.has(el)) { datePending.add(el); e.stopImmediatePropagation(); }
+}, true);
+document.addEventListener('focusout', e => { if (isDateInput(e.target)) { flushDate(e.target); dateTyping.delete(e.target); } }, true);
+
 document.addEventListener('change', e => {
   const el = e.target;
   if (el.dataset.mod) {
