@@ -148,7 +148,7 @@ function whoColors(steps) {
 const colorOf = (s, wc) => wc.get((s.who || '').trim()) || 'var(--p0)';
 
 // Moteur de rendu : dessine une liste de lignes génériques (étapes, jalons ; tâches plus tard)
-function renderGantt(p, sc, { scale = 'week', compact = false, fit = 0 } = {}) {
+function renderGantt(p, sc, { scale = 'week', compact = false, fit = 0, fitH = 0 } = {}) {
   const mk = `pj-arr-${fit ? 'print-' : ''}${p.id}`;   // id unique : la page imprimée a sa propre flèche
   const steps = stepsOf(p.id), byStep = new Map(steps.map(s => [s.id, s]));
   const rows = PL.buildRows(steps, sc, milestonesOf(p));
@@ -162,7 +162,9 @@ function renderGantt(p, sc, { scale = 'week', compact = false, fit = 0 } = {}) {
   else lo = shift(lo, -((new Date(T(lo)).getUTCDay() + 6) % 7));          // lundi
   // fit : largeur imposée (export PDF), la frise entière tient dans la page
   const ppd = fit ? fit / (dd(lo, hi) + 1) : PPD[scale] || PPD.week;
-  const RH = compact ? 46 : ROW;   // lignes plus hautes au doigt
+  // fitH : hauteur imposée (export PDF) ; les lignes se resserrent pour que tout le Gantt tienne sur une page
+  const RH = fitH ? Math.max(12, Math.min(ROW, Math.floor((fitH - HEAD) / rows.length))) : compact ? 46 : ROW;   // lignes plus hautes au doigt
+  const BH = Math.min(24, Math.round(RH * .6));   // hauteur des barres
   const days = dd(lo, hi) + 1, W = days * ppd, H = HEAD + rows.length * RH;
   const X = d => dd(lo, d) * ppd, Y = i => HEAD + i * RH + RH / 2;
   const ticks = [];
@@ -187,8 +189,8 @@ function renderGantt(p, sc, { scale = 'week', compact = false, fit = 0 } = {}) {
     names.push(`<button class="pj-g-name" data-pj="open-step" data-sid="${s.id}" style="height:${RH}px" title="${label}"><span class="sw" style="background:${col}"></span><span class="t">${esc(s.title)}</span>${s.who ? `<span class="w">${esc(s.who)}</span>` : ''}</button>`);
     const w = (dd(r.start, r.end) + 1) * ppd;
     marks.push(`<button class="pj-bar ${late ? 'late' : ''} ${prev.length ? 'chained' : 'free'}" data-pj="open-step" data-sid="${s.id}" data-start="${r.start}" data-end="${r.end}"
-      style="left:${X(r.start)}px;top:${Y(i) - 12}px;width:${w}px;--c:${col}" title="${label}" aria-label="${label}">
-      <i class="pj-fill" style="width:${st.progress}%"></i>${w >= 44 ? `<span>${st.progress}%</span>` : ''}${compact || fit || coarse() ? '' : '<b class="pj-grip" aria-hidden="true"></b>'}</button>`);
+      style="left:${X(r.start)}px;top:${Y(i) - BH / 2}px;height:${BH}px;width:${w}px;--c:${col}" title="${label}" aria-label="${label}">
+      <i class="pj-fill" style="width:${st.progress}%"></i>${w >= 44 && BH >= 14 ? `<span>${st.progress}%</span>` : ''}${compact || fit || coarse() ? '' : '<b class="pj-grip" aria-hidden="true"></b>'}</button>`);
     prev.forEach(id => {
       const j = idx.get('etape' + id);
       if (j == null) return;
@@ -198,7 +200,9 @@ function renderGantt(p, sc, { scale = 'week', compact = false, fit = 0 } = {}) {
     });
   });
   const todayLine = td >= lo && td <= hi ? `<div class="pj-today" style="left:${X(td) + ppd / 2}px" title="Aujourd'hui"></div>` : '';
-  return `<div class="pj-gantt ${compact ? 'compact' : ''}" data-scale="${scale}" data-lo="${lo}" data-ppd="${ppd}">
+  // Au-delà d'une ligne de 12 px, le Gantt imprimé est réduit d'un bloc (zoom) pour rester sur une page
+  const css = fitH ? ` style="--rh:${RH}px${H > fitH ? ';zoom:' + (fitH / H).toFixed(3) : ''}"` : '';
+  return `<div class="pj-gantt ${compact ? 'compact' : ''}${fitH && RH < 24 ? ' dense' : ''}" data-scale="${scale}" data-lo="${lo}" data-ppd="${ppd}"${css}>
     <div class="pj-g-names"><div class="pj-g-head" style="height:${HEAD}px">Étape</div>${names.join('')}</div>
     <div class="pj-g-scroll"><div class="pj-g-track" style="width:${W}px;height:${H}px">
       <div class="pj-g-ticks" style="height:${H}px">${ticks.join('')}</div>
@@ -484,7 +488,7 @@ function exportPdf(p) {
   el.id = 'pj-print';
   el.innerHTML = `<header><h1>${esc(p.title)}</h1><p>${pjOf(p).owner ? 'Chef de projet : ' + esc(pjOf(p).owner) + ' · ' : ''}Exporté le ${A.longDate(today())} · avancement ${projectProgress(p)} %</p></header>
     ${sc.alerts.length ? `<p class="pj-p-alert">⚠ ${sc.alerts.length} dépassement(s) de jalon, voir le tableau des jalons.</p>` : ''}
-    ${renderGantt(p, sc, { scale, fit: 740 }) || '<p>Aucune étape planifiée.</p>'}
+    ${renderGantt(p, sc, { scale, fit: 740, fitH: sc.alerts.length ? 540 : 565 }) || '<p>Aucune étape planifiée.</p>'}
     ${legend(steps)}
     <div class="pj-p-tables">
       <table class="pj-steps"><caption>Étapes</caption><thead><tr><th>Étape</th><th>Qui</th><th>Début</th><th>Fin</th><th>Avancement</th></tr></thead><tbody>${stepRows}</tbody></table>
