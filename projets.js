@@ -166,7 +166,7 @@ function renderGantt(p, sc, { scale = 'week', ppd: zoom = 0, compact = false, fi
   let lo = [td, ...rows.map(r => r.start)].sort()[0], hi = [td, ...rows.map(r => r.end)].sort().pop();
   lo = shift(lo, -3); hi = shift(hi, 10);
   // fit : largeur imposée (export PDF), la frise entière tient dans la page ; sinon le zoom choisi
-  const mode = fit ? (scale === 'month' ? 'month' : 'week') : tickMode(zoom || PPD[scale] || PPD.week);
+  const mode = tickMode(fit ? fit / (dd(lo, hi) + 1) : zoom || PPD[scale] || PPD.week);
   lo = alignLo(lo, mode);
   const ppd = fit ? fit / (dd(lo, hi) + 1) : zoom || PPD[scale] || PPD.week;
   // fitH : hauteur imposée (export PDF) ; les lignes se resserrent pour que tout le Gantt tienne sur une page
@@ -501,8 +501,6 @@ document.addEventListener('change', e => {
 /* ---------- Export PDF : une page d'impression dédiée, puis la fenêtre d'impression du navigateur ---------- */
 function exportPdf(p) {
   const sc = projectSchedule(p), steps = stepsOf(p.id), rows = PL.buildRows(steps, sc, milestonesOf(p));
-  const span = rows.length ? dd(rows.map(r => r.start).sort()[0], rows.map(r => r.end).sort().pop()) : 0;
-  const scale = span > 120 ? 'month' : 'week';
   const lateMs = new Set(sc.alerts.map(a => a.milestoneId)), lateSteps = new Set(sc.alerts.map(a => a.subjectId));
   const stepRows = sc.order.map(id => A.subj(id)).concat(sc.unplanned.map(id => A.subj(id))).filter(Boolean).map(s => {
     const c = sc.byId[s.id], k = A.subjectStats(s);
@@ -510,12 +508,24 @@ function exportPdf(p) {
   }).join('');
   const msRows = milestonesOf(p).sort((a, b) => a.date.localeCompare(b.date)).map(m =>
     `<tr class="${lateMs.has(m.id) ? 'late' : ''}"><td>◆ ${esc(m.name)}</td><td>${fmt(m.date)}</td><td>${lateMs.has(m.id) ? 'dépassé' : m.date < today() ? 'passé' : 'à venir'}</td></tr>`).join('');
+  // Page imposée, quel que soit l'écran (téléphone compris) : A4 paysage, ou portrait quand il y a beaucoup d'étapes
+  // pour garder des lignes lisibles. Largeur de la feuille fixe : l'affichage mobile de l'appli ne s'applique pas.
+  const port = rows.length > 26, sheetW = port ? 696 : 1010, namesW = port ? 230 : 270;
+  const fitH = (port ? 900 : 565) - (sc.alerts.length ? 25 : 0);
   document.getElementById('pj-print')?.remove();
+  document.getElementById('pj-page')?.remove();
+  const page = document.createElement('style');
+  page.id = 'pj-page';
+  page.textContent = `@page{size:A4 ${port ? 'portrait' : 'landscape'};margin:12mm}`;
+  document.head.appendChild(page);
   const el = document.createElement('div');
   el.id = 'pj-print';
+  el.className = port ? 'portrait' : 'landscape';
+  el.style.setProperty('--sheet', sheetW + 'px');
+  el.style.setProperty('--names', namesW + 'px');
   el.innerHTML = `<header><h1>${esc(p.title)}</h1><p>${pjOf(p).owner ? 'Chef de projet : ' + esc(pjOf(p).owner) + ' · ' : ''}Exporté le ${A.longDate(today())} · avancement ${projectProgress(p)} %</p></header>
     ${sc.alerts.length ? `<p class="pj-p-alert">⚠ ${sc.alerts.length} dépassement(s) de jalon, voir le tableau des jalons.</p>` : ''}
-    ${renderGantt(p, sc, { scale, fit: 740, fitH: sc.alerts.length ? 540 : 565 }) || '<p>Aucune étape planifiée.</p>'}
+    ${renderGantt(p, sc, { fit: sheetW - namesW - 2, fitH }) || '<p>Aucune étape planifiée.</p>'}
     ${legend(steps)}
     <div class="pj-p-tables">
       <table class="pj-steps"><caption>Étapes</caption><thead><tr><th>Étape</th><th>Qui</th><th>Début</th><th>Fin</th><th>Avancement</th></tr></thead><tbody>${stepRows}</tbody></table>
@@ -527,6 +537,7 @@ function exportPdf(p) {
 }
 window.addEventListener('afterprint', () => {
   document.getElementById('pj-print')?.remove();
+  document.getElementById('pj-page')?.remove();
   document.body.classList.remove('pj-printing');
 });
 

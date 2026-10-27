@@ -122,8 +122,8 @@
 .pj-li.ms .d{display:block}
 .pj-li.ms.late .pj-dia{color:var(--danger)}
 
-/* Téléphone : Gantt compact, noms figés, frise qui défile */
-@media (max-width:760px){
+/* Téléphone : Gantt compact, noms figés, frise qui défile (écran seulement : le PDF garde sa mise en page) */
+@media screen and (max-width:760px){
   .pj-g-names{width:112px}
   .pj-g-name{padding:0 8px;font-size:12px;flex-wrap:wrap;align-content:center;gap:0 6px}
   .pj-g-name .t{flex:1 1 0}
@@ -151,12 +151,12 @@
   body.pj-printing > :not(#pj-print){display:none!important}
   /* Couleurs claires imposées à la page imprimée, même si l'appli est en thème sombre */
   #pj-print{--bg:#fff;--surface:#fff;--surface-2:#f4f5f8;--surface-3:#e8ebf2;--border:#cfd3dc;--text:#111;--muted:#444;--faint:#888;--accent:#4f63e8;--accent-bg:#eaedfd;--danger:#b4232f;--danger-bg:#fdecee;--p0:#9aa1b2;color-scheme:light}
-  body.pj-printing #pj-print{display:block;font-size:11pt;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body.pj-printing #pj-print{display:block;width:var(--sheet);font-size:11pt;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #pj-print header h1{font-size:20pt;margin:0 0 2pt}
   #pj-print header p{margin:0 0 10pt;color:#444}
   #pj-print .pj-p-alert{color:#b4232f;font-weight:600;margin:0 0 8pt}
   #pj-print .pj-gantt{border-color:#bbb;break-inside:avoid}
-  #pj-print .pj-g-names{width:270px}
+  #pj-print .pj-g-names{width:var(--names)}
   #pj-print .pj-g-scroll{overflow:visible}
   #pj-print .pj-g-name{font-size:10pt}
   #pj-print .pj-g-name .w{font-size:9pt;color:#444}
@@ -181,6 +181,10 @@
   #pj-print td.n{text-align:right;font-variant-numeric:tabular-nums}
   #pj-print tr.late td{color:#b4232f;font-weight:600}
 }
+/* Navigateur qui ne suit pas l'orientation demandée (Safari sur iPhone…) : la feuille est réduite pour tenir dans la page */
+@media print and (max-width:900px){body.pj-printing #pj-print.landscape{zoom:.69}}
+@media print and (max-height:900px){body.pj-printing #pj-print.portrait{zoom:.68}}
+@media print and (max-width:600px){body.pj-printing #pj-print.landscape{zoom:.38}body.pj-printing #pj-print.portrait{zoom:.55}}
 
 /* Cadenas (échéance ferme) et garde-fou */
 .pj-lock{display:inline-flex;color:var(--muted)}
