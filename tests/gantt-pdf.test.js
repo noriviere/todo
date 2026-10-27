@@ -18,11 +18,30 @@ for (const n of [3, 25, 60]) {
     await page.evaluate(() => { window.print = () => {}; });
     await page.click('[data-pj="export-pdf"]');
     await page.emulateMedia({ media: 'print' });
-    // Hauteur utile d'une page A4 paysage à 12 mm de marge : 186 mm ≈ 703 px
+    // Hauteur utile d'une page A4 à 12 mm de marge : 186 mm ≈ 703 px en paysage, 273 mm ≈ 1032 px en portrait
+    const port = n > 26;
+    assert.equal(await page.locator('#pj-print').getAttribute('class'), port ? 'portrait' : 'landscape');
+    assert.match(await page.locator('#pj-page').textContent(), port ? /portrait/ : /landscape/);
     const bottom = await page.locator('#pj-print .pj-legend').evaluate(e => e.getBoundingClientRect().bottom);
-    assert.ok(bottom <= 703, `légende du Gantt en bas de la page 1 (${Math.round(bottom)} px)`);
+    assert.ok(bottom <= (port ? 1032 : 703), `légende du Gantt en bas de la page 1 (${Math.round(bottom)} px)`);
+    // Lignes lisibles : beaucoup d'étapes passent en portrait plutôt que d'écraser les lignes
+    assert.ok(await page.locator('#pj-print .pj-g-name').first().evaluate(e => e.offsetHeight) >= 14);
     const pages = pdfPages(await page.pdf({ preferCSSPageSize: true, printBackground: true }));
     assert.ok(pages >= 2 && pages <= 2 + Math.ceil(n / 20), `${pages} pages`);
     assert.deepEqual(page.errors, []);
   });
 }
+
+test('export depuis un téléphone : même mise en page que sur ordinateur, pas l\'affichage mobile', async () => {
+  const page = await openApp(projet(12), { hash: 'projets', viewport: { width: 390, height: 800 }, touch: true });
+  await page.evaluate(() => { window.print = () => {}; });
+  await page.click('[data-pj="export-pdf"]');
+  await page.emulateMedia({ media: 'print' });
+  assert.equal(await page.locator('#pj-print .pj-g-names').evaluate(e => Math.round(parseFloat(getComputedStyle(e).width))), 270);
+  assert.notEqual(await page.locator('#pj-print .pj-g-ms span').evaluate(e => getComputedStyle(e).display), 'none', 'date des jalons visible');
+  assert.equal(await page.locator('#pj-print .pj-g-name.st').first().evaluate(e => getComputedStyle(e).gridTemplateColumns.split(' ').length), 3, 'nom et responsable sur une ligne');
+  // La feuille est réduite pour tenir dans la largeur imprimable
+  const w = await page.locator('#pj-print').evaluate(e => e.getBoundingClientRect().width);
+  assert.ok(w <= 390, `feuille de ${Math.round(w)} px`);
+  assert.deepEqual(page.errors, []);
+});
