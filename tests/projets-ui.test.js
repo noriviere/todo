@@ -300,6 +300,8 @@ test('export PDF : page d\'impression avec Gantt, étapes et jalons', async () =
   assert.equal(await sheet.isVisible(), true);
   await page.emulateMedia({ media: 'screen' });
   await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+  await page.waitForTimeout(1100);
+  await page.keyboard.press('Shift');                  // retour dans l'appli : la page d'impression est retirée
   assert.equal(await page.locator('#pj-print').count(), 0);
   assert.deepEqual(page.errors, []);
 });
