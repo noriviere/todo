@@ -535,10 +535,22 @@ function exportPdf(p) {
   document.body.classList.add('pj-printing');
   window.print();
 }
-window.addEventListener('afterprint', () => {
+// Nettoyage au retour dans l'appli, pas à « afterprint » : sur Chrome Android, window.print() ne bloque pas et
+// « afterprint » arrive avant que la page soit capturée, ce qui imprimait l'écran de l'appli à la place du PDF.
+// La page d'impression est invisible à l'écran : la garder un peu ne gêne pas.
+function cleanPrint() {
   document.getElementById('pj-print')?.remove();
   document.getElementById('pj-page')?.remove();
   document.body.classList.remove('pj-printing');
+}
+window.addEventListener('afterprint', () => {
+  const at = Date.now();
+  const back = () => {
+    if (Date.now() - at < 1000) return;   // ignore le geste qui ferme la fenêtre d'impression
+    ['pointerdown', 'keydown'].forEach(t => document.removeEventListener(t, back, true));
+    cleanPrint();
+  };
+  ['pointerdown', 'keydown'].forEach(t => document.addEventListener(t, back, true));
 });
 
 /* ---------- Édition directe : glisser une étape libre, étirer sa fin (souris, pas sur écran tactile) ---------- */

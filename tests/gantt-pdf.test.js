@@ -45,3 +45,22 @@ test('export depuis un téléphone : même mise en page que sur ordinateur, pas 
   assert.ok(w <= 390, `feuille de ${Math.round(w)} px`);
   assert.deepEqual(page.errors, []);
 });
+
+test('Android : la fenêtre d\'impression ne bloque pas, la page PDF reste en place jusqu\'au retour dans l\'appli', async () => {
+  const page = await openApp(projet(19), { hash: 'projets', viewport: { width: 390, height: 800 }, touch: true });
+  // Chrome Android : window.print() rend la main tout de suite et « afterprint » arrive avant la capture de la page
+  await page.evaluate(() => { window.print = () => window.dispatchEvent(new Event('afterprint')); });
+  await page.click('[data-pj="export-pdf"]');
+  await page.emulateMedia({ media: 'print' });
+  assert.equal(await page.locator('#pj-print').count(), 1, 'page PDF toujours là');
+  assert.equal(await page.locator('#pj-page').count(), 1, 'format de page toujours là');
+  assert.equal(await page.locator('.app').evaluate(e => getComputedStyle(e).display), 'none', 'l\'écran de l\'appli n\'est pas imprimé');
+  // De retour dans l'appli, un geste nettoie la page d'impression
+  await page.emulateMedia({ media: 'screen' });
+  await page.waitForTimeout(1100);
+  await page.mouse.click(5, 300);
+  assert.equal(await page.locator('#pj-print').count(), 0);
+  assert.equal(await page.locator('#pj-page').count(), 0);
+  assert.equal(await page.evaluate(() => document.body.classList.contains('pj-printing')), false);
+  assert.deepEqual(page.errors, []);
+});
