@@ -356,24 +356,12 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const M = window.todoMetier;
 const { uid, nowIso } = M;
 const pad = n => String(n).padStart(2, '0');
-const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const { ymd, parseYmd, addDays, isDate } = M;
 const today = () => ymd(new Date());
-const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
-const addDays = (s, n) => { const d = parseYmd(s); d.setDate(d.getDate() + n); return ymd(d); };
 const diffDays = (a, b) => Math.round((parseYmd(a) - parseYmd(b)) / 86400000);
-const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
-// Durées : "1h30", "1.5h", "45min", "45m", "2" (= heures), "1j" (= une journée de travail)
-function parseDur(s) {
-  s = String(s ?? '').trim().toLowerCase().replace(',', '.').replace(/\s+/g, '');
-  if (!s) return null;
-  let m;
-  if ((m = s.match(/^(\d+(?:\.\d+)?)h(\d{1,2})?(?:m|min|mn)?$/))) return Math.round(parseFloat(m[1]) * 60 + (m[2] ? +m[2] : 0));
-  if ((m = s.match(/^(\d+)(?:m|min|mn)$/))) return +m[1];
-  if ((m = s.match(/^(\d+(?:\.\d+)?)j$/))) return Math.round(parseFloat(m[1]) * db.settings.workdayMin);
-  if ((m = s.match(/^\d+(?:\.\d+)?$/))) return Math.round(parseFloat(s) * 60);
-  return NaN;
-}
+// Durées : "1h30", "45min", "2" (= heures), "1j" (= une journée de travail des réglages)
+const parseDur = v => M.parseDur(v, db.settings.workdayMin);
 function fmtDur(min) {
   if (min == null || isNaN(min)) return '';
   if (min < 60) return min + 'min';
@@ -439,55 +427,7 @@ function modOn(id) {
 const navOn = n => !n[3] || modOn(n[3]);
 
 /* ---------- Données ---------- */
-const { blank, normSubject, normTask } = M;
-function migrate(d) {
-  const b = blank();
-  d = Object.assign(b, d);
-  d.settings = Object.assign(blank().settings, d.settings);
-  if (!d.settings.modules || typeof d.settings.modules !== 'object') d.settings.modules = {};
-  d.ui = Object.assign(blank().ui, d.ui);
-  // Ancienne dimension « Projet » (Excel) renommée « Code » : « Projet » désigne désormais le module Projets
-  const dims = d.ui.dims || {};
-  if (dims.projet != null) { if (!dims.code) dims.code = dims.projet; delete dims.projet; }
-  d.ui.dims = Object.assign({ code: '', secteur: '', produit: '' }, dims);
-  d.subjects = (d.subjects || []).map(s => {
-    if (s && s.projet != null) { if (!s.code) s.code = s.projet; delete s.projet; }
-    return normSubject(s);
-  });
-  d.tasks = (d.tasks || []).map(normTask);
-  migrateProjects(d);
-  return d;
-}
-// Anciens projets séparés (db.projects) : chaque projet devient un sujet en mode projet, ses étapes ses sous-sujets
-function migrateProjects(d) {
-  const ps = Array.isArray(d.projects) ? d.projects : [];
-  for (const p of ps) {
-    if (!p || !p.id) continue;
-    const steps = d.subjects.filter(s => s.projectId === p.id);
-    const pj = { owner: p.owner || '', color: p.color || '', milestones: Array.isArray(p.milestones) ? p.milestones : [] };
-    let s = d.subjects.find(x => x.id === p.id);
-    if (!s) {
-      const common = k => { const v = [...new Set(steps.map(x => (x[k] || '').trim()))]; return v.length === 1 ? v[0] : ''; };
-      s = normSubject({ id: p.id, title: p.name || 'Projet', priority: steps.length ? Math.min(...steps.map(x => +x.priority || 3)) : 2,
-        code: common('code'), secteur: common('secteur'), produit: common('produit'),
-        archived: !!p.archived, archivedAt: p.archivedAt || null, createdAt: p.createdAt || nowIso() });
-      d.subjects.push(s);
-    }
-    s.isProject = true; s.pj = pj; s.parentId = null;
-    steps.forEach(x => {
-      // Un seul niveau : une étape qui a ses propres sous-sujets reste au premier niveau
-      if (x === s || d.subjects.some(y => y.parentId === x.id && y !== x)) return;
-      const old = x.parentId && x.parentId !== p.id ? d.subjects.find(y => y.id === x.parentId) : null;
-      if (old) {   // rangée ailleurs entre-temps (autre appareil) : ses liens d'étape ne valent plus
-        x.after = []; x.lagDays = 0;
-        ((old.pj && old.pj.milestones) || []).forEach(m => { if (Array.isArray(m.before)) m.before = m.before.filter(id => id !== x.id); });
-      }
-      x.parentId = p.id;
-    });
-  }
-  d.subjects.forEach(s => { delete s.projectId; });
-  delete d.projects;
-}
+const { blank, normSubject, normTask, migrate } = M;
 function load() {
   const s = store.getItem(KEY);
   if (s) {
@@ -603,23 +543,8 @@ function dimsBar() {
   return `<div class="dims-bar"><span class="lbl">Filtrer :</span>${sel}${dimsActive() ? '<button type="button" class="clear" data-act="dims-clear">Tout afficher</button>' : ''}</div>`;
 }
 
-function bucket(t) {
-  if (!t.deadline) return 'nodate';
-  const d = t.deadline, td = today();
-  if (d < td) return 'late';
-  if (d === td) return 'today';
-  if (d === addDays(td, 1)) return 'tomorrow';
-  if (d <= addDays(td, 7)) return 'week';
-  return 'later';
-}
-function taskCmp(a, b) {
-  const pa = subj(a.subjectId)?.priority ?? 4, pb = subj(b.subjectId)?.priority ?? 4;
-  return (a.deadline || '9999').localeCompare(b.deadline || '9999')
-    || (a.order || 0) - (b.order || 0)
-    || pa - pb
-    || (b.status === 'doing') - (a.status === 'doing')
-    || a.createdAt.localeCompare(b.createdAt);
-}
+const bucket = t => M.bucket(t, today());
+const taskCmp = (a, b) => M.taskCmp(db)(a, b);
 
 // État d'un sujet déduit de ses tâches (règle dans metier.js)
 const subjectStats = s => M.subjectStats(s, db, today());
@@ -637,45 +562,11 @@ function createSubject(o) {
   save();
   return s;
 }
+// Modifie un champ d'une tâche (règle dans metier.js) ; une saisie refusée affiche son message
 function setTaskField(t, f, v) {
-  switch (f) {
-    case 'title': t.title = v.trim(); break;
-    case 'notes': t.notes = v; break;
-    case 'deadline': t.deadline = isDate(v) ? v : null; break;
-    case 'startDate': t.startDate = isDate(v) ? v : null; break;
-    case 'subjectId': t.subjectId = v || null; break;
-    case 'estimate': {
-      const m = parseDur(v);
-      if (Number.isNaN(m)) { toast('Durée non comprise. Exemples : 1h30, 45min, 2 (heures)'); return false; }
-      t.estimateMin = m; break;
-    }
-    case 'real': {
-      const m = parseDur(v);
-      if (Number.isNaN(m)) { toast('Durée non comprise. Exemples : 1h30, 45min, 2 (heures)'); return false; }
-      t.realMin = m || 0; break;
-    }
-    case 'status':
-      t.status = v;
-      if (v === 'done') { t.progress = 100; t.doneAt = nowIso(); }
-      else { t.doneAt = null; if (v === 'todo') t.progress = 0; if (v === 'doing' && t.progress >= 100) t.progress = 90; }
-      break;
-    case 'progress': {
-      const p = Math.max(0, Math.min(100, Math.round(+v || 0)));
-      t.progress = p;
-      if (p >= 100) { t.status = 'done'; t.doneAt = nowIso(); }
-      else if (p > 0 && t.status === 'todo') t.status = 'doing';
-      break;
-    }
-    case 'planMode': t.plan = Object.assign({}, t.plan, { mode: v }); break;
-    case 'planDaily': {
-      const m = parseDur(v);
-      if (Number.isNaN(m)) { toast('Durée non comprise.'); return false; }
-      t.plan = Object.assign({}, t.plan, { dailyMin: m }); break;
-    }
-    default: return false;
-  }
-  t.updatedAt = nowIso();
-  return true;
+  const r = M.setTaskField(t, f, v, db);
+  if (typeof r === 'string') { toast(r); return false; }
+  return r;
 }
 function setSubjectField(s, f, v) {
   if (f === 's-parent') {
@@ -1389,7 +1280,7 @@ window.todoApp = {
 };
 // Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
 const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [], subjectBody: [] };
-Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, save, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats, remaining: M.remaining,
+Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, save, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats, remaining: M.remaining, taskCmp,
   parentOf, childrenOf, subjLabel, setParent, canNest, expandTo, archiveSubject, createSubject,
   esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur });
 

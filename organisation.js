@@ -228,12 +228,7 @@
     if (d.kind === 'task') dropTask(A.task(d.id), tg);
     else dropSubject(A.subj(d.id), tg);
   });
-  function cmp(a, b) {
-    const pa = A.subj(a.subjectId)?.priority ?? 4, pb = A.subj(b.subjectId)?.priority ?? 4;
-    return (a.deadline || '9999').localeCompare(b.deadline || '9999')
-      || (a.order || 0) - (b.order || 0) || pa - pb
-      || (b.status === 'doing') - (a.status === 'doing') || a.createdAt.localeCompare(b.createdAt);
-  }
+  const cmp = A.taskCmp;   // même ordre que le tableau de bord
   function snapshot(t) { return { deadline: t.deadline, subjectId: t.subjectId, order: t.order }; }
   function dropTask(t, tg) {
     if (!t) return;
