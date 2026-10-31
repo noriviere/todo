@@ -3,13 +3,18 @@ const path = require('path');
 const { chromium } = require('playwright');
 const URL = 'file://' + path.resolve(__dirname, '..', 'index.html');
 const KEY = 'todo-noel-v1';
+// Jour fixe des tests : l'appli lit la date du jour (retards, Gantt), et les données de test ont des dates en dur
+const TODAY = '2026-10-28';
+const noon = ymd => new Date(ymd + 'T12:00:00');
 
 let browser;
-async function openApp(data, { hash = '', viewport = { width: 1280, height: 900 }, touch = false, query = '' } = {}) {
+async function openApp(data, { hash = '', viewport = { width: 1280, height: 900 }, touch = false, query = '', today = TODAY } = {}) {
   browser = browser || await chromium.launch();
   const ctx = await browser.newContext({ viewport, hasTouch: touch, isMobile: touch });
   const page = await ctx.newPage();
   page.setDefaultTimeout(4000);
+  // L'horloge part de ce jour à 9 h puis avance normalement (minuteries comprises)
+  await page.clock.install({ time: new Date(today + 'T09:00:00') });
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   page.on('dialog', d => d.accept(page.__prompt || undefined));
@@ -20,8 +25,8 @@ async function openApp(data, { hash = '', viewport = { width: 1280, height: 900 
   return page;
 }
 async function closeAll() { if (browser) await browser.close(); browser = null; }
-const day = (n, from = new Date()) => { const d = new Date(from); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+const day = (n, from = noon(TODAY)) => { const d = new Date(from); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
 // Échelle dessinée du Gantt de l'écran, en pixels par jour
 const ppd = page => page.locator('#main .pj-gantt').evaluate(g => +g.dataset.ppd);
 
-module.exports = { openApp, closeAll, day, ppd };
+module.exports = { openApp, closeAll, day, ppd, TODAY };
