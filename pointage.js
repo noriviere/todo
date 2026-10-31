@@ -444,7 +444,7 @@ document.addEventListener('click', e => {
       if (!set.length) { toast('Aucun jour travaillé dans cette période'); return; }
       const n = set.length * (part === 'full' ? 1 : 0.5);
       const msg = `${fmtJ(n)} de ${type(typeId).label} posé${n > 1 ? 's' : ''}`;
-      A.modifier(`Absence posée : ${msg}`, () => { set.forEach(ds => setAbs(ds, typeId, part)); }, { toast: msg, annuler: true });
+      A.modifier(`Absence posée : ${fmtJ(n)} de ${type(typeId).label}`, () => { set.forEach(ds => setAbs(ds, typeId, part)); }, { toast: msg, annuler: true });
       break;
     }
     case 'pt-unpost': {

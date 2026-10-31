@@ -630,7 +630,8 @@ function toast(msg, action, label = 'Annuler') {
 // Toute modification des données passe par modifier(libellé, fn, options) : photo avant, modification,
 // date « modifiée le » sur ce qui a changé, enregistrement, affichage, entrée dans l'historique, bandeau.
 // options : toast (texte du bandeau, sinon pas de bandeau sauf annuler), annuler (bouton « Annuler » dans le bandeau),
-//   differe (réaffichage qui garde le focus, pour la frappe), copie (garde la copie « avant import »), lieu ({ vue, tid, sid }).
+//   differe (réaffichage qui garde le focus, pour la frappe), copie (garde la copie « avant import »), lieu ({ vue, tid, sid }),
+//   historique: false (conséquence d'un réglage, qui ne doit pas s'annuler : l'historique est alors vidé).
 // Le libellé peut être une fonction, lue après la modification (titre qu'on vient de changer).
 // fn reçoit les données ; elle peut renvoyer de nouvelles données complètes (import), qui remplacent les actuelles.
 const hist = M.historique(50);
@@ -664,6 +665,7 @@ function modifier(libelle, fn, o = {}) {
   }
   // Ce que les écouteurs de l'enregistrement ajoutent (occurrence suivante d'une récurrence) fait partie du même pas
   enregistrerConnu();
+  if (entree && o.historique === false) { viderHistorique(); entree = null; }
   if (entree) { entree.apres = photoConnue; hist.enregistrer(entree); }
   o.differe ? scheduleRender() : render();
   // Un bandeau « Annuler » d'une modification plus ancienne ne peut plus rien défaire proprement : on le retire
@@ -1109,6 +1111,8 @@ function render() {
   peindreHist();
   applyTheme();
   window.dispatchEvent(new Event('todo:rendered'));
+  // Un module affiché pour la première fois complète ses données (valeurs par défaut) : ce n'est pas une modification
+  if (!dansModif) photoConnue = M.photo(db);
 }
 // Re-rendu différé qui garde le focus et le curseur sur le même champ
 let renderPending = false;

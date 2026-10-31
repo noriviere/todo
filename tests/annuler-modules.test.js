@@ -148,3 +148,30 @@ test('import d\'un fichier de pointage : un seul pas, Ctrl+Z défait tout l\'imp
   assert.ok(d.pointage.days[day(0)].in, 'le pointage d\'avant reste');
   assert.match(await page.locator('#toast').innerText(), /Annulé : Import de pointage \(2 jours\)/);
 });
+
+// Corrections issues de la revue du ticket #27 (chacune d'abord en échec)
+test('chrono masqué pendant qu\'il tourne : l\'arrêt ne s\'annule pas, aucun chrono invisible ne repart', async () => {
+  const page = await openApp(base(), { hash: 'donnees' });
+  await page.evaluate(() => { const A = window.todoApp; A.modifier('Chrono démarré', d => { d.tasks[0].timerStart = A.nowIso(); }); });
+  await page.locator('[data-mod="chrono"]').uncheck({ force: true });
+  await page.waitForTimeout(50);
+  assert.equal((await tache(page, 'a')).timerStart, null, 'arrêté en masquant le module');
+  await ailleurs(page);
+  await ctrl(page, 'z');
+  assert.equal((await tache(page, 'a')).timerStart, null, 'Ctrl+Z ne relance pas un chrono invisible');
+});
+
+test('allumer un module pour la première fois ne vide pas l\'historique', async () => {
+  const page = await openApp(base({ settings: { modules: { pointage: false, charge: false } } }));
+  await ligne(page, 'a').locator('[data-act="archive-task"]').click();
+  await page.evaluate(() => { location.hash = 'donnees'; });
+  await page.waitForTimeout(60);
+  await page.locator('[data-mod="charge"]').check({ force: true });
+  await page.locator('[data-mod="pointage"]').check({ force: true });
+  for (const h of ['charge', 'pointage']) { await page.evaluate(h => { location.hash = h; }, h); await page.waitForTimeout(60); }
+  await page.click('#main [data-act="pt-tab"][data-t="conges"]');
+  assert.equal(await peutAnnuler(page), true);
+  await ailleurs(page);
+  await ctrl(page, 'z');
+  assert.equal((await tache(page, 'a')).archived, false);
+});

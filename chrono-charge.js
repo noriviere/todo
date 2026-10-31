@@ -99,6 +99,7 @@ function addLog(t, log) {
   t.realMin = (t.realMin || 0) + log.min;
 }
 const nom = t => `« ${t.title || 'Sans titre'} »`;
+const nomCreneau = sl => `« ${sl.title || 'Sans nom'} »`;
 function startTimer(t) {
   // Un seul chrono à la fois : démarrer une tâche arrête la précédente (dans la même modification).
   // Si elle tourne depuis plus de 4 h (oubli ?), on demande le temps à garder ; annuler ne démarre rien.
@@ -441,13 +442,13 @@ document.addEventListener('click', e => {
     case 'cc-slot-day': {
       const sl = findSlot(b); if (!sl) return;
       const wd = +b.dataset.wd;
-      A.modifier(`Jours du créneau « ${sl.title || 'Sans nom'} »`, () => {
+      A.modifier(`Jours du créneau ${nomCreneau(sl)}`, () => {
         sl.days = (sl.days || []).includes(wd) ? sl.days.filter(x => x !== wd) : [...(sl.days || []), wd];
       });
       break;
     }
-    case 'cc-slot-archive': { const sl = findSlot(b); if (!sl) return; A.modifier(`Créneau archivé : « ${sl.title || 'Sans nom'} »`, () => { sl.archived = true; }, { toast: 'Créneau archivé', annuler: true }); break; }
-    case 'cc-slot-restore': { const sl = findSlot(b); if (!sl) return; A.modifier(`Créneau restauré : « ${sl.title || 'Sans nom'} »`, () => { sl.archived = false; }); break; }
+    case 'cc-slot-archive': { const sl = findSlot(b); if (!sl) return; A.modifier(`Créneau archivé : ${nomCreneau(sl)}`, () => { sl.archived = true; }, { toast: 'Créneau archivé', annuler: true }); break; }
+    case 'cc-slot-restore': { const sl = findSlot(b); if (!sl) return; A.modifier(`Créneau restauré : ${nomCreneau(sl)}`, () => { sl.archived = false; }); break; }
     case 'cc-workday': {
       const s = settings(), wd = +b.dataset.wd;
       A.modifier('Jours travaillés', () => { s.workDays = s.workDays.includes(wd) ? s.workDays.filter(x => x !== wd) : [...s.workDays, wd]; });
@@ -462,7 +463,7 @@ document.addEventListener('change', e => {
     const f = el.dataset.ccSlot, v = el.value;
     const m = f === 'dur' ? parseDur(v) : null;
     if (f === 'dur' && (!m || Number.isNaN(m))) { toast('Durée non comprise. Exemples : 1h, 30min, 1j'); el.value = fmtDur(sl.durMin); return; }
-    A.modifier(() => `Créneau modifié : « ${sl.title || 'Sans nom'} »`, () => {
+    A.modifier(() => `Créneau modifié : ${nomCreneau(sl)}`, () => {
       if (f === 'title') sl.title = v.trim();
       else if (f === 'dur') sl.durMin = m;
       else if (f === 'freq') { sl.freq = v; if (!sl.start) sl.start = today(); if ((v === 'weekly' || v === 'biweekly') && !(sl.days || []).length) sl.days = [parseYmd(sl.start).getDay()]; }
@@ -511,7 +512,8 @@ window.addEventListener('todo:modules', e => {
   const rs = running();
   if (!rs.length) return;
   const before = rs.reduce((a, r) => a + (r.realMin || 0), 0);
-  A.modifier('Chrono arrêté (module masqué)', () => { rs.forEach(r => stopTimer(r, Date.now() - Date.parse(r.timerStart) <= 240 * 60000)); });
+  // Conséquence du réglage « Modules actifs », hors historique : annuler relancerait un chrono invisible
+  A.modifier('Chrono arrêté (module masqué)', () => { rs.forEach(r => stopTimer(r, Date.now() - Date.parse(r.timerStart) <= 240 * 60000)); }, { historique: false });
   // Durée à garder refusée : le chrono continue, on garde donc le module affiché
   const kept = running().length;
   if (kept) db().settings.modules.chrono = true;
