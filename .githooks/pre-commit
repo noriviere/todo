@@ -1,0 +1,3 @@
+#!/bin/sh
+# Contrôles avant chaque commit (activer une fois : git config core.hooksPath .githooks)
+node --test tests/*.test.js > /tmp/todo-pre-commit.log 2>&1 || { grep -E '^not ok|error:' /tmp/todo-pre-commit.log; echo "pre-commit : des tests échouent (détail : /tmp/todo-pre-commit.log)."; exit 1; }
