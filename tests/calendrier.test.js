@@ -82,3 +82,44 @@ test('migration : le choix des fériés du Pointage est repris', () => {
   assert.equal(M.migrate({ settings: { feries: true }, pointage: { holidays: false } }).settings.feries, true, 'déjà migré');
   assert.deepEqual(M.migrate({ settings: { workDays: [1, 2, 3] } }).settings.workDays, [1, 2, 3]);
 });
+
+/* ---------- Décalage d'une échéance de récurrence (ticket #37) ---------- */
+const conge = cal({}, { '2026-11-12': 'full', '2026-11-13': 'full', '2026-11-16': 'am' });
+
+test('décalage : un jour travaillé ne bouge pas', () => {
+  assert.deepEqual(M.decaler('2026-11-10', 'suivant', conge, '2026-10-28'), { date: '2026-11-10', decalee: false });
+});
+
+test('décalage par défaut : au jour travaillé suivant (rapport du dimanche 1er novembre → lundi 2)', () => {
+  assert.equal(M.blank().settings.decalage, 'suivant');
+  assert.deepEqual(M.decaler('2026-11-01', 'suivant', cal(), '2026-10-28'), { date: '2026-11-02', decalee: true });
+  assert.equal(M.decaler('2026-11-11', 'suivant', conge, '2026-10-28').date, '2026-11-16', 'férié puis congé ; la demi-journée est travaillée');
+  assert.equal(M.decaler('2026-11-11', undefined, conge, '2026-10-28').date, '2026-11-16', 'règle absente : suivant');
+});
+
+test('décalage au jour travaillé précédent', () => {
+  assert.deepEqual(M.decaler('2026-11-01', 'precedent', cal(), '2026-10-28'), { date: '2026-10-30', decalee: true });
+  assert.equal(M.decaler('2026-11-13', 'precedent', conge, '2026-10-28').date, '2026-11-10', 'congé puis férié');
+});
+
+test('« précédent » ne remonte jamais avant aujourd\'hui', () => {
+  assert.equal(M.decaler('2026-11-01', 'precedent', cal(), '2026-10-31').date, '2026-11-02', 'aujourd\'hui samedi : jour travaillé suivant');
+  assert.equal(M.decaler('2026-11-01', 'precedent', cal(), '2026-10-30').date, '2026-10-30', 'aujourd\'hui vendredi');
+  assert.equal(M.decaler('2026-11-14', 'precedent', conge, '2026-11-12').date, '2026-11-16', 'aujourd\'hui en congé');
+});
+
+test('« ne pas décaler » garde la date', () => {
+  assert.deepEqual(M.decaler('2026-11-01', 'aucun', cal(), '2026-10-28'), { date: '2026-11-01', decalee: false });
+});
+
+test('migration : la règle de décalage par défaut est ajoutée', () => {
+  assert.equal(M.migrate({}).settings.decalage, 'suivant');
+  assert.equal(M.migrate({ settings: { decalage: 'aucun' } }).settings.decalage, 'aucun');
+  assert.equal(M.normTask({}).decaleeDe, null);
+});
+
+test('échéance changée à la main : la date théorique d\'un décalage disparaît', () => {
+  const t = M.normTask({ deadline: '2026-11-02', decaleeDe: '2026-11-01' });
+  M.setTaskField(t, 'deadline', '2026-11-05');
+  assert.equal(t.decaleeDe, null);
+});

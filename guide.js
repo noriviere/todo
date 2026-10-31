@@ -66,7 +66,8 @@ const SECTIONS = [
       <li>Un <b>jour ouvré</b> est un jour de la semaine type qui n'est pas férié. ${when('projet', 'Le Gantt des projets compte en jours ouvrés : tes congés ne le décalent pas, puisque les étapes sont souvent faites par d\'autres.')}</li>
       ${when('pointage', '<li>Un <b>jour travaillé</b> est un jour ouvré où tu es là : sans congé ni absence d\'une journée entière posés dans Pointage. La Charge et l\'objectif du Pointage comptent en jours travaillés.</li>')}
     </ul>
-    <p>Un changement s'annule avec Ctrl+Z, comme le reste.</p>`, tab: 'donnees' },
+    ${when('recurrence', '<p><b>Échéance de récurrence qui tombe un jour non travaillé</b> : jour travaillé suivant (par défaut), précédent, ou ne pas décaler.</p>')}
+    <p>Une échéance posée à la main un jour non travaillé reste à sa date : la mention <b>non travaillé</b> s'affiche à côté. Un changement de réglage s'annule avec Ctrl+Z, comme le reste.</p>`, tab: 'donnees' },
 
   { id: 'dashboard', g: 'daily', title: 'Tableau de bord', html: () => `
     <p>La page d'accueil, pour voir d'un coup d'œil ce qui presse.</p>
@@ -144,7 +145,12 @@ const SECTIONS = [
   { id: 'recurrence', mod: 'recurrence', g: 'daily', title: 'Tâches récurrentes', html: () => `
     <p>Dans les détails d'une tâche, <b>Répéter</b> propose : chaque jour travaillé, chaque semaine, toutes les 2 semaines, chaque mois, chaque trimestre, chaque année.</p>
     <p>Quand la tâche est faite (ou annulée), la suivante est créée automatiquement avec la prochaine deadline. Si tu l'as faite en retard, la nouvelle date saute directement à la prochaine échéance à venir.</p>
-    <p>Une tâche récurrente porte le symbole <b>↻</b> dans sa ligne.</p>` },
+    <p>Une tâche récurrente porte le symbole <b>↻</b> dans sa ligne.</p>
+    <ul>
+      <li><b>Chaque jour travaillé</b> saute les week-ends, les jours fériés${when('pointage', ' et tes congés d\'une journée posés dans Pointage (une demi-journée compte comme travaillée)')}.</li>
+      <li><b>Les autres fréquences</b> : si la date tombe un jour non travaillé, l'échéance est <b>décalée</b> au jour travaillé suivant. Le réglage « Échéance de récurrence qui tombe un jour non travaillé » (Données › Calendrier) propose aussi le jour précédent (jamais avant aujourd'hui) ou de ne pas décaler.</li>
+      <li>Le bandeau le signale à la création, et les détails de la tâche indiquent « Décalée du … ». L'occurrence suivante repart de la date prévue, pas de la date décalée : le rapport du 31 revient le 31.</li>
+    </ul>` },
 
   { id: 'filtres', g: 'daily', title: 'Filtres', html: () => `
     <p>Pour n'afficher qu'une partie des tâches sur le tableau de bord :</p>
@@ -267,7 +273,7 @@ const SECTIONS = [
     <ul>
       <li><b>Poser une absence</b> : dates de début et de fin, type (congés payés, RTT, maladie…), journée ou demi-journée, puis <b>Poser</b>. Seuls les jours ouvrés sont marqués : week-ends et fériés sont sautés.</li>
       <li><b>Absences de l'année</b> : la liste, regroupée par période, avec le total par type. ✕ retire une absence.</li>
-      <li>Une absence posée à l'avance bloque ces jours dans la vue Charge.</li>
+      <li>Une absence posée à l'avance bloque ces jours dans la vue Charge. Aucune tâche n'est déplacée : si des échéances tombent pendant l'absence, le bandeau les compte et « Les voir » les montre sur le tableau de bord.</li>
     </ul>
     ${see(['compteurs', 'types-absence'])}`, tab: 'pointage', ptTab: 'conges' },
 

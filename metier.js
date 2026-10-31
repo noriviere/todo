@@ -65,6 +65,20 @@ function calendrier(settings, absenceDe = () => null) {
   const ouvresEntre = (a, b) => { let n = 0; for (let d = a; d <= b; d = addDays(d, 1)) if (ouvre(d)) n++; return n; };
   return { semaine: sem, ferie, ouvre, absence, travaille, ouvreSuivant, travailleSuivant, ajouterOuvres, ouvresEntre };
 }
+// Échéance d'une occurrence de récurrence qui tombe un jour non travaillé, selon la règle des réglages :
+// 'suivant' (par défaut) le jour travaillé suivant, 'precedent' le précédent mais jamais avant aujourd'hui
+// (alors aujourd'hui, ou le jour travaillé suivant), 'aucun' la date telle quelle.
+function decaler(date, regle, cal, aujourdhui) {
+  if (regle === 'aucun' || cal.travaille(date)) return { date, decalee: false };
+  if (regle === 'precedent') {
+    let d = date;
+    for (let i = 0; i < 366 && !cal.travaille(d); i++) d = addDays(d, -1);
+    if (d < aujourdhui) d = cal.travailleSuivant(aujourdhui);
+    return { date: d, decalee: d !== date };
+  }
+  const d = cal.travailleSuivant(date);
+  return { date: d, decalee: d !== date };
+}
 
 /* ---------- Données ---------- */
 function blank() {
@@ -72,7 +86,7 @@ function blank() {
     version: 1,
     subjects: [],
     tasks: [],
-    settings: { theme: 'auto', workdayMin: 420, lastExport: null, modules: {}, workDays: JOURS_OUVRES.slice(), feries: true },
+    settings: { theme: 'auto', workdayMin: 420, lastExport: null, modules: {}, workDays: JOURS_OUVRES.slice(), feries: true, decalage: 'suivant' },
     ui: { expanded: [], showClosed: false, search: '', dims: { code: '', secteur: '', produit: '' } }
   };
 }
@@ -88,6 +102,8 @@ function normTask(t) {
   return Object.assign({
     id: uid(), subjectId: null, title: '', notes: '',
     deadline: null, startDate: null,
+    // Occurrence de récurrence décalée hors d'un jour non travaillé : sa date théorique
+    decaleeDe: null,
     estimateMin: null,
     status: 'todo', progress: 0,
     archived: false, archivedAt: null,
@@ -231,7 +247,13 @@ function setTaskField(t, f, v, d) {
   switch (f) {
     case 'title': t.title = v.trim(); break;
     case 'notes': t.notes = v; break;
-    case 'deadline': t.deadline = isDate(v) ? v : null; break;
+    case 'deadline': {
+      const nd = isDate(v) ? v : null;
+      // Échéance changée à la main : ce n'est plus une occurrence décalée
+      if (nd !== t.deadline) t.decaleeDe = null;
+      t.deadline = nd;
+      break;
+    }
     case 'startDate': t.startDate = isDate(v) ? v : null; break;
     case 'subjectId': t.subjectId = v || null; break;
     case 'estimate': {
@@ -316,7 +338,7 @@ function historique(max = 50) {
   };
 }
 
-const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, JOURS_OUVRES, lundi, feries, calendrier, blank, normSubject, normTask, migrate,
+const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, JOURS_OUVRES, lundi, feries, calendrier, decaler, blank, normSubject, normTask, migrate,
   isOpen, remaining, bucket, taskCmp, setTaskField, parentOf, childrenOf, subjectStats,
   photo, remettre, horodater, memesDonnees, historique };
 if (typeof module === 'object' && module.exports) module.exports = api;

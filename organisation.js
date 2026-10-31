@@ -314,18 +314,21 @@
     return ymd(d);
   }
   function step(ds, r) {
-    if (r.freq === 'workday') {
-      return A.calendrier().ouvreSuivant(addDays(ds, 1));   // jour ouvré suivant ; les congés seront sautés avec le ticket #37
-    }
+    // Jour travaillé suivant : ni week-end, ni férié, ni congé d'une journée (calendrier commun)
+    if (r.freq === 'workday') return A.calendrier().travailleSuivant(addDays(ds, 1));
     if (r.freq === 'week') return addDays(ds, 7 * r.interval);
     if (r.freq === 'month') return addMonths(ds, r.interval);
     return addMonths(ds, 12 * r.interval);
   }
+  // Échéance de l'occurrence suivante : date théorique (calculée depuis la théorique de la précédente, sans dérive),
+  // puis décalée si elle tombe un jour non travaillé (Données › Calendrier). → { date, theorique, decalee }
   function nextDate(t) {
-    let n = step(t.deadline || today(), t.recur);
+    let n = step(t.decaleeDe || t.deadline || today(), t.recur);
     // Si la tâche a été faite en retard, on saute jusqu'à la prochaine échéance à venir
     for (let i = 0; i < 1000 && n < today(); i++) n = step(n, t.recur);
-    return n;
+    if (t.recur.freq === 'workday') return { date: n, theorique: n, decalee: false };
+    const r = A.decaler(n, db().settings.decalage, A.calendrier(), today());
+    return Object.assign(r, { theorique: n });
   }
 
   // Module activable (Données › Modules actifs) : masqué, plus de ↻, plus d'option Répéter, plus de création automatique
@@ -359,14 +362,15 @@
     for (const t of vues) {
       if (!t.recur || t.archived) continue;
       if (!isOpen(t) && !t.recurNextId) {
-        const nd = nextDate(t);
+        const prochaine = nextDate(t), nd = prochaine.date;
         // Tâche complète (règles d'une nouvelle tâche) ; createdAt === updatedAt : l'occurrence est « non touchée »
         const now = A.nowIso();
         const n = A.normTask(Object.assign(JSON.parse(JSON.stringify(t)), {
           id: A.uid(), status: 'todo', progress: 0, deadline: nd,
           startDate: t.startDate && t.deadline ? addDays(nd, A.diffDays(t.startDate, t.deadline)) : null,
           createdAt: now, updatedAt: now, doneAt: null, archived: false, archivedAt: null,
-          realMin: 0, timeLogs: [], timerStart: null, order: 0, recurNextId: null, recurFromId: t.id
+          realMin: 0, timeLogs: [], timerStart: null, order: 0, recurNextId: null, recurFromId: t.id,
+          decaleeDe: prochaine.decalee ? prochaine.theorique : null
         }));
         d.tasks.push(n);
         t.recurNextId = n.id;
@@ -382,7 +386,11 @@
     }
     // Texte ajouté au bandeau de la modification
     if (!creees.length) return '';
-    return creees.length === 1 ? '↻ Prochaine occurrence créée pour le ' + A.longDate(creees[0].deadline) : `↻ ${creees.length} prochaines occurrences créées`;
+    if (creees.length > 1) return `↻ ${creees.length} prochaines occurrences créées` + (creees.some(n => n.decaleeDe) ? ' (dont des décalées hors des jours non travaillés)' : '');
+    const n = creees[0];
+    return n.decaleeDe
+      ? `↻ Prochaine occurrence le ${A.longDate(n.deadline)} (le ${A.longDate(n.decaleeDe)} n'est pas travaillé)`
+      : '↻ Prochaine occurrence créée pour le ' + A.longDate(n.deadline);
   }
   A.hooks.apresModif.push(checkRecurring);
   // Tâches récurrentes faites sans occurrence : données arrivées d'ailleurs (ouverture, synchro, import) ou Récurrence rallumée

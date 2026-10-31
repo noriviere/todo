@@ -17,7 +17,7 @@ test('carte Calendrier : visible avec Charge et Pointage désactivés, le samedi
   assert.equal(await carte(page).count(), 1);
   assert.equal(await jour(page, 1).getAttribute('aria-pressed'), 'true');
   assert.equal(await jour(page, 6).getAttribute('aria-pressed'), 'false');
-  assert.match(await carte(page).innerText(), /Prochain : .*novembre \(Toussaint\)/);
+  assert.match(await carte(page).innerText(), /Prochain : .*1er novembre \(Toussaint\)/);
   await jour(page, 6).click();
   assert.deepEqual((await page.db()).settings.workDays, [1, 2, 3, 4, 5, 6]);
   assert.equal(await jour(page, 6).getAttribute('aria-pressed'), 'true');

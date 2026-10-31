@@ -140,6 +140,8 @@ details.sec>summary .load{margin-left:auto;font-size:12px;color:var(--muted);fon
 .est{width:62px;font-size:12px;color:var(--muted);text-align:right}
 .date-wrap{display:inline-flex;align-items:center;gap:4px;font-size:12px;border-radius:8px;padding:0 4px 0 2px}
 .date-wrap .rel{min-width:64px;color:var(--muted)}
+.date-wrap .nt{font-size:11px;font-weight:600;color:var(--warn);background:var(--warn-bg);border-radius:10px;padding:1px 7px;white-space:nowrap}
+.dr-ech{color:var(--warn)}
 .date{border:1px solid transparent;background:transparent;border-radius:6px;padding:3px 4px;font-size:12px;color:var(--muted);width:120px}
 .date:hover{border-color:var(--border)}
 .date:focus{border-color:var(--accent);outline:none}
@@ -243,6 +245,9 @@ details.sec>summary .load{margin-left:auto;font-size:12px;color:var(--muted);fon
 .cal-days button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .cal-tog{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
 .cal-tog input{width:18px;height:18px;margin:0;accent-color:var(--accent)}
+.cal-dec{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.cal-dec select{min-height:34px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);padding:4px 8px;font:inherit}
+@media (pointer:coarse){.cal-dec select{min-height:44px}}
 @media (pointer:coarse){.cal-days button{min-width:44px;height:44px}}
 @media (max-width:520px){.cal-row>b{min-width:0;width:100%}.cal-days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;width:100%}.cal-days button{min-width:0;padding:0}}
 .mod-soon{display:inline-block;vertical-align:1px;margin-left:6px;font-size:11px;font-weight:600;border-radius:10px;padding:1px 8px;background:var(--surface-3);color:var(--muted);white-space:nowrap}
@@ -389,6 +394,17 @@ function absenceDu(ds) {
   return null;
 }
 const calendrier = () => M.calendrier(db.settings, ds => { const a = absenceDu(ds); return a ? a.part : null; });
+// Pourquoi un jour n'est pas travaillé (« samedi », « férié : Armistice », « Congés payés ») ; null s'il l'est
+const JOURS_LONGS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+function nonTravaille(ds) {
+  const cal = calendrier();
+  if (!ds || cal.travaille(ds)) return null;
+  const f = cal.ferie(ds);
+  if (f) return 'férié : ' + f;
+  if (!cal.semaine.includes(parseYmd(ds).getDay())) return JOURS_LONGS[parseYmd(ds).getDay()];
+  const a = absenceDu(ds);
+  return a && a.label ? a.label : 'absence';
+}
 
 // Durées : "1h30", "45min", "2" (= heures), "1j" (= une journée de travail des réglages)
 const parseDur = v => M.parseDur(v, db.settings.workdayMin);
@@ -409,7 +425,8 @@ function relDate(d) {
   return `dans ${n} j`;
 }
 function longDate(d) {
-  return parseYmd(d).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  // « dimanche 1er novembre » : le premier du mois s'écrit 1er
+  return parseYmd(d).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/(^|\s)1(\s)/, '$11er$2');
 }
 
 const STATUS = { todo: 'À faire', doing: 'En cours', waiting: 'En attente', done: 'Fait', cancelled: 'Annulé' };
@@ -638,12 +655,14 @@ function archiveSubject(s, on = true) {
 /* ---------- Toast ---------- */
 let toastTimer;
 // action : fonction du bouton (« Annuler » par défaut, ou « Rétablir »)
-function toast(msg, action, label = 'Annuler') {
+// voir : second bouton facultatif { label, fn } (ex. « Voir les tâches »)
+function toast(msg, action, label = 'Annuler', voir = null) {
   const el = $('#toast');
-  el.innerHTML = `<div class="toast" role="status" aria-live="polite"><span>${esc(msg)}</span>${action ? `<button data-act="undo">${esc(label)}</button>` : ''}</div>`;
+  el.innerHTML = `<div class="toast" role="status" aria-live="polite"><span>${esc(msg)}</span>${voir ? `<button data-act="toast-voir">${esc(voir.label)}</button>` : ''}${action ? `<button data-act="undo">${esc(label)}</button>` : ''}</div>`;
   el._undo = action || null;
+  el._voir = voir ? voir.fn : null;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.innerHTML = ''; el._undo = null; }, action ? 6000 : 3500);
+  toastTimer = setTimeout(() => { el.innerHTML = ''; el._undo = null; el._voir = null; }, action || voir ? 8000 : 3500);
 }
 
 /* ---------- Point unique de modification et historique (Annuler / Rétablir) ---------- */
@@ -695,11 +714,11 @@ function modifier(libelle, fn, o = {}) {
   if (entree) { entree.apres = photoConnue; hist.enregistrer(entree); }
   o.differe ? scheduleRender() : render();
   const lire = v => typeof v === 'function' ? v() : v;
-  const texte = lire(o.toast), avecAnnuler = lire(o.annuler);
+  const texte = lire(o.toast), avecAnnuler = lire(o.annuler), voir = lire(o.voir) || null;
   const avecSuites = t => [t, ...suites].filter(Boolean).join(' · ');
   // Un bandeau « Annuler » d'une modification plus ancienne ne peut plus rien défaire proprement : on le retire
   if (entree && !texte && !avecAnnuler) fermerToastAnnuler();
-  if (entree && (texte || avecAnnuler)) toast(avecSuites(texte || libelle), avecAnnuler ? () => { if (hist.prochainAnnuler() === entree) annuler(); } : null);
+  if (entree && (texte || avecAnnuler)) toast(avecSuites(texte || libelle), avecAnnuler ? () => { if (hist.prochainAnnuler() === entree) annuler(); } : null, 'Annuler', voir);
   else if (entree && suites.length) toast(avecSuites(''));
   else if (!entree && texte && r !== false) toast(texte);
   return r;
@@ -780,6 +799,16 @@ function allerA(l) {
     location.hash = l.vue;
   } else montrer();
 }
+// Ouvre le tableau de bord sur des tâches : la première au centre, toutes signalées un instant
+function montrerTaches(ids) {
+  if (!ids.length) return;
+  window.addEventListener('todo:rendered', () => setTimeout(() => ids.forEach(id => {
+    const el = $(`#main [data-tid="${CSS.escape(id)}"]`);
+    if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1600); }
+  }), 80), { once: true });
+  allerA({ vue: 'dashboard', tid: ids[0] });
+  if (currentView() === 'dashboard') render();
+}
 // Ctrl+Z / Cmd+Z annule, Ctrl+Y ou Ctrl+Maj+Z rétablit, sauf pendant la frappe dans un champ (le navigateur annule la frappe)
 const enFrappe = el => !!el && (el.isContentEditable || el.tagName === 'TEXTAREA' ||
   (el.tagName === 'INPUT' && /^(text|search|email|url|tel|password|number|date|time|datetime-local|month|week|)$/.test(el.type)));
@@ -829,6 +858,7 @@ function taskRow(t, opt = {}) {
       <span class="date-wrap ${dateClass(t)}">
         <input type="date" class="date" data-field="deadline" data-k="d-${t.id}" value="${t.deadline || ''}" title="Deadline">
         <span class="rel">${isOpen(t) ? relDate(t.deadline) : ''}</span>
+        ${isOpen(t) && nonTravaille(t.deadline) ? `<span class="nt" title="Échéance un jour non travaillé (${esc(nonTravaille(t.deadline))})">non travaillé</span>` : ''}
       </span>
       ${isOpen(t) ? `<button class="icon" data-act="postpone" title="Reporter d'un jour">+1j</button>` : ''}
       ${hooks.taskRow.map(f => f(t)).join('')}
@@ -1036,6 +1066,7 @@ views.archives = () => {
 };
 
 const JOURS_SEMAINE = [[1, 'L', 'lundi'], [2, 'M', 'mardi'], [3, 'M', 'mercredi'], [4, 'J', 'jeudi'], [5, 'V', 'vendredi'], [6, 'S', 'samedi'], [0, 'D', 'dimanche']];
+const DECALAGES = [['suivant', 'Jour travaillé suivant'], ['precedent', 'Jour travaillé précédent'], ['aucun', 'Ne pas décaler']];
 function calendrierCard() {
   const st = db.settings, cal = calendrier(), sem = cal.semaine;
   let proch = null;
@@ -1048,6 +1079,8 @@ function calendrierCard() {
           `<button type="button" data-act="cal-jour" data-wd="${n}" data-k="cal-jour-${n}" aria-pressed="${sem.includes(n)}" title="${l}" aria-label="${l}">${c}</button>`).join('')}</span></div>
       <div class="cal-row"><label class="cal-tog"><input type="checkbox" data-cal-feries data-k="cal-feries" ${st.feries !== false ? 'checked' : ''}> Jours fériés français automatiques</label>
         <span class="hint">${proch ? `Prochain : ${esc(longDate(proch))} (${esc(cal.ferie(proch))})` : 'Les jours fériés sont traités comme des jours ouvrés.'}</span></div>
+      ${modOn('recurrence') ? `<div class="cal-row"><label class="cal-dec"><span>Échéance de récurrence qui tombe un jour non travaillé</span>
+        <select data-cal-decalage data-k="cal-decalage">${DECALAGES.map(([v, l]) => `<option value="${v}" ${v === (st.decalage || 'suivant') ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>` : ''}
     </div></div>`;
 }
 
@@ -1086,6 +1119,13 @@ views.donnees = () => {
 };
 
 /* ---------- Panneau détails ---------- */
+// Sous l'échéance : jour non travaillé, et date d'origine d'une occurrence de récurrence décalée
+function echeanceNote(t) {
+  const nt = nonTravaille(t.deadline), out = [];
+  if (t.decaleeDe && t.decaleeDe !== t.deadline) out.push(`Décalée du ${esc(longDate(t.decaleeDe))} (jour non travaillé)`);
+  if (nt) out.push(`Jour non travaillé (${esc(nt)})`);
+  return out.length ? `<span class="hint dr-ech">${out.join('<br>')}</span>` : '';
+}
 let drawerId = null;
 function renderDrawer() {
   const el = $('#drawer');
@@ -1102,7 +1142,7 @@ function renderDrawer() {
       <div class="f"><label>Avancement (%)</label><input type="number" min="0" max="100" step="5" data-field="progress" data-k="dr-prog" value="${t.progress}"></div>
     </div>
     <div class="row2">
-      <div class="f"><label>Deadline</label><input type="date" data-field="deadline" data-k="dr-dl" value="${t.deadline || ''}"></div>
+      <div class="f"><label>Deadline</label><input type="date" data-field="deadline" data-k="dr-dl" value="${t.deadline || ''}">${echeanceNote(t)}</div>
       ${modOn('charge') ? `<div class="f"><label>Date de début</label><input type="date" data-field="startDate" data-k="dr-sd" value="${t.startDate || ''}"></div>` : ''}
     </div>
     <div class="row2">
@@ -1228,6 +1268,12 @@ document.addEventListener('change', e => {
     render();
     focusKey('mod-' + m.id);
     toast(`${m.label} : ${el.checked ? 'activé' : 'masqué (rien n\'est supprimé)'}`);
+    return;
+  }
+  if (el.matches('[data-cal-decalage]')) {
+    const v = el.value, l = (DECALAGES.find(x => x[0] === v) || DECALAGES[0])[1];
+    modifier(`Décalage des récurrences : ${l.toLowerCase()}`, () => { db.settings.decalage = v; });
+    focusKey('cal-decalage');
     return;
   }
   if (el.matches('[data-cal-feries]')) {
@@ -1412,6 +1458,7 @@ document.addEventListener('click', e => {
       break;
     }
     case 'theme': db.settings.theme = b.dataset.v; save(); render(); break;
+    case 'toast-voir': { const v = $('#toast')._voir; $('#toast').innerHTML = ''; $('#toast')._undo = null; $('#toast')._voir = null; if (v) v(); break; }
     case 'undo': { const u = $('#toast')._undo; $('#toast').innerHTML = ''; $('#toast')._undo = null; if (u) u(); break; }
     case 'hist-undo': annuler(); break;
     case 'hist-redo': retablir(); break;
@@ -1513,7 +1560,7 @@ function enregistrerAffichage() {
 }
 Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, enregistrerAffichage, modifier, normTask, titre, annuler, retablir, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats, remaining: M.remaining, taskCmp,
   parentOf, childrenOf, subjLabel, setParent, canNest, expandTo, archiveSubject, createSubject,
-  esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur, calendrier, absenceDu, lundi: M.lundi });
+  esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur, calendrier, absenceDu, lundi: M.lundi, decaler: M.decaler, nonTravaille, montrerTaches });
 
 if (DEMO) {
   document.body.classList.add('demo');

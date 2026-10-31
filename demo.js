@@ -25,6 +25,7 @@ const rnd = s => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.ch
 // Fériés du calendrier commun (metier.js est chargé après ce fichier, mais avant l'appel de data())
 const frHolidays = y => new Set(Object.keys(window.todoMetier.feries(y)));
 
+const nextSat = s => add(s, (6 - wd(s) + 7) % 7);
 // Prochain jour férié tombant en semaine, à partir de la date
 function nextHoliday(s) {
   let d = s;
@@ -93,6 +94,8 @@ function data(td) {
     T('s3', 'Plan d\'actions correctives avec le fournisseur', work(td, 3), { estimateMin: 240, startDate: td, plan: { mode: 'spread', dailyMin: null } }),
     T('s4', 'Maquette des indicateurs clés', work(td, 4), { estimateMin: 180, status: 'waiting', notes: 'En attente des chiffres du contrôle de gestion.' }),
     T('s5', 'Poser les congés de fin d\'année', work(td, 2), { estimateMin: 10 }),
+    // Récurrence décalée : l'occurrence prévue un samedi a été placée au jour travaillé suivant (Données › Calendrier)
+    T('s5', 'Relevé mensuel des compteurs', work(nextSat(add(td, 3)), 0), { estimateMin: 15, recur: { freq: 'month', interval: 1 }, decaleeDe: nextSat(add(td, 3)) }),
     // Plus tard
     T('s1', 'Bilan des premières ventes Atlas', work(td, 12), { estimateMin: 120 }),
     T('s2', 'Renégocier le contrat de maintenance', work(td, 15), { estimateMin: 300, startDate: work(td, 5), plan: { mode: 'daily', dailyMin: 60 } }),

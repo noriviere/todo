@@ -419,7 +419,11 @@ document.addEventListener('click', e => {
       if (!set.length) { toast('Aucun jour ouvré dans cette période'); return; }
       const n = set.length * (part === 'full' ? 1 : 0.5);
       const msg = `${fmtJ(n)} de ${type(typeId).label} posé${n > 1 ? 's' : ''}`;
-      A.modifier(`Absence posée : ${fmtJ(n)} de ${type(typeId).label}`, () => { set.forEach(ds => setAbs(ds, typeId, part)); }, { toast: msg, annuler: true });
+      // Échéances déjà prévues pendant l'absence : rien n'est déplacé, on les signale
+      const dues = db().tasks.filter(t => A.isOpen(t) && !t.archived && t.deadline && t.deadline >= from && t.deadline <= to);
+      const avert = dues.length ? ` · ${dues.length} tâche${dues.length > 1 ? 's ont' : ' a'} une échéance pendant cette absence` : '';
+      A.modifier(`Absence posée : ${fmtJ(n)} de ${type(typeId).label}`, () => { set.forEach(ds => setAbs(ds, typeId, part)); },
+        { toast: msg + avert, annuler: true, voir: dues.length ? { label: dues.length > 1 ? 'Les voir' : 'La voir', fn: () => A.montrerTaches(dues.map(t => t.id)) } : null });
       break;
     }
     case 'pt-unpost': {
