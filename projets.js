@@ -491,9 +491,9 @@ A.hooks.taskRow.push(t => {
   if (end && t.deadline > end) h += `<span class="pj-warn" title="Après la fin prévue de l'étape (${fmt(end)})">⚠</span>`;
   return h;
 });
-A.hooks.drawer.push(t => !on() ? '' : `<div class="f"><label>Échéance</label>
-    <label class="tog"><input type="checkbox" data-pj-hard ${t.hardDue ? 'checked' : ''}> Échéance ferme ${A.ICON.lock}</label>
-    <span class="hint">Coche si la date est une vraie échéance, pas seulement un rappel pour y travailler.</span>
+A.hooks.drawer.push(t => !on() ? '' : `<div class="f"><label>Échéance ferme</label>
+    <label class="tog"><input type="checkbox" data-pj-hard ${t.hardDue ? 'checked' : ''}> À ne pas dépasser ${A.ICON.lock}</label>
+    <span class="hint">Coche si l'échéance est une vraie limite, pas seulement un rappel pour y travailler.</span>
   </div>`);
 document.addEventListener('change', e => {
   if (!e.target.matches('[data-pj-hard]')) return;
