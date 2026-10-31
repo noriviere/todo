@@ -45,6 +45,10 @@ _À éviter_ : inbox, tâches orphelines
 Là où vont les sujets et les tâches dont on ne veut plus : rien n'est jamais supprimé.
 _À éviter_ : corbeille, suppression
 
+**Annuler** :
+Revenir aux données d'avant la dernière modification, depuis le bandeau qui la confirme. Les données seulement : l'affichage (sujets dépliés, filtres, recherche) ne bouge pas. Ce n'est pas une suppression : annuler la création d'un sujet vide le fait disparaître, puisqu'il n'existait pas l'instant d'avant. Annuler défait aussi ce que la modification a entraîné (l'occurrence suivante d'une récurrence). Impossible dès que des données arrivent d'ailleurs (synchro, autre onglet, import, restauration).
+_À éviter_ : supprimer, retour arrière
+
 ### Modules
 
 **Module** :
