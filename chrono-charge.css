@@ -104,3 +104,5 @@ button.cc-col:hover{background:var(--surface-2)}
   .cc-col.off .cc-lbl,.cc-col.off .cc-val{visibility:hidden}
   .cc-val{writing-mode:vertical-rl;transform:rotate(180deg);height:34px}
 }
+.cc-cal-lien{color:var(--accent);text-decoration:none;font-weight:600}
+.cc-cal-lien:hover{text-decoration:underline}

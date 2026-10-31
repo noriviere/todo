@@ -49,6 +49,25 @@ _À éviter_ : corbeille, suppression
 Revenir aux données d'avant une modification, la plus récente d'abord, en remontant l'historique de la session (Ctrl+Z, ou le bandeau qui confirme certaines modifications). Annuler ramène à l'endroit où la modification a été faite. Les données seulement : l'affichage (sujets dépliés, filtres, recherche) ne bouge pas. Ce n'est pas une suppression : annuler la création d'un sujet vide le fait disparaître, puisqu'il n'existait pas l'instant d'avant. Annuler défait aussi ce que la modification a entraîné (l'occurrence suivante d'une récurrence). L'historique se vide dès que des données arrivent d'ailleurs (synchro, autre onglet, restauration d'une sauvegarde JSON) ; un import Excel ou de pointage, lui, s'annule d'un coup.
 _À éviter_ : supprimer, retour arrière
 
+### Calendrier
+
+**Semaine type** :
+Les jours de la semaine où l'on travaille normalement (du lundi au vendredi par défaut), réglés une fois pour toute l'appli, quels que soient les modules actifs.
+
+**Jour férié** :
+Un jour férié français, reconnu automatiquement (la case peut se décocher). Il n'est jamais ouvré.
+
+**Jour ouvré** :
+Un jour de la semaine type qui n'est pas férié. Il est le même pour tout le monde : les durées et dates du Gantt se comptent en jours ouvrés.
+_À éviter_ : jour ouvrable (du lundi au samedi en droit du travail, pas utilisé ici), jour travaillé (pour ce sens)
+
+**Jour travaillé** :
+Un jour ouvré où Noel est là, sans congé ni absence d'une journée entière. C'est la réalité de son agenda : la Charge, la Récurrence et l'objectif du Pointage s'en servent.
+_À éviter_ : jour ouvré (pour ce sens)
+
+**Jour calendaire** :
+N'importe quel jour, week-ends et fériés compris (certains types d'absence se décomptent ainsi, comme le congé paternité).
+
 ### Modules
 
 **Module** :
@@ -66,7 +85,7 @@ _À éviter_ : planning, workload
 Les heures d'arrivée, de repas et de départ, les absences et les compteurs de congés. Les absences réduisent la capacité de la Charge.
 
 **Récurrence** :
-Une tâche qui se recrée toute seule (jours ouvrés, semaine, mois, année) quand la précédente est faite.
+Une tâche qui se recrée toute seule (chaque jour travaillé, semaine, mois, année) quand la précédente est faite. Si l'occurrence suivante tombe un jour non travaillé, son échéance est décalée (au jour travaillé suivant par défaut, réglable), en repartant toujours de la date théorique : le décalage ne s'accumule pas.
 
 **Gestion de projet** :
 Le module des sujets en mode projet : étapes, jalons, Gantt et export PDF.

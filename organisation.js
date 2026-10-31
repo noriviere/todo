@@ -306,30 +306,8 @@
   const recurKey = r => r ? `${r.freq}:${r.interval}` : '';
   const recurLabel = r => (RECUR.find(x => x[0] === recurKey(r)) || [, 'Répétée'])[1];
 
-  function addMonths(ds, n) {
-    const d = parseYmd(ds), day = d.getDate();
-    d.setDate(1); d.setMonth(d.getMonth() + n);
-    const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-    d.setDate(Math.min(day, last));
-    return ymd(d);
-  }
-  function step(ds, r) {
-    if (r.freq === 'workday') {
-      const wd = Array.isArray(db().settings.workDays) && db().settings.workDays.length ? db().settings.workDays : [1, 2, 3, 4, 5];
-      let n = ds;
-      for (let i = 0; i < 14; i++) { n = addDays(n, 1); if (wd.includes(parseYmd(n).getDay())) break; }
-      return n;
-    }
-    if (r.freq === 'week') return addDays(ds, 7 * r.interval);
-    if (r.freq === 'month') return addMonths(ds, r.interval);
-    return addMonths(ds, 12 * r.interval);
-  }
-  function nextDate(t) {
-    let n = step(t.deadline || today(), t.recur);
-    // Si la tâche a été faite en retard, on saute jusqu'à la prochaine échéance à venir
-    for (let i = 0; i < 1000 && n < today(); i++) n = step(n, t.recur);
-    return n;
-  }
+  // Échéance de l'occurrence suivante (règle du noyau, calendrier commun et réglage de décalage)
+  const nextDate = t => A.prochaineEcheance(t, A.calendrier(), db().settings.decalage, today());
 
   // Module activable (Données › Modules actifs) : masqué, plus de ↻, plus d'option Répéter, plus de création automatique
   const recurOn = () => !A.modOn || A.modOn('recurrence');
@@ -362,14 +340,16 @@
     for (const t of vues) {
       if (!t.recur || t.archived) continue;
       if (!isOpen(t) && !t.recurNextId) {
-        const nd = nextDate(t);
+        const prochaine = nextDate(t), nd = prochaine.date;
         // Tâche complète (règles d'une nouvelle tâche) ; createdAt === updatedAt : l'occurrence est « non touchée »
         const now = A.nowIso();
         const n = A.normTask(Object.assign(JSON.parse(JSON.stringify(t)), {
           id: A.uid(), status: 'todo', progress: 0, deadline: nd,
           startDate: t.startDate && t.deadline ? addDays(nd, A.diffDays(t.startDate, t.deadline)) : null,
           createdAt: now, updatedAt: now, doneAt: null, archived: false, archivedAt: null,
-          realMin: 0, timeLogs: [], timerStart: null, order: 0, recurNextId: null, recurFromId: t.id
+          realMin: 0, timeLogs: [], timerStart: null, order: 0, recurNextId: null, recurFromId: t.id,
+          decaleeDe: prochaine.decaleeDe,
+          recur: Object.assign({}, t.recur, { jour: prochaine.jour })   // jour d'ancrage : le 31 revient le 31
         }));
         d.tasks.push(n);
         t.recurNextId = n.id;
@@ -385,7 +365,14 @@
     }
     // Texte ajouté au bandeau de la modification
     if (!creees.length) return '';
-    return creees.length === 1 ? '↻ Prochaine occurrence créée pour le ' + A.longDate(creees[0].deadline) : `↻ ${creees.length} prochaines occurrences créées`;
+    if (creees.length > 1) return `↻ ${creees.length} prochaines occurrences créées` + (creees.some(n => n.decaleeDe) ? ' (dont des décalées hors des jours non travaillés)' : '');
+    const n = creees[0];
+    // « (le dimanche 1er n'est pas travaillé) » : le mois n'est répété que s'il change
+    const memeMois = n.decaleeDe && n.decaleeDe.slice(0, 7) === n.deadline.slice(0, 7);
+    const origine = n.decaleeDe && (memeMois ? A.longDate(n.decaleeDe).replace(/\s\S+$/, '') : A.longDate(n.decaleeDe));
+    return n.decaleeDe
+      ? `↻ Prochaine occurrence le ${A.longDate(n.deadline)} (le ${origine} n'est pas travaillé)`
+      : '↻ Prochaine occurrence créée pour le ' + A.longDate(n.deadline);
   }
   A.hooks.apresModif.push(checkRecurring);
   // Tâches récurrentes faites sans occurrence : données arrivées d'ailleurs (ouverture, synchro, import) ou Récurrence rallumée

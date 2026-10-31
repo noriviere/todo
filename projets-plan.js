@@ -1,29 +1,10 @@
-/* Calcul du planning des projets (module Projets) : jours ouvrés, étapes en cascade, alertes de jalons, boucles.
+/* Calcul du planning des projets (module Projets) : étapes en cascade sur les jours ouvrés, alertes de jalons, boucles.
    Fonctions pures, sans accès aux données ni à la page : utilisées par projets.js et testées sous Node. */
 (function (root) {
 'use strict';
 
-const toT = ymd => Date.UTC(+ymd.slice(0, 4), +ymd.slice(5, 7) - 1, +ymd.slice(8, 10));
-const toYmd = t => new Date(t).toISOString().slice(0, 10);
-const DAY = 864e5;
-const isWork = (t, wd) => wd.includes(new Date(t).getUTCDay());
 const okDate = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
-const workDaysOf = wd => Array.isArray(wd) && wd.length ? wd : [1, 2, 3, 4, 5];
-
-// Le jour ouvré lui-même, ou le suivant
-function nextWorkday(ymd, workDays) {
-  const wd = workDaysOf(workDays);
-  let t = toT(ymd);
-  for (let i = 0; i < 14 && !isWork(t, wd); i++) t += DAY;
-  return toYmd(t);
-}
-// n jours ouvrés après ymd (n = 0 : ymd tel quel)
-function addWorkdays(ymd, n, workDays) {
-  const wd = workDaysOf(workDays);
-  let t = toT(ymd);
-  for (let k = 0; k < n; k++) { t += DAY; for (let i = 0; i < 14 && !isWork(t, wd); i++) t += DAY; }
-  return toYmd(t);
-}
+// Les jours ouvrés viennent du calendrier commun (metier.js : M.calendrier) : ouvreSuivant, ajouterOuvres
 
 const durOf = s => Math.max(1, Math.round(+(s.plan && s.plan.durDays) || 1));
 const lagOf = s => Math.max(0, Math.round(+s.lagDays || 0));
@@ -45,8 +26,7 @@ function topo(steps) {
   return { order, looped: steps.map(s => s.id).filter(id => !done.has(id)) };
 }
 
-function schedule(steps, milestones, workDays) {
-  const wd = workDaysOf(workDays);
+function schedule(steps, milestones, cal) {
   const byStep = new Map(steps.map(s => [s.id, s]));
   const ids = new Set(byStep.keys());
   const { order, looped } = topo(steps);
@@ -55,10 +35,10 @@ function schedule(steps, milestones, workDays) {
     const s = byStep.get(id);
     const ends = prevOf(s, ids).map(p => byId[p] && byId[p].end).filter(Boolean).sort();
     let start;
-    if (ends.length) start = addWorkdays(ends[ends.length - 1], 1 + lagOf(s), wd);
-    else if (s.plan && okDate(s.plan.start)) start = nextWorkday(s.plan.start, wd);
+    if (ends.length) start = cal.ajouterOuvres(ends[ends.length - 1], 1 + lagOf(s));
+    else if (s.plan && okDate(s.plan.start)) start = cal.ouvreSuivant(s.plan.start);
     else { unplanned.push(id); continue; }
-    byId[id] = { start, end: addWorkdays(start, durOf(s) - 1, wd) };
+    byId[id] = { start, end: cal.ajouterOuvres(start, durOf(s) - 1) };
   }
   const alerts = [];
   (milestones || []).filter(m => m && !m.archived && okDate(m.date)).forEach(m =>
@@ -94,7 +74,7 @@ function buildRows(steps, sched, milestones) {
   ];
 }
 
-const api = { nextWorkday, addWorkdays, schedule, wouldCycle, buildRows };
+const api = { schedule, wouldCycle, buildRows };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 else root.projetsPlan = api;
 })(typeof window !== 'undefined' ? window : this);

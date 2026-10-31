@@ -233,7 +233,8 @@ test('glisser une étape libre décale les suivantes, jalon fixe', async () => {
   await drag(page, '.pj-bar[data-sid="s1"]', 'mid', 7 * 22);
   const d = await page.db();
   assert.equal(d.subjects.find(s => s.id === 's1').plan.start, '2026-11-09');
-  assert.equal(await page.locator('.pj-bar[data-sid="s2"]').getAttribute('data-start'), '2026-11-16');
+  // s1 (5 jours) du 9 au 16 : le mercredi 11 novembre, férié, n'est pas ouvré
+  assert.equal(await page.locator('#main .pj-bar[data-sid="s2"]').getAttribute('data-start'), '2026-11-17');
   assert.equal(pjOf(d).milestones[0].date, '2026-11-10');
   assert.equal(await page.evaluate(() => location.hash), '#projets');   // pas d'ouverture après un glisser
   assert.deepEqual(page.errors, []);
@@ -243,7 +244,8 @@ test('étirer le bord droit change la durée', async () => {
   const page = await openApp(gantt(), { hash: 'projets' });
   await drag(page, '.pj-bar[data-sid="s2"]', 'right', 2 * 22);
   const d = await page.db();
-  assert.equal(d.subjects.find(s => s.id === 's2').plan.durDays, 5);
+  // s2 (3 jours ouvrés) du 9 au 12, le 11 férié ; la fin passe au samedi 14 : 9, 10, 12 et 13 = 4 jours ouvrés
+  assert.equal(d.subjects.find(s => s.id === 's2').plan.durDays, 4);
 });
 
 test('une étape placée par ses dépendances ne se déplace pas', async () => {

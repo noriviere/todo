@@ -140,6 +140,8 @@ details.sec>summary .load{margin-left:auto;font-size:12px;color:var(--muted);fon
 .est{width:62px;font-size:12px;color:var(--muted);text-align:right}
 .date-wrap{display:inline-flex;align-items:center;gap:4px;font-size:12px;border-radius:8px;padding:0 4px 0 2px}
 .date-wrap .rel{min-width:64px;color:var(--muted)}
+.date-wrap .nt{font-size:11px;font-weight:600;color:var(--warn);background:var(--warn-bg);border-radius:10px;padding:1px 7px;white-space:nowrap}
+.dr-ech{color:var(--warn)}
 .date{border:1px solid transparent;background:transparent;border-radius:6px;padding:3px 4px;font-size:12px;color:var(--muted);width:120px}
 .date:hover{border-color:var(--border)}
 .date:focus{border-color:var(--accent);outline:none}
@@ -232,6 +234,22 @@ details.sec>summary .load{margin-left:auto;font-size:12px;color:var(--muted);fon
 .mod-t .hint{line-height:1.4}
 .mod-st{font-size:12px;color:var(--muted);min-width:64px;text-align:right}
 .mod.on .mod-st{color:var(--accent)}
+/* Calendrier (onglet Données) : semaine type et fériés, communs à tous les modules */
+.cal-set{display:flex;flex-direction:column;gap:12px}
+.cal-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.cal-row>b{font-weight:600;min-width:96px}
+.cal-days{display:inline-flex;flex-wrap:wrap;gap:6px}
+.cal-days button{min-width:40px;height:34px;padding:0 8px;border:1px solid var(--border);background:var(--surface);border-radius:8px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer}
+.cal-days button:hover{border-color:var(--accent)}
+.cal-days button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.cal-days button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.cal-tog{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+.cal-tog input{width:18px;height:18px;margin:0;accent-color:var(--accent)}
+.cal-dec{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.cal-dec select{min-height:34px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);padding:4px 8px;font:inherit}
+@media (pointer:coarse){.cal-dec select{min-height:44px}}
+@media (pointer:coarse){.cal-days button{min-width:44px;height:44px}}
+@media (max-width:520px){.cal-row>b{min-width:0;width:100%}.cal-days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;width:100%}.cal-days button{min-width:0;padding:0}}
 .mod-soon{display:inline-block;vertical-align:1px;margin-left:6px;font-size:11px;font-weight:600;border-radius:10px;padding:1px 8px;background:var(--surface-3);color:var(--muted);white-space:nowrap}
 .switch{appearance:none;-webkit-appearance:none;flex:none;width:40px;height:24px;border-radius:12px;background:var(--surface-3);border:1px solid var(--border);position:relative;cursor:pointer;margin:0;transition:background .15s}
 .switch::before{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
@@ -295,7 +313,7 @@ details.sec>summary .load{margin-left:auto;font-size:12px;color:var(--muted);fon
   .stat .l{font-size:11px;line-height:1.25}
   .stat .x{display:none}
   .meta{margin-left:25px}
-  .toast{bottom:max(16px,env(safe-area-inset-bottom));max-width:calc(100% - 24px)}
+  .toast{bottom:max(16px,env(safe-area-inset-bottom));left:12px;right:12px;transform:none;max-width:none;justify-content:space-between}
 }
 /* Écran tactile : cibles plus faciles à toucher */
 @media (pointer:coarse){
@@ -369,6 +387,22 @@ const { uid, nowIso } = M;
 const { pad, ymd, parseYmd, addDays, isDate } = M;
 const today = () => ymd(new Date());
 const diffDays = (a, b) => Math.round((parseYmd(a) - parseYmd(b)) / 86400000);
+// Calendrier commun (CONTEXT.md « Calendrier ») : semaine type et fériés des réglages, absences fournies par le Pointage.
+// Absence d'un jour : { part: 'full' | 'am' | 'pm', label } donnée par un module (hooks.absence), ou null
+function absenceDu(ds) {
+  for (const f of hooks.absence) { const a = f(ds); if (a) return a; }
+  return null;
+}
+const calendrier = () => M.calendrier(db.settings, ds => { const a = absenceDu(ds); return a ? a.part : null; });
+// Pourquoi un jour n'est pas travaillé, en clair (« samedi », « férié : Armistice », « Congés payés ») ; null s'il l'est
+function nonTravaille(ds) {
+  const x = ds ? calendrier().raison(ds) : null;
+  if (!x) return null;
+  if (x.ferie) return 'férié : ' + x.ferie;
+  if (x.jour) return x.jour;
+  const a = absenceDu(ds);
+  return a && a.label ? a.label : 'absence';
+}
 
 // Durées : "1h30", "45min", "2" (= heures), "1j" (= une journée de travail des réglages)
 const parseDur = v => M.parseDur(v, db.settings.workdayMin);
@@ -389,7 +423,8 @@ function relDate(d) {
   return `dans ${n} j`;
 }
 function longDate(d) {
-  return parseYmd(d).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  // « dimanche 1er novembre » : le premier du mois s'écrit 1er
+  return parseYmd(d).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).replace(/(^|\s)1(\s)/, '$11er$2');
 }
 
 const STATUS = { todo: 'À faire', doing: 'En cours', waiting: 'En attente', done: 'Fait', cancelled: 'Annulé' };
@@ -618,13 +653,17 @@ function archiveSubject(s, on = true) {
 /* ---------- Toast ---------- */
 let toastTimer;
 // action : fonction du bouton (« Annuler » par défaut, ou « Rétablir »)
-function toast(msg, action, label = 'Annuler') {
+// o.action + o.label : bouton qui défait (« Annuler », « Rétablir ») ; o.voir : second bouton facultatif { label, fn }
+function toast(msg, o = {}) {
+  const action = o.action || null, label = o.label || 'Annuler', voir = o.voir || null;
   const el = $('#toast');
-  el.innerHTML = `<div class="toast" role="status" aria-live="polite"><span>${esc(msg)}</span>${action ? `<button data-act="undo">${esc(label)}</button>` : ''}</div>`;
+  el.innerHTML = `<div class="toast" role="status" aria-live="polite"><span>${esc(msg)}</span>${voir ? `<button data-act="toast-voir">${esc(voir.label)}</button>` : ''}${action ? `<button data-act="undo">${esc(label)}</button>` : ''}</div>`;
   el._undo = action || null;
+  el._voir = voir ? voir.fn : null;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.innerHTML = ''; el._undo = null; }, action ? 6000 : 3500);
+  toastTimer = setTimeout(fermerToast, voir ? 8000 : action ? 6000 : 3500);
 }
+function fermerToast() { const el = $('#toast'); el.innerHTML = ''; el._undo = null; el._voir = null; }
 
 /* ---------- Point unique de modification et historique (Annuler / Rétablir) ---------- */
 // Toute modification des données passe par modifier(libellé, fn, options) : photo avant, modification,
@@ -675,11 +714,11 @@ function modifier(libelle, fn, o = {}) {
   if (entree) { entree.apres = photoConnue; hist.enregistrer(entree); }
   o.differe ? scheduleRender() : render();
   const lire = v => typeof v === 'function' ? v() : v;
-  const texte = lire(o.toast), avecAnnuler = lire(o.annuler);
+  const texte = lire(o.toast), avecAnnuler = lire(o.annuler), voir = lire(o.voir) || null;
   const avecSuites = t => [t, ...suites].filter(Boolean).join(' · ');
   // Un bandeau « Annuler » d'une modification plus ancienne ne peut plus rien défaire proprement : on le retire
   if (entree && !texte && !avecAnnuler) fermerToastAnnuler();
-  if (entree && (texte || avecAnnuler)) toast(avecSuites(texte || libelle), avecAnnuler ? () => { if (hist.prochainAnnuler() === entree) annuler(); } : null);
+  if (entree && (texte || avecAnnuler)) toast(avecSuites(texte || libelle), { action: avecAnnuler ? () => { if (hist.prochainAnnuler() === entree) annuler(); } : null, voir });
   else if (entree && suites.length) toast(avecSuites(''));
   else if (!entree && texte && r !== false) toast(texte);
   return r;
@@ -703,14 +742,14 @@ function annuler() {
   const e = hist.annuler();
   if (!e) { toast('Rien à annuler'); return; }
   remettrePhoto(e.avant);
-  toast('Annulé : ' + e.libelle, retablir, 'Rétablir');
+  toast('Annulé : ' + e.libelle, { action: retablir, label: 'Rétablir' });
   allerA(e.lieu);
 }
 function retablir() {
   const e = hist.retablir();
   if (!e) { toast('Rien à rétablir'); return; }
   remettrePhoto(e.apres);
-  toast('Rétabli : ' + e.libelle, annuler, 'Annuler');
+  toast('Rétabli : ' + e.libelle, { action: annuler });
   allerA(e.lieu);
 }
 // Des données arrivent d'ailleurs (synchro, autre onglet, import, restauration) : on ne peut plus rien annuler
@@ -760,6 +799,16 @@ function allerA(l) {
     location.hash = l.vue;
   } else montrer();
 }
+// Ouvre le tableau de bord sur des tâches : la première au centre, toutes signalées un instant
+function montrerTaches(ids) {
+  if (!ids.length) return;
+  window.addEventListener('todo:rendered', () => setTimeout(() => ids.forEach(id => {
+    const el = $(`#main [data-tid="${CSS.escape(id)}"]`);
+    if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1600); }
+  }), 80), { once: true });
+  allerA({ vue: 'dashboard', tid: ids[0] });
+  if (currentView() === 'dashboard') render();
+}
 // Ctrl+Z / Cmd+Z annule, Ctrl+Y ou Ctrl+Maj+Z rétablit, sauf pendant la frappe dans un champ (le navigateur annule la frappe)
 const enFrappe = el => !!el && (el.isContentEditable || el.tagName === 'TEXTAREA' ||
   (el.tagName === 'INPUT' && /^(text|search|email|url|tel|password|number|date|time|datetime-local|month|week|)$/.test(el.type)));
@@ -797,7 +846,7 @@ function dateClass(t) {
 function taskRow(t, opt = {}) {
   const s = subj(t.subjectId);
   const pr = s ? s.priority : 0;
-  const closed = !isOpen(t);
+  const closed = !isOpen(t), nt = closed ? null : nonTravaille(t.deadline);
   return `<div class="task st-${t.status}${closed ? ' closed' : ''}" data-tid="${t.id}" style="--pc:${opt.showSubject ? `var(--p${pr})` : 'transparent'}">
     <input type="checkbox" class="chk" data-act="toggle-done" data-k="c-${t.id}" ${t.status === 'done' ? 'checked' : ''} title="Marquer comme fait">
     <input class="inline title" data-field="title" data-k="t-${t.id}" value="${esc(t.title)}" placeholder="Sans titre">
@@ -809,6 +858,7 @@ function taskRow(t, opt = {}) {
       <span class="date-wrap ${dateClass(t)}">
         <input type="date" class="date" data-field="deadline" data-k="d-${t.id}" value="${t.deadline || ''}" title="Échéance">
         <span class="rel">${isOpen(t) ? relDate(t.deadline) : ''}</span>
+        ${nt ? `<span class="nt" title="Échéance un jour non travaillé (${esc(nt)})">jour non travaillé</span>` : ''}
       </span>
       ${isOpen(t) ? `<button class="icon" data-act="postpone" title="Reporter d'un jour">+1j</button>` : ''}
       ${hooks.taskRow.map(f => f(t)).join('')}
@@ -1015,6 +1065,24 @@ views.archives = () => {
     </details>`;
 };
 
+const JOURS_SEMAINE = [[1, 'L', 'lundi'], [2, 'M', 'mardi'], [3, 'M', 'mercredi'], [4, 'J', 'jeudi'], [5, 'V', 'vendredi'], [6, 'S', 'samedi'], [0, 'D', 'dimanche']];
+const DECALAGES = M.DECALAGES;
+function calendrierCard() {
+  const st = db.settings, cal = calendrier(), sem = cal.semaine;
+  const proch = cal.prochainFerie(today());
+  return `<div class="card" id="calendrier"><h3>Calendrier</h3>
+    <p>Les jours où l'on travaille normalement, pour toute l'appli : la Charge, la Récurrence, le Pointage et le Gantt des projets. Un jour ouvré est un jour de la semaine type qui n'est pas férié.</p>
+    <div class="cal-set">
+      <div class="cal-row"><b id="cal-jours-l">Semaine type</b>
+        <span class="cal-days" role="group" aria-labelledby="cal-jours-l">${JOURS_SEMAINE.map(([n, c, l]) =>
+          `<button type="button" data-act="cal-jour" data-wd="${n}" data-k="cal-jour-${n}" aria-pressed="${sem.includes(n)}" title="${l}" aria-label="${l}">${c}</button>`).join('')}</span></div>
+      <div class="cal-row"><label class="cal-tog"><input type="checkbox" data-cal-feries data-k="cal-feries" ${st.feries !== false ? 'checked' : ''}> Jours fériés français automatiques</label>
+        <span class="hint">${proch ? `Prochain : ${esc(longDate(proch))} (${esc(cal.ferie(proch))})` : 'Les jours fériés sont traités comme des jours ouvrés.'}</span></div>
+      ${modOn('recurrence') ? `<div class="cal-row"><label class="cal-dec"><span>Échéance de récurrence qui tombe un jour non travaillé</span>
+        <select data-cal-decalage data-k="cal-decalage">${DECALAGES.map(([v, l]) => `<option value="${v}" ${v === st.decalage ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>` : ''}
+    </div></div>`;
+}
+
 function modulesCard() {
   return `<div class="card"><h3>Modules actifs</h3>
     <p>Garde l'appli aussi simple que tu veux : coupe ce dont tu ne te sers pas. Les sujets, tâches, archives et données restent toujours là. Masquer un module ne supprime rien : ses données sont gardées et reviennent quand tu le réactives.</p>
@@ -1037,6 +1105,7 @@ views.donnees = () => {
       <p>Pour montrer l'appli sans tes données : ouvre une version remplie d'exemples (sujets, tâches, charge, pointage). Tes vraies données ne sont pas touchées et rien n'est synchronisé pendant la démo.</p>
       <button class="btn" data-act="demo-start">Voir l'exemple</button></div>`}
     ${modulesCard()}
+    ${calendrierCard()}
     <div id="autosave-card"></div>
     <div class="card"><h3>Sauvegarde manuelle (export JSON)</h3>
       <p>Télécharge un fichier de sauvegarde à garder dans ton dossier ToDoList. Fais-le régulièrement : si l'historique du navigateur est effacé, c'est ce fichier qui te permet de tout récupérer.<br>Dernière sauvegarde : <b>${le ? new Date(le).toLocaleString('fr-FR') : 'jamais'}</b></p>
@@ -1049,6 +1118,13 @@ views.donnees = () => {
 };
 
 /* ---------- Panneau détails ---------- */
+// Sous l'échéance : jour non travaillé, et date d'origine d'une occurrence de récurrence décalée
+function echeanceNote(t) {
+  const nt = nonTravaille(t.deadline), out = [];
+  if (t.decaleeDe && t.decaleeDe !== t.deadline) out.push(`Décalée du ${esc(longDate(t.decaleeDe))} (jour non travaillé)`);
+  if (nt) out.push(`Jour non travaillé (${esc(nt)})`);
+  return out.length ? `<span class="hint dr-ech">${out.join('<br>')}</span>` : '';
+}
 let drawerId = null;
 function renderDrawer() {
   const el = $('#drawer');
@@ -1065,7 +1141,7 @@ function renderDrawer() {
       <div class="f"><label>Avancement (%)</label><input type="number" min="0" max="100" step="5" data-field="progress" data-k="dr-prog" value="${t.progress}"></div>
     </div>
     <div class="row2">
-      <div class="f"><label>Échéance</label><input type="date" data-field="deadline" data-k="dr-dl" value="${t.deadline || ''}"></div>
+      <div class="f"><label>Échéance</label><input type="date" data-field="deadline" data-k="dr-dl" value="${t.deadline || ''}">${echeanceNote(t)}</div>
       ${modOn('charge') ? `<div class="f"><label>Date de début</label><input type="date" data-field="startDate" data-k="dr-sd" value="${t.startDate || ''}"></div>` : ''}
     </div>
     <div class="row2">
@@ -1191,6 +1267,18 @@ document.addEventListener('change', e => {
     render();
     focusKey('mod-' + m.id);
     toast(`${m.label} : ${el.checked ? 'activé' : 'masqué (rien n\'est supprimé)'}`);
+    return;
+  }
+  if (el.matches('[data-cal-decalage]')) {
+    const v = el.value, l = (DECALAGES.find(x => x[0] === v) || DECALAGES[0])[1];
+    modifier(`Décalage des récurrences : ${l.toLowerCase()}`, () => { db.settings.decalage = v; });
+    focusKey('cal-decalage');
+    return;
+  }
+  if (el.matches('[data-cal-feries]')) {
+    const v = el.checked;
+    modifier(v ? 'Jours fériés automatiques' : 'Jours fériés désactivés', () => { db.settings.feries = v; });
+    focusKey('cal-feries');
     return;
   }
   const f = el.dataset.field;
@@ -1369,10 +1457,25 @@ document.addEventListener('click', e => {
       break;
     }
     case 'theme': db.settings.theme = b.dataset.v; save(); render(); break;
-    case 'undo': { const u = $('#toast')._undo; $('#toast').innerHTML = ''; $('#toast')._undo = null; if (u) u(); break; }
+    case 'toast-voir': { const v = $('#toast')._voir; fermerToast(); if (v) v(); break; }
+    case 'undo': { const u = $('#toast')._undo; fermerToast(); if (u) u(); break; }
     case 'hist-undo': annuler(); break;
     case 'hist-redo': retablir(); break;
     case 'export': exportJson(); break;
+    case 'cal-jour': {
+      const wd = +b.dataset.wd, nom = JOURS_SEMAINE.find(j => j[0] === wd)[2], sem = calendrier().semaine;
+      const oui = !sem.includes(wd);
+      if (!oui && sem.length === 1) { toast('Garde au moins un jour dans la semaine type'); break; }
+      modifier(`Semaine type : ${nom} ${oui ? 'ajouté' : 'retiré'}`, () => { db.settings.workDays = oui ? [...sem, wd].sort((a, b) => a - b) : sem.filter(x => x !== wd); });
+      focusKey('cal-jour-' + wd);
+      break;
+    }
+    case 'cal-voir': {   // lien vers la carte Calendrier de l'onglet Données
+      e.preventDefault();
+      if (currentView() !== 'donnees') location.hash = 'donnees';
+      setTimeout(() => { const c = $('#calendrier'); if (c) c.scrollIntoView({ block: 'start' }); }, 60);
+      break;
+    }
     case 'demo-start': startDemo(); break;
     case 'demo-exit': exitDemo(); break;
     case 'demo-reset':
@@ -1440,7 +1543,7 @@ window.todoApp = {
   replaceData: d => { keepBackup(); db = migrate(d); viderHistorique(); save(); render(); }
 };
 // Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
-const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [], subjectBody: [], apresModif: [] };
+const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], subjectBody: [], apresModif: [], absence: [] };
 const titre = x => (x && x.title) || 'Sans titre';
 // Enregistre l'affichage (filtres, onglets, sujets dépliés, modules actifs), hors historique.
 // Une donnée changée en route (oubli de modifier()) n'est ni perdue ni effaçable : elle devient un pas annulable.
@@ -1456,7 +1559,7 @@ function enregistrerAffichage() {
 }
 Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, enregistrerAffichage, modifier, normTask, titre, annuler, retablir, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats, remaining: M.remaining, taskCmp,
   parentOf, childrenOf, subjLabel, setParent, canNest, expandTo, archiveSubject, createSubject,
-  esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur });
+  esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur, calendrier, absenceDu, lundi: M.lundi, prochaineEcheance: M.prochaineEcheance, echeancesLes: ds => M.echeancesLes(db, ds), nonTravaille, montrerTaches });
 
 if (DEMO) {
   document.body.classList.add('demo');

@@ -1,14 +1,16 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const P = require('../projets-plan.js');
-const WD = [1, 2, 3, 4, 5];
+const M = require('../metier.js');
+// Semaine du lundi au vendredi, sans fériés (les cas avec fériés sont plus bas)
+const WD = M.calendrier({ workDays: [1, 2, 3, 4, 5], feries: false });
 const run = (steps, ms = []) => P.schedule(steps, ms, WD);
 
 test('jours ouvrés', () => {
-  assert.equal(P.nextWorkday('2026-10-24', WD), '2026-10-26');
-  assert.equal(P.nextWorkday('2026-10-26', WD), '2026-10-26');
-  assert.equal(P.addWorkdays('2026-10-23', 1, WD), '2026-10-26');
-  assert.equal(P.addWorkdays('2026-10-23', 0, WD), '2026-10-23');
+  assert.equal(WD.ouvreSuivant('2026-10-24'), '2026-10-26');
+  assert.equal(WD.ouvreSuivant('2026-10-26'), '2026-10-26');
+  assert.equal(WD.ajouterOuvres('2026-10-23', 1), '2026-10-26');
+  assert.equal(WD.ajouterOuvres('2026-10-23', 0), '2026-10-23');
 });
 
 test('chaîne simple', () => {
@@ -86,4 +88,24 @@ test('lignes du Gantt', () => {
   assert.deepEqual(rows[2], { kind: 'etape', id: 'A', parentId: null, start: '2026-11-02', end: '2026-11-06', depth: 0 });
   assert.equal(rows[0].start, '2026-11-10');
   assert.equal(rows[0].end, '2026-11-10');
+});
+
+// Avec le calendrier commun : les fériés ne sont pas ouvrés (le congé de Noel ne compte pas)
+const OUVRE = M.calendrier(M.blank().settings, ds => ds === '2026-11-13' ? 'full' : null);
+
+test('calendrier : une étape de 5 jours du lundi 9 novembre finit le lundi 16 (11 novembre férié)', () => {
+  const r = P.schedule([{ id: 'A', plan: { start: '2026-11-09', durDays: 5 } }], [], OUVRE);
+  assert.deepEqual(r.byId.A, { start: '2026-11-09', end: '2026-11-16' });
+});
+
+test('calendrier : un début posé un jour férié part du jour ouvré suivant', () => {
+  const r = P.schedule([{ id: 'A', plan: { start: '2026-11-11', durDays: 1 } }], [], OUVRE);
+  assert.equal(r.byId.A.start, '2026-11-12');
+});
+
+test('calendrier : un férié fait passer un jalon en alerte', () => {
+  const steps = [{ id: 'A', plan: { start: '2026-11-09', durDays: 5 } }];
+  const ms = [{ id: 'J', date: '2026-11-13', before: ['A'] }];
+  assert.equal(P.schedule(steps, ms, WD).alerts.length, 0, 'sans fériés : fin le 13');
+  assert.deepEqual(P.schedule(steps, ms, OUVRE).alerts, [{ milestoneId: 'J', subjectId: 'A' }]);
 });

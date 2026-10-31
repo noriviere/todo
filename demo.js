@@ -22,14 +22,14 @@ const hm = m => pad(Math.floor(m / 60)) + ':' + pad(m % 60);
 // Pseudo-aléatoire stable : la démo affiche la même chose à chaque ouverture le même jour
 const rnd = s => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return ((h >>> 0) % 1000) / 1000; };
 
-function frHolidays(y) {
-  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25),
-    g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4,
-    l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451),
-    mo = Math.floor((h + l - 7 * m + 114) / 31), da = ((h + l - 7 * m + 114) % 31) + 1;
-  const ea = ymd(new Date(y, mo - 1, da));
-  return new Set([`${y}-01-01`, add(ea, 1), `${y}-05-01`, `${y}-05-08`, add(ea, 39), add(ea, 50), `${y}-07-14`, `${y}-08-15`, `${y}-11-01`, `${y}-11-11`, `${y}-12-25`]);
-}
+// Fériés du calendrier commun (metier.js est chargé après ce fichier, mais avant l'appel de data())
+const frHolidays = y => new Set(Object.keys(window.todoMetier.feries(y)));
+
+const nextSat = s => add(s, (6 - wd(s) + 7) % 7);
+// Jour travaillé suivant d'après le calendrier commun (semaine type par défaut, fériés compris)
+const decale = s => { const M = window.todoMetier; return M.calendrier(M.blank().settings).travailleSuivant(s); };
+// Prochain jour férié tombant en semaine (calendrier commun)
+const nextHoliday = s => { const M = window.todoMetier; return M.calendrier(M.blank().settings).prochainFerie(s, { enSemaine: true }) || s; };
 
 function data(td) {
   const now = new Date().toISOString();
@@ -49,7 +49,7 @@ function data(td) {
     S('pj1', 'Achat presse 450T', 1, 'Presse 450T', 'Industrie', '', "Achat et mise en service de la nouvelle presse.", {
       createdAt: at(add(td, -40)), isProject: true,
       pj: { owner: 'Moi', color: '#4f63e8', milestones: [
-        // La FAT finit au 6e jour travaillé (CDC parti 17 jours travaillés plus tôt) : jalon au 4e, l'alerte s'affiche tous les jours
+        // La FAT finit au 6e jour ouvré (CDC parti 17 jours ouvrés plus tôt) : jalon au 4e, l'alerte s'affiche tous les jours
         { id: 'm1', name: 'Livraison machine', date: work(td, 4), before: ['s10'] },
         { id: 'm2', name: 'Paiement 30 % à la commande', date: add(td, -20), before: [] },
         { id: 'm3', name: 'Mise en production', date: add(td, 40), before: ['s13'] }
@@ -60,7 +60,9 @@ function data(td) {
     S('s10', 'FAT chez le fournisseur', 1, 'Presse 450T', 'Industrie', '', 'Essais de réception en usine.', { parentId: 'pj1', plan: { durDays: 4 }, after: ['s9'], lagDays: 5, who: 'Fournisseur' }),
     S('s11', 'Raccordement électrique', 2, 'Presse 450T', 'Industrie', '', '', { parentId: 'pj1', plan: { durDays: 6 }, after: ['s9'], who: 'Entreprise A' }),
     S('s12', 'Déchargement et mise en place', 2, 'Presse 450T', 'Industrie', '', '', { parentId: 'pj1', plan: { durDays: 2 }, after: ['s10'], lagDays: 3, who: 'Entreprise B' }),
-    S('s13', 'SAT et mise en production', 1, 'Presse 450T', 'Industrie', '', 'Essais sur site puis démarrage.', { parentId: 'pj1', plan: { durDays: 5 }, after: ['s10', 's11', 's12'], who: 'Production' })
+    S('s13', 'SAT et mise en production', 1, 'Presse 450T', 'Industrie', '', 'Essais sur site puis démarrage.', { parentId: 'pj1', plan: { durDays: 5 }, after: ['s10', 's11', 's12'], who: 'Production' }),
+    // Étape posée la veille du prochain férié de semaine : sa barre saute le férié (Données › Calendrier)
+    S('s15', 'Formation des opérateurs', 3, 'Presse 450T', 'Industrie', '', 'Trois jours ouvrés : le jour férié au milieu est sauté.', { parentId: 'pj1', plan: { start: work(nextHoliday(add(td, 10)), -1), durDays: 3 }, who: 'Production' })
   ];
 
   let n = 0;
@@ -90,6 +92,8 @@ function data(td) {
     T('s3', 'Plan d\'actions correctives avec le fournisseur', work(td, 3), { estimateMin: 240, startDate: td, plan: { mode: 'spread', dailyMin: null } }),
     T('s4', 'Maquette des indicateurs clés', work(td, 4), { estimateMin: 180, status: 'waiting', notes: 'En attente des chiffres du contrôle de gestion.' }),
     T('s5', 'Poser les congés de fin d\'année', work(td, 2), { estimateMin: 10 }),
+    // Récurrence décalée : l'occurrence prévue un samedi a été placée au jour travaillé suivant (Données › Calendrier)
+    T('s5', 'Relevé mensuel des compteurs', decale(nextSat(add(td, 3))), { estimateMin: 15, recur: { freq: 'month', interval: 1 }, decaleeDe: nextSat(add(td, 3)) }),
     // Plus tard
     T('s1', 'Bilan des premières ventes Atlas', work(td, 12), { estimateMin: 120 }),
     T('s2', 'Renégocier le contrat de maintenance', work(td, 15), { estimateMin: 300, startDate: work(td, 5), plan: { mode: 'daily', dailyMin: 60 } }),
@@ -126,7 +130,7 @@ function data(td) {
   const days = {};
   const y = +td.slice(0, 4);
   const hol = new Set([...frHolidays(y), ...frHolidays(y - 1)]);
-  const monday = add(td, -((wd(td) + 6) % 7));
+  const monday = window.todoMetier.lundi(td);
   const cpWeek = add(monday, -21);
   const sick = add(monday, -10);  // vendredi d'il y a deux semaines
   for (let d = add(monday, -56); d <= td; d = add(d, 1)) {
@@ -151,14 +155,13 @@ function data(td) {
     subjects,
     tasks,
     fixedSlots,
-    settings: { theme: 'auto', workdayMin: 420, lastExport: null, workDays: [1, 2, 3, 4, 5], modules: { projet: true } },
+    settings: { theme: 'auto', workdayMin: 420, lastExport: null, modules: { projet: true } },
     ui: { expanded: ['s1', 's3'], showClosed: false, search: '', dims: { code: '', secteur: '', produit: '' } },
     pointage: {
       days,
       rights: { cp: { [y]: { acq: 25, n1: 6 } }, rtt: { [y]: { acq: 10, n1: 0 } } },
       defaults: { cp: 25, rtt: 10 },
-      dayMin: { 1: 465, 2: 465, 3: 465, 4: 465, 5: 240, 6: 0, 0: 0 },
-      holidays: true
+      dayMin: { 1: 465, 2: 465, 3: 465, 4: 465, 5: 240, 6: 0, 0: 0 }
     }
   };
 }
