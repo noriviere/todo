@@ -29,6 +29,8 @@ function parseDur(s, workdayMin = 420) {
 /* ---------- Calendrier (CONTEXT.md « Calendrier ») ---------- */
 // Semaine type par défaut : du lundi au vendredi (0 = dimanche)
 const JOURS_OUVRES = [1, 2, 3, 4, 5];
+const UN_AN = 366;   // borne des recherches de jour : on ne cherche jamais plus loin qu'un an
+const JOURS_LONGS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 const semaineType = settings => settings && Array.isArray(settings.workDays) && settings.workDays.length ? settings.workDays : JOURS_OUVRES;
 const lundi = ds => addDays(ds, -((parseYmd(ds).getDay() + 6) % 7));
 // Jours fériés de France métropolitaine d'une année : { 'AAAA-MM-JJ': nom }
@@ -58,26 +60,60 @@ function calendrier(settings, absenceDe = () => null) {
   const ouvre = ds => sem.includes(parseYmd(ds).getDay()) && !ferie(ds);
   const absence = ds => absenceDe(ds) || null;
   const travaille = ds => ouvre(ds) && absence(ds) !== 'full';
-  // Le jour lui-même s'il convient, sinon le suivant (au plus un an plus loin : semaine type réduite à rien d'ouvré)
-  const suivant = test => ds => { let d = ds; for (let i = 0; i < 366 && !test(d); i++) d = addDays(d, 1); return d; };
+  // Le jour lui-même s'il convient, sinon le suivant (au plus un an plus loin : absence posée sur toute l'année)
+  const suivant = test => ds => { let d = ds; for (let i = 0; i < UN_AN && !test(d); i++) d = addDays(d, 1); return d; };
   const ouvreSuivant = suivant(ouvre), travailleSuivant = suivant(travaille);
   const ajouterOuvres = (ds, n) => { let d = ds; for (let k = 0; k < n; k++) d = ouvreSuivant(addDays(d, 1)); return d; };
   const ouvresEntre = (a, b) => { let n = 0; for (let d = a; d <= b; d = addDays(d, 1)) if (ouvre(d)) n++; return n; };
-  return { semaine: sem, ferie, ouvre, absence, travaille, ouvreSuivant, travailleSuivant, ajouterOuvres, ouvresEntre };
+  // Pourquoi un jour n'est pas travaillé : { ferie: nom } | { jour: 'samedi' } | { absence: part } ; null s'il l'est
+  const raison = ds => {
+    if (travaille(ds)) return null;
+    if (ferie(ds)) return { ferie: ferie(ds) };
+    if (!sem.includes(parseYmd(ds).getDay())) return { jour: JOURS_LONGS[parseYmd(ds).getDay()] };
+    return { absence: absence(ds) };
+  };
+  return { semaine: sem, ferie, ouvre, absence, travaille, raison, ouvreSuivant, travailleSuivant, ajouterOuvres, ouvresEntre };
 }
 // Échéance d'une occurrence de récurrence qui tombe un jour non travaillé, selon la règle des réglages :
 // 'suivant' (par défaut) le jour travaillé suivant, 'precedent' le précédent mais jamais avant aujourd'hui
 // (alors aujourd'hui, ou le jour travaillé suivant), 'aucun' la date telle quelle.
+const DECALAGES = [['suivant', 'Jour travaillé suivant'], ['precedent', 'Jour travaillé précédent'], ['aucun', 'Ne pas décaler']];
 function decaler(date, regle, cal, aujourdhui) {
   if (regle === 'aucun' || cal.travaille(date)) return { date, decalee: false };
   if (regle === 'precedent') {
     let d = date;
-    for (let i = 0; i < 366 && !cal.travaille(d); i++) d = addDays(d, -1);
+    for (let i = 0; i < UN_AN && !cal.travaille(d); i++) d = addDays(d, -1);
     if (d < aujourdhui) d = cal.travailleSuivant(aujourdhui);
     return { date: d, decalee: d !== date };
   }
   const d = cal.travailleSuivant(date);
   return { date: d, decalee: d !== date };
+}
+
+/* ---------- Récurrence : occurrence suivante ---------- */
+// n mois après ds, au jour d'ancrage de la série (le 31 revient le 31, ou le dernier jour des mois plus courts)
+function ajouterMois(ds, n, jour) {
+  const d = parseYmd(ds), j = jour || d.getDate();
+  d.setDate(1); d.setMonth(d.getMonth() + n);
+  d.setDate(Math.min(j, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+  return ymd(d);
+}
+function pasRecurrence(ds, r, cal, jour) {
+  if (r.freq === 'workday') return cal.travailleSuivant(addDays(ds, 1));   // ni week-end, ni férié, ni congé d'une journée
+  if (r.freq === 'week') return addDays(ds, 7 * r.interval);
+  if (r.freq === 'month') return ajouterMois(ds, r.interval, jour);
+  return ajouterMois(ds, 12 * r.interval, jour);
+}
+// Échéance de l'occurrence suivante d'une tâche récurrente → { date, theorique, decalee, jour }.
+// La date théorique part de la théorique de la précédente (decaleeDe), jamais de la date décalée, au jour
+// d'ancrage de la série (recur.jour) ; faite en retard, on saute à la prochaine à venir ; puis decaler().
+function prochaineEcheance(t, cal, regle, aujourdhui) {
+  const base = t.decaleeDe || t.deadline || aujourdhui;
+  const jour = t.recur.jour || parseYmd(base).getDate();
+  let n = pasRecurrence(base, t.recur, cal, jour);
+  for (let i = 0; i < 1000 && n < aujourdhui; i++) n = pasRecurrence(n, t.recur, cal, jour);
+  if (t.recur.freq === 'workday') return { date: n, theorique: n, decalee: false, jour };
+  return Object.assign(decaler(n, regle, cal, aujourdhui), { theorique: n, jour });
 }
 
 /* ---------- Données ---------- */
@@ -338,7 +374,7 @@ function historique(max = 50) {
   };
 }
 
-const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, JOURS_OUVRES, lundi, feries, calendrier, decaler, blank, normSubject, normTask, migrate,
+const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, JOURS_OUVRES, lundi, feries, calendrier, decaler, prochaineEcheance, DECALAGES, blank, normSubject, normTask, migrate,
   isOpen, remaining, bucket, taskCmp, setTaskField, parentOf, childrenOf, subjectStats,
   photo, remettre, horodater, memesDonnees, historique };
 if (typeof module === 'object' && module.exports) module.exports = api;

@@ -419,8 +419,10 @@ document.addEventListener('click', e => {
       if (!set.length) { toast('Aucun jour ouvré dans cette période'); return; }
       const n = set.length * (part === 'full' ? 1 : 0.5);
       const msg = `${fmtJ(n)} de ${type(typeId).label} posé${n > 1 ? 's' : ''}`;
-      // Échéances déjà prévues pendant l'absence : rien n'est déplacé, on les signale
-      const dues = db().tasks.filter(t => A.isOpen(t) && !t.archived && t.deadline && t.deadline >= from && t.deadline <= to);
+      // Échéances déjà prévues les jours posés en journée entière (une demi-journée reste travaillée) :
+      // rien n'est déplacé, on les signale. Tâches visibles seulement (pas d'archive ni de sujet archivé).
+      const poses = new Set(part === 'full' ? set : []);
+      const dues = db().tasks.filter(t => A.isOpen(t) && A.visible(t) && poses.has(t.deadline));
       const avert = dues.length ? ` · ${dues.length} tâche${dues.length > 1 ? 's ont' : ' a'} une échéance pendant cette absence` : '';
       A.modifier(`Absence posée : ${fmtJ(n)} de ${type(typeId).label}`, () => { set.forEach(ds => setAbs(ds, typeId, part)); },
         { toast: msg + avert, annuler: true, voir: dues.length ? { label: dues.length > 1 ? 'Les voir' : 'La voir', fn: () => A.montrerTaches(dues.map(t => t.id)) } : null });

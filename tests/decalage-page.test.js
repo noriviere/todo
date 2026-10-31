@@ -63,7 +63,7 @@ test('« Chaque jour travaillé » saute le 11 novembre et un congé', async () 
 
 test('échéance posée un samedi : mention « non travaillé », sans déplacement', async () => {
   const page = await openApp(base([{ id: 's', subjectId: 'p', title: 'Inventaire', deadline: '2026-10-31' }, { id: 'v', subjectId: 'p', title: 'Normal', deadline: '2026-10-30' }]), { hash: 'sujets' });
-  assert.equal(await ligne(page, 's').locator('.nt').innerText(), 'non travaillé');
+  assert.equal(await ligne(page, 's').locator('.nt').innerText(), 'jour non travaillé');
   assert.equal(await ligne(page, 'v').locator('.nt').count(), 0);
   await ligne(page, 's').locator('[data-act="details"]').click();
   assert.match(await page.locator('#drawer').innerText(), /Jour non travaillé \(samedi\)/);
@@ -76,16 +76,17 @@ test('congé posé sur des échéances : le bandeau les compte, « Les voir » o
     { id: 'a', subjectId: 'p', title: 'Envoyer le devis', deadline: '2026-11-12' },
     { id: 'b', subjectId: 'p', title: 'Relancer le fournisseur', deadline: '2026-11-13' },
     { id: 'c', subjectId: 'p', title: 'Hors congé', deadline: '2026-11-20' },
-    { id: 'f', subjectId: 'p', title: 'Déjà faite', deadline: '2026-11-12', status: 'done' }]), { hash: 'pointage' });
+    { id: 'f', subjectId: 'p', title: 'Déjà faite', deadline: '2026-11-12', status: 'done' },
+    { id: 'w', subjectId: 'p', title: 'Le samedi', deadline: '2026-11-14' }]), { hash: 'pointage' });
   await page.click('#main [data-act="pt-tab"][data-t="conges"]');
-  await page.fill('#pt-from', '2026-11-12');
-  await page.fill('#pt-to', '2026-11-13');
+  await page.fill('#main #pt-from', '2026-11-12');
+  await page.fill('#main #pt-to', '2026-11-14');
   await page.click('#main [data-act="pt-post"]');
   assert.match(await page.locator('#toast').innerText(), /2 tâches ont une échéance pendant cette absence/);
   await page.click('#toast [data-act="toast-voir"]');
   await page.waitForFunction(() => location.hash === '#dashboard');
   const d = await page.db();
-  assert.deepEqual(d.tasks.map(t => t.deadline), ['2026-11-12', '2026-11-13', '2026-11-20', '2026-11-12']);
+  assert.deepEqual(d.tasks.map(t => t.deadline), ['2026-11-12', '2026-11-13', '2026-11-20', '2026-11-12', '2026-11-14'], 'le samedi n\'est pas posé : pas compté');
   assert.ok(d.pointage.days['2026-11-12'].abs);
   assert.deepEqual(page.errors, []);
 });

@@ -123,3 +123,42 @@ test('échéance changée à la main : la date théorique d\'un décalage dispar
   M.setTaskField(t, 'deadline', '2026-11-05');
   assert.equal(t.decaleeDe, null);
 });
+
+/* ---------- Occurrence suivante d'une récurrence (règle déplacée dans le noyau) ---------- */
+const suivante = (t, c = cal(), regle = 'suivant', td = '2026-10-28') => M.prochaineEcheance(t, c, regle, td);
+
+test('récurrence mensuelle : le rapport du 31 revient le 31, sans dérive vers le 28', () => {
+  let t = { deadline: '2026-10-31', recur: { freq: 'month', interval: 1 } };
+  const theo = [], dates = [];
+  for (let i = 0; i < 6; i++) {
+    const r = suivante(t);
+    theo.push(r.theorique); dates.push(r.date);
+    t = { deadline: r.date, decaleeDe: r.decalee ? r.theorique : null, recur: Object.assign({}, t.recur, { jour: r.jour }) };
+  }
+  assert.deepEqual(theo, ['2026-11-30', '2026-12-31', '2027-01-31', '2027-02-28', '2027-03-31', '2027-04-30']);
+  assert.deepEqual(dates, ['2026-11-30', '2026-12-31', '2027-02-01', '2027-03-01', '2027-03-31', '2027-04-30'], 'dimanches décalés au lundi');
+});
+
+test('récurrence : le 1er novembre 2026 (dimanche) devient le lundi 2 ; repart de la date théorique', () => {
+  const r = suivante({ deadline: '2026-10-01', recur: { freq: 'month', interval: 1 } });
+  assert.deepEqual([r.date, r.theorique, r.decalee], ['2026-11-02', '2026-11-01', true]);
+  const r2 = suivante({ deadline: '2026-11-02', decaleeDe: '2026-11-01', recur: { freq: 'month', interval: 1, jour: 1 } });
+  assert.equal(r2.theorique, '2026-12-01');
+});
+
+test('« Chaque jour travaillé » : saute le 11 novembre et un congé, jamais décalée', () => {
+  const r = suivante({ deadline: '2026-11-10', recur: { freq: 'workday', interval: 1 } }, conge);
+  assert.deepEqual([r.date, r.decalee], ['2026-11-16', false], 'férié 11, congés 12 et 13, demi-journée le 16');
+});
+
+test('récurrence faite en retard : saute à la prochaine échéance à venir, puis décale', () => {
+  const r = suivante({ deadline: '2026-09-01', recur: { freq: 'week', interval: 1 } }, cal(), 'suivant', '2026-10-28');
+  assert.equal(r.date, '2026-11-03');
+});
+
+test('raison d\'un jour non travaillé', () => {
+  assert.equal(conge.raison('2026-11-10'), null);
+  assert.deepEqual(conge.raison('2026-11-11'), { ferie: 'Armistice' });
+  assert.deepEqual(conge.raison('2026-11-14'), { jour: 'samedi' });
+  assert.deepEqual(conge.raison('2026-11-12'), { absence: 'full' });
+});

@@ -306,30 +306,8 @@
   const recurKey = r => r ? `${r.freq}:${r.interval}` : '';
   const recurLabel = r => (RECUR.find(x => x[0] === recurKey(r)) || [, 'Répétée'])[1];
 
-  function addMonths(ds, n) {
-    const d = parseYmd(ds), day = d.getDate();
-    d.setDate(1); d.setMonth(d.getMonth() + n);
-    const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-    d.setDate(Math.min(day, last));
-    return ymd(d);
-  }
-  function step(ds, r) {
-    // Jour travaillé suivant : ni week-end, ni férié, ni congé d'une journée (calendrier commun)
-    if (r.freq === 'workday') return A.calendrier().travailleSuivant(addDays(ds, 1));
-    if (r.freq === 'week') return addDays(ds, 7 * r.interval);
-    if (r.freq === 'month') return addMonths(ds, r.interval);
-    return addMonths(ds, 12 * r.interval);
-  }
-  // Échéance de l'occurrence suivante : date théorique (calculée depuis la théorique de la précédente, sans dérive),
-  // puis décalée si elle tombe un jour non travaillé (Données › Calendrier). → { date, theorique, decalee }
-  function nextDate(t) {
-    let n = step(t.decaleeDe || t.deadline || today(), t.recur);
-    // Si la tâche a été faite en retard, on saute jusqu'à la prochaine échéance à venir
-    for (let i = 0; i < 1000 && n < today(); i++) n = step(n, t.recur);
-    if (t.recur.freq === 'workday') return { date: n, theorique: n, decalee: false };
-    const r = A.decaler(n, db().settings.decalage, A.calendrier(), today());
-    return Object.assign(r, { theorique: n });
-  }
+  // Échéance de l'occurrence suivante (règle du noyau, calendrier commun et réglage de décalage)
+  const nextDate = t => A.prochaineEcheance(t, A.calendrier(), db().settings.decalage, today());
 
   // Module activable (Données › Modules actifs) : masqué, plus de ↻, plus d'option Répéter, plus de création automatique
   const recurOn = () => !A.modOn || A.modOn('recurrence');
@@ -370,7 +348,8 @@
           startDate: t.startDate && t.deadline ? addDays(nd, A.diffDays(t.startDate, t.deadline)) : null,
           createdAt: now, updatedAt: now, doneAt: null, archived: false, archivedAt: null,
           realMin: 0, timeLogs: [], timerStart: null, order: 0, recurNextId: null, recurFromId: t.id,
-          decaleeDe: prochaine.decalee ? prochaine.theorique : null
+          decaleeDe: prochaine.decalee ? prochaine.theorique : null,
+          recur: Object.assign({}, t.recur, { jour: prochaine.jour })   // jour d'ancrage : le 31 revient le 31
         }));
         d.tasks.push(n);
         t.recurNextId = n.id;
