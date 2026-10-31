@@ -37,19 +37,21 @@ function blank() {
   };
 }
 function normSubject(s) {
+  const now = nowIso();
   return Object.assign({
     id: uid(), title: '', priority: 3, description: '', code: '', secteur: '', produit: '', archived: false, archivedAt: null,
-    createdAt: nowIso(), updatedAt: nowIso(), source: null, parentId: null
+    createdAt: now, updatedAt: now, source: null, parentId: null
   }, s);
 }
 function normTask(t) {
+  const now = nowIso();
   return Object.assign({
     id: uid(), subjectId: null, title: '', notes: '',
     deadline: null, startDate: null,
     estimateMin: null,
     status: 'todo', progress: 0,
     archived: false, archivedAt: null,
-    createdAt: nowIso(), updatedAt: nowIso(), doneAt: null,
+    createdAt: now, updatedAt: now, doneAt: null,
     // Temps réel : chrono et saisie à la main
     realMin: 0, timeLogs: [], timerStart: null,
     // Placement dans la Charge : 'deadline' = tout le jour J, 'spread' = réparti de startDate à deadline, 'daily' = dailyMin par jour
@@ -222,8 +224,57 @@ function setTaskField(t, f, v, d) {
   return true;
 }
 
+/* ---------- Historique des modifications (Annuler / Rétablir) ---------- */
+// Photo des données : tout sauf l'affichage (ui), le thème, les modules actifs et la date du dernier export,
+// qui ne s'annulent pas. Gardée en texte : légère et impossible à modifier par erreur.
+const HORS_PHOTO = ['theme', 'modules', 'lastExport'];
+function photo(d) {
+  const settings = Object.assign({}, d.settings);
+  HORS_PHOTO.forEach(k => delete settings[k]);
+  const o = Object.assign({}, d, { settings });
+  delete o.ui;
+  return JSON.stringify(o);
+}
+// Données d'une photo, avec l'affichage, le thème et les modules actuels
+function remettre(cur, p) {
+  const d = JSON.parse(p);
+  d.ui = cur.ui;
+  d.settings = d.settings || {};
+  HORS_PHOTO.forEach(k => { if (cur.settings && k in cur.settings) d.settings[k] = cur.settings[k]; });
+  return d;
+}
+// Date de modification sur chaque tâche et sujet qui a changé depuis la photo « avant » (les créés gardent la leur)
+function horodater(avant, d, now = nowIso()) {
+  const a = JSON.parse(avant);
+  const sans = x => JSON.stringify(Object.assign({}, x, { updatedAt: null }));
+  for (const k of ['tasks', 'subjects']) {
+    const prev = new Map((a[k] || []).map(x => [x.id, sans(x)]));
+    for (const x of d[k] || []) if (prev.has(x.id) && prev.get(x.id) !== sans(x)) x.updatedAt = now;
+  }
+}
+// Les deux photos ne diffèrent que par des dates de modification (champ revalidé sans changement)
+function memesDonnees(a, b) {
+  if (a === b) return true;
+  const sans = p => { const d = JSON.parse(p); ['tasks', 'subjects'].forEach(k => (d[k] || []).forEach(x => { x.updatedAt = null; })); return JSON.stringify(d); };
+  return sans(a) === sans(b);
+}
+// Deux piles : ce qu'on peut annuler (le plus récent en dernier) et ce qu'on peut rétablir
+function historique(max = 50) {
+  let passe = [], futur = [];
+  const dernier = l => l.length ? l[l.length - 1] : null;
+  return {
+    enregistrer(e) { passe.push(e); if (passe.length > max) passe.shift(); futur = []; },
+    annuler() { const e = passe.pop() || null; if (e) futur.push(e); return e; },
+    retablir() { const e = futur.pop() || null; if (e) passe.push(e); return e; },
+    prochainAnnuler: () => dernier(passe),
+    prochainRetablir: () => dernier(futur),
+    vider() { passe = []; futur = []; }
+  };
+}
+
 const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, blank, normSubject, normTask, migrate,
-  isOpen, remaining, bucket, taskCmp, setTaskField, parentOf, childrenOf, subjectStats };
+  isOpen, remaining, bucket, taskCmp, setTaskField, parentOf, childrenOf, subjectStats,
+  photo, remettre, horodater, memesDonnees, historique };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.todoMetier = api;
 })(typeof window !== 'undefined' ? window : this);

@@ -198,10 +198,10 @@
       : Object.assign(JSON.parse(JSON.stringify(cur)), { subjects: [], tasks: [] });
     base.subjects = base.subjects.concat(preview.subjects);
     base.tasks = base.tasks.concat(preview.tasks);
-    base.ui = Object.assign({}, base.ui, { expanded: [] });
     const n = preview.tasks.length;
     preview = null;
-    A.replaceData(base);
-    A.toast(`Import terminé : ${n} tâches reprises de ton Excel`);
+    // Un seul pas dans l'historique : Ctrl+Z défait tout l'import ; la copie « avant import » reste gardée
+    A.modifier(`Import Excel (${n} tâches)`, d => { d.ui.expanded = []; return base; },
+      { copie: true, toast: `Import terminé : ${n} tâches reprises de ton Excel`, lieu: { vue: 'sujets', tid: null, sid: null } });
   });
 })();

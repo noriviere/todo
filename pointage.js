@@ -429,10 +429,9 @@ document.addEventListener('click', e => {
     case 'pt-goweek': weekStart = b.dataset.d; ui().ptTab = 'semaine'; A.save(); A.render(); break;
     case 'pt-year': { const n = +b.dataset.n; year = n ? (year || +today().slice(0, 4)) + n : null; A.render(); break; }
     case 'pt-punch': {
-      const ds = b.dataset.d, f = b.dataset.f, d = dayW(ds);
-      d[f] = nowHm();
-      A.save(); A.render();
-      toast(`${PUNCH_DONE[f]} pointé${f === 'in' ? 'e' : ''} à ${d[f].replace(':', 'h')}`, () => { delete d[f]; cleanDay(ds); A.save(); A.render(); });
+      const ds = b.dataset.d, f = b.dataset.f, h = nowHm();
+      const msg = `${PUNCH_DONE[f]} pointé${f === 'in' ? 'e' : ''} à ${h.replace(':', 'h')}`;
+      A.modifier(msg, () => { dayW(ds)[f] = h; }, { toast: msg, annuler: true });
       break;
     }
     case 'pt-post': {
@@ -440,34 +439,28 @@ document.addEventListener('click', e => {
       const typeId = document.getElementById('pt-type').value, part = document.getElementById('pt-part').value;
       if (!from || to < from) { toast('Choisis une période valide'); return; }
       if (diffDays(to, from) > 370) { toast('Période trop longue (plus d\'un an)'); return; }
-      const before = {}, set = [];
-      for (let ds = from; ds <= to; ds = addDays(ds, 1)) {
-        if (!isWork(ds) && !type(typeId).calendar) continue;
-        before[ds] = day(ds) && day(ds).abs ? Object.assign({}, day(ds).abs) : null;
-        setAbs(ds, typeId, part); set.push(ds);
-      }
+      const set = [];
+      for (let ds = from; ds <= to; ds = addDays(ds, 1)) if (isWork(ds) || type(typeId).calendar) set.push(ds);
       if (!set.length) { toast('Aucun jour travaillé dans cette période'); return; }
-      A.save(); A.render();
       const n = set.length * (part === 'full' ? 1 : 0.5);
-      toast(`${fmtJ(n)} de ${type(typeId).label} posé${n > 1 ? 's' : ''}`, () => { set.forEach(ds => setAbs(ds, before[ds] && before[ds].type, before[ds] && before[ds].part)); A.save(); A.render(); });
+      const msg = `${fmtJ(n)} de ${type(typeId).label} posé${n > 1 ? 's' : ''}`;
+      A.modifier(`Absence posée : ${fmtJ(n)} de ${type(typeId).label}`, () => { set.forEach(ds => setAbs(ds, typeId, part)); }, { toast: msg, annuler: true });
       break;
     }
     case 'pt-unpost': {
       const r = b.closest('.pt-range'), from = r.dataset.from, to = r.dataset.to, tp = r.dataset.type;
-      const done = [];
-      for (let ds = from; ds <= to; ds = addDays(ds, 1)) { const d = day(ds); if (d && d.abs && d.abs.type === tp) { done.push([ds, Object.assign({}, d.abs)]); setAbs(ds, null); } }
-      A.save(); A.render();
-      toast('Absence retirée', () => { done.forEach(([ds, a]) => setAbs(ds, a.type, a.part)); A.save(); A.render(); });
+      A.modifier(`Absence retirée : ${type(tp).label}`, () => {
+        for (let ds = from; ds <= to; ds = addDays(ds, 1)) { const d = day(ds); if (d && d.abs && d.abs.type === tp) setAbs(ds, null); }
+      }, { toast: 'Absence retirée', annuler: true });
       break;
     }
     case 'pt-type-add': {
       const id = 'ty' + uid().slice(-6);
-      P().types.push({ id, label: 'Nouveau type', short: '', color: '#9aa1b2', counted: false });
-      A.save(); A.render();
+      A.modifier('Type d\'absence ajouté', () => { P().types.push({ id, label: 'Nouveau type', short: '', color: '#9aa1b2', counted: false }); });
       setTimeout(() => { const el = document.querySelector(`[data-tyid="${id}"] [data-pt-type="label"]`); if (el) { el.focus(); el.select(); } }, 0);
       break;
     }
-    case 'pt-type-arch': { const t = P().types.find(x => x.id === b.closest('[data-tyid]').dataset.tyid); if (!t) return; t.archived = !t.archived; A.save(); A.render(); break; }
+    case 'pt-type-arch': { const t = P().types.find(x => x.id === b.closest('[data-tyid]').dataset.tyid); if (!t) return; A.modifier(`Type d'absence ${t.archived ? 'restauré' : 'archivé'} : « ${t.label} »`, () => { t.archived = !t.archived; }); break; }
   }
 });
 document.addEventListener('change', e => {
@@ -475,39 +468,41 @@ document.addEventListener('change', e => {
   const row = el.closest('.pt-row[data-d]');
   if (row && el.dataset.pt) {
     const ds = row.dataset.d, f = el.dataset.pt;
-    if (f === 'abs') setAbs(ds, el.value || null, 'full');
-    else if (f === 'part') setAbs(ds, day(ds).abs.type, el.value);
-    else { const d = dayW(ds); const v = f === 'note' ? el.value.trim() : el.value; if (v) d[f] = v; else delete d[f]; cleanDay(ds); }
-    A.save(); f === 'note' ? A.scheduleRender() : A.render();
+    A.modifier(`Pointage du ${longDate(ds)}`, () => {
+      if (f === 'abs') setAbs(ds, el.value || null, 'full');
+      else if (f === 'part') setAbs(ds, day(ds).abs.type, el.value);
+      else { const d = dayW(ds); const v = f === 'note' ? el.value.trim() : el.value; if (v) d[f] = v; else delete d[f]; cleanDay(ds); }
+    }, { differe: f === 'note' });
     return;
   }
   if (el.dataset.ptRight) {
     const tid = el.dataset.type, y = year || +today().slice(0, 4), v = el.value.trim().replace(',', '.');
-    const r = P().rights[tid] || (P().rights[tid] = {}), ry = r[y] || (r[y] = {});
-    if (v === '') delete ry[el.dataset.ptRight];
-    else if (!Number.isNaN(+v)) ry[el.dataset.ptRight] = +v;
-    else { toast('Indique un nombre de jours, ex. 25 ou 2,5'); }
-    if (!Object.keys(ry).length) delete r[y];
-    A.save(); A.render();
+    if (v !== '' && Number.isNaN(+v)) { toast('Indique un nombre de jours, ex. 25 ou 2,5'); A.render(); return; }
+    A.modifier(`Compteur de congés ${type(tid).label} ${y}`, () => {
+      const r = P().rights[tid] || (P().rights[tid] = {}), ry = r[y] || (r[y] = {});
+      if (v === '') delete ry[el.dataset.ptRight]; else ry[el.dataset.ptRight] = +v;
+      if (!Object.keys(ry).length) delete r[y];
+    });
     return;
   }
   if (el.dataset.ptType) {
     const t = P().types.find(x => x.id === el.closest('[data-tyid]').dataset.tyid); if (!t) return;
     const f = el.dataset.ptType;
-    if (f === 'label') t.label = el.value.trim() || t.label;
-    else if (f === 'color') t.color = el.value;
-    else if (f === 'counted') t.counted = el.checked;
-    else if (f === 'calendar') t.calendar = el.checked;
-    else if (f === 'def') { const v = el.value.trim().replace(',', '.'); if (v === '') delete P().defaults[t.id]; else if (!Number.isNaN(+v)) P().defaults[t.id] = +v; }
-    A.save(); A.render();
+    A.modifier(() => `Type d'absence modifié : « ${t.label} »`, () => {
+      if (f === 'label') t.label = el.value.trim() || t.label;
+      else if (f === 'color') t.color = el.value;
+      else if (f === 'counted') t.counted = el.checked;
+      else if (f === 'calendar') t.calendar = el.checked;
+      else if (f === 'def') { const v = el.value.trim().replace(',', '.'); if (v === '') delete P().defaults[t.id]; else if (!Number.isNaN(+v)) P().defaults[t.id] = +v; }
+    });
     return;
   }
   if (el.dataset.ptSet === 'day') {
     const wd = +el.dataset.wd, v = el.value.trim();
     const m = v === '' || v === '0' ? 0 : A.parseDur(v);
     if (m == null || Number.isNaN(m)) { toast('Durée non comprise. Exemple : 7h45'); el.value = fmtDur(dayTarget(wd)) || '0'; return; }
-    P().dayMin[wd] = m; A.save(); A.render();
-  } else if (el.dataset.ptSet === 'hol') { P().holidays = el.checked; A.save(); A.render(); }
+    A.modifier('Horaire de référence', () => { P().dayMin[wd] = m; });
+  } else if (el.dataset.ptSet === 'hol') { const v = el.checked; A.modifier('Jours fériés', () => { P().holidays = v; }); }
 });
 document.addEventListener('keydown', e => {
   const el = e.target;

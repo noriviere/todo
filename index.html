@@ -242,6 +242,14 @@ details.sec>summary .load{margin-left:auto;font-size:12px;color:var(--muted);fon
 @media (max-width:760px){.mod-st{display:none}}
 
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:9px 14px;border-radius:10px;display:flex;gap:12px;align-items:center;z-index:30;box-shadow:var(--shadow);font-size:13px}
+.hist{margin-left:auto;display:flex;gap:2px}
+.hist-b{width:30px;height:30px;display:grid;place-items:center;border:0;border-radius:8px;background:none;color:var(--muted);cursor:pointer;padding:0}
+.hist-b svg{width:17px;height:17px}
+.hist-b:hover:not(:disabled){background:var(--surface-2);color:var(--text)}
+.hist-b:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.hist-b:disabled{opacity:.35;cursor:not-allowed}
+@keyframes flash{0%,40%{box-shadow:0 0 0 3px var(--accent);background:var(--accent-bg)}100%{box-shadow:0 0 0 3px transparent}}
+.flash{animation:flash 1.5s ease-out;border-radius:8px}
 .toast button{border:0;background:none;color:var(--bg);font-weight:700;text-decoration:underline;padding:0}
 
 @media (max-width:860px){
@@ -250,6 +258,9 @@ details.sec>summary .load{margin-left:auto;font-size:12px;color:var(--muted);fon
   .side::-webkit-scrollbar{display:none}
   .brand{padding:0 6px 0 2px}
   .brand span{display:none}
+  .hist{margin-left:2px}
+  .hist-b{width:40px;height:44px}
+  .hist-b svg{width:20px;height:20px}
   .nav{display:flex;gap:2px;flex:1;justify-content:space-between}
   .nav a{padding:0 8px;min-height:44px;min-width:44px;justify-content:center;gap:6px;white-space:nowrap}
   .nav a .lbl{display:none}
@@ -322,7 +333,7 @@ body.demo .brand .dot{background:var(--warn)}
   <button class="btn" data-act="demo-reset">Remettre l'exemple à zéro</button><button class="btn primary" data-act="demo-exit">Quitter la démo</button></div>
 <div class="app">
   <aside class="side">
-    <div class="brand"><i class="dot"></i><span>Ma To-Do</span></div>
+    <div class="brand"><i class="dot"></i><span>Ma To-Do</span><div class="hist" id="hist"></div></div>
     <nav class="nav" id="nav"></nav>
     <div class="foot">
       <div class="theme" id="theme"></div>
@@ -401,6 +412,8 @@ const ICON = {
   timer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="14" r="7"/><path d="M12 10.5V14l2 1.5M10 3h4M12 3v4"/></svg>',
   repeat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l3 3-3 3"/><path d="M4 11V9a4 4 0 0 1 4-4h12"/><path d="M7 22l-3-3 3-3"/><path d="M20 13v2a4 4 0 0 1-4 4H4"/></svg>',
   gantt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4v16h18"/><rect x="6" y="6" width="7" height="3" rx="1"/><rect x="10" y="11" width="8" height="3" rx="1"/><rect x="8" y="16" width="5" height="2" rx="1"/></svg>',
+  undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>',
+  redo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>',
   restore: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>'
 };
 
@@ -469,16 +482,21 @@ function exitDemo() {
 }
 let db = load();
 let lastSaved = null;
+// Photo des données telles que l'historique les connaît. Un enregistrement qui ne passe pas par modifier()
+// (module pas encore migré) et change les données vide l'historique : un Ctrl+Z ne pourra pas l'effacer.
+let photoConnue = null, dansModif = false;
 function save() {
+  if (!dansModif && photoConnue !== null && M.photo(db) !== photoConnue) viderHistorique();
   try {
     store.setItem(KEY, JSON.stringify(db));
     lastSaved = new Date();
+    if (!dansModif) photoConnue = M.photo(db);
     window.dispatchEvent(new Event('todo:saved'));
   } catch (e) {
     alert("Impossible d'enregistrer dans le navigateur : " + e.message + "\nFais un export JSON pour ne rien perdre.");
   }
 }
-window.addEventListener('storage', e => { if (e.key === KEY) { db = load(); render(); } });
+window.addEventListener('storage', e => { if (e.key === KEY) { db = load(); viderHistorique(); render(); } });
 
 const subj = id => id ? db.subjects.find(s => s.id === id) : null;
 const task = id => db.tasks.find(t => t.id === id);
@@ -508,7 +526,6 @@ function setParent(s, pid) {
     s.after = []; s.lagDays = 0;
   }
   s.parentId = np ? np.id : null;
-  s.updatedAt = nowIso();
   if (np) expandTo(s.id);
   return true;
 }
@@ -552,15 +569,20 @@ const subjectStats = s => M.subjectStats(s, db, today());
 function createTask(o) {
   const t = normTask(o);
   db.tasks.push(t);
-  save();
+  if (!enModif) save();
   return t;
 }
 function createSubject(o) {
   const s = normSubject(o);
   db.subjects.push(s);
-  save();
+  if (!enModif) save();
   return s;
 }
+// Libellés des champs, pour l'historique (« Échéance : « Tâche » »)
+const CHAMP = { title: 'Titre', subjectId: 'Sujet', status: 'État', progress: 'Avancement', deadline: 'Échéance', startDate: 'Date de début',
+  estimate: 'Temps estimé', real: 'Temps réel', planMode: 'Répartition', planDaily: 'Répartition', notes: 'Notes',
+  's-title': 'Titre du sujet', 's-priority': 'Priorité', 's-desc': 'Description', 's-parent': 'Sujet parent',
+  's-dim-code': 'Code', 's-dim-secteur': 'Secteur', 's-dim-produit': 'Produit fini' };
 // Modifie un champ d'une tâche (règle dans metier.js) ; une saisie refusée affiche son message
 function setTaskField(t, f, v) {
   const r = M.setTaskField(t, f, v, db);
@@ -578,31 +600,163 @@ function setSubjectField(s, f, v) {
   else if (f === 's-desc') s.description = v;
   else if (f.startsWith('s-dim-') && DIMS[f.slice(6)]) s[f.slice(6)] = v.trim();
   else return false;
-  s.updatedAt = nowIso();
   return true;
 }
 function archiveTask(t, on = true) {
-  t.archived = on; t.archivedAt = on ? nowIso() : null; t.updatedAt = nowIso();
+  t.archived = on; t.archivedAt = on ? nowIso() : null;
 }
 function archiveSubject(s, on = true) {
   // Les sous-sujets suivent leur parent ; ceux archivés avant restent archivés à la restauration
   childrenOf(s, true).forEach(c => {
-    if (on && !c.archived) { c.archivedWithParent = true; c.archived = true; c.archivedAt = nowIso(); c.updatedAt = nowIso(); }
-    else if (!on && c.archivedWithParent) { c.archivedWithParent = false; c.archived = false; c.archivedAt = null; c.updatedAt = nowIso(); }
+    if (on && !c.archived) { c.archivedWithParent = true; c.archived = true; c.archivedAt = nowIso(); }
+    else if (!on && c.archivedWithParent) { c.archivedWithParent = false; c.archived = false; c.archivedAt = null; }
   });
-  s.archived = on; s.archivedAt = on ? nowIso() : null; s.updatedAt = nowIso();
+  s.archived = on; s.archivedAt = on ? nowIso() : null;
   if (!on) s.archivedWithParent = false;
 }
 
 /* ---------- Toast ---------- */
 let toastTimer;
-function toast(msg, undo) {
+// action : fonction du bouton (« Annuler » par défaut, ou « Rétablir »)
+function toast(msg, action, label = 'Annuler') {
   const el = $('#toast');
-  el.innerHTML = `<div class="toast"><span>${esc(msg)}</span>${undo ? '<button data-act="undo">Annuler</button>' : ''}</div>`;
-  el._undo = undo || null;
+  el.innerHTML = `<div class="toast" role="status" aria-live="polite"><span>${esc(msg)}</span>${action ? `<button data-act="undo">${esc(label)}</button>` : ''}</div>`;
+  el._undo = action || null;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.innerHTML = ''; el._undo = null; }, undo ? 6000 : 3500);
+  toastTimer = setTimeout(() => { el.innerHTML = ''; el._undo = null; }, action ? 6000 : 3500);
 }
+
+/* ---------- Point unique de modification et historique (Annuler / Rétablir) ---------- */
+// Toute modification des données passe par modifier(libellé, fn, options) : photo avant, modification,
+// date « modifiée le » sur ce qui a changé, enregistrement, affichage, entrée dans l'historique, bandeau.
+// options : toast (texte du bandeau, sinon pas de bandeau sauf annuler), annuler (bouton « Annuler » dans le bandeau),
+//   differe (réaffichage qui garde le focus, pour la frappe), copie (garde la copie « avant import »), lieu ({ vue, tid, sid }),
+//   historique: false (conséquence d'un réglage, qui ne doit pas s'annuler : l'historique est alors vidé).
+// Le libellé peut être une fonction, lue après la modification (titre qu'on vient de changer).
+// fn reçoit les données ; elle peut renvoyer de nouvelles données complètes (import), qui remplacent les actuelles.
+const hist = M.historique(50);
+photoConnue = M.photo(db);
+let enModif = false;
+// Dernier élément touché par l'utilisateur : sert à retrouver l'endroit d'une modification
+let derniereCible = null;
+['pointerdown', 'click', 'change', 'keydown', 'drop'].forEach(t => document.addEventListener(t, e => { derniereCible = e.target; }, true));
+function lieuActuel() {
+  const c = derniereCible && derniereCible.isConnected && derniereCible.closest ? derniereCible : null;
+  return { vue: currentView(), tid: c && c.closest('[data-tid]')?.dataset.tid || null, sid: c && c.closest('[data-sid]')?.dataset.sid || null };
+}
+function modifier(libelle, fn, o = {}) {
+  if (enModif) return fn(db);   // modification imbriquée : fait partie de celle en cours
+  const avant = M.photo(db);
+  const lieu = Object.assign(lieuActuel(), o.lieu);
+  let r;
+  enModif = true;
+  try { r = fn(db); } finally { enModif = false; }
+  if (r && typeof r === 'object' && Array.isArray(r.tasks)) {
+    if (o.copie) keepBackup();
+    db = M.remettre(db, M.photo(migrate(r)));
+  }
+  let entree = null;
+  // Champ revalidé sans changement : on remet aussi les dates de modification, aucun pas n'est créé
+  if (M.memesDonnees(avant, M.photo(db))) db = M.remettre(db, avant);
+  else {
+    M.horodater(avant, db, nowIso());
+    if (typeof libelle === 'function') libelle = libelle();
+    entree = { libelle, avant, apres: null, lieu };
+  }
+  // Ce que les écouteurs de l'enregistrement ajoutent (occurrence suivante d'une récurrence) fait partie du même pas
+  enregistrerConnu();
+  if (entree && o.historique === false) { viderHistorique(); entree = null; }
+  if (entree) { entree.apres = photoConnue; hist.enregistrer(entree); }
+  o.differe ? scheduleRender() : render();
+  // Un bandeau « Annuler » d'une modification plus ancienne ne peut plus rien défaire proprement : on le retire
+  if (entree && !o.toast && !o.annuler) fermerToastAnnuler();
+  if (entree && (o.toast || o.annuler)) toast(o.toast || libelle, o.annuler ? () => { if (hist.prochainAnnuler() === entree) annuler(); } : null);
+  else if (!entree && o.toast && r !== false) toast(o.toast);
+  return r;
+}
+// Enregistre sans vider l'historique, puis retient la photo obtenue (écouteurs compris)
+function enregistrerConnu() {
+  dansModif = true;
+  try { save(); } finally { dansModif = false; }
+  photoConnue = M.photo(db);
+}
+function fermerToastAnnuler() {
+  const el = $('#toast');
+  if (el._undo) { el.innerHTML = ''; el._undo = null; }
+}
+function remettrePhoto(p) {
+  db = M.remettre(db, p);
+  if (drawerId && !task(drawerId)) drawerId = null;
+  enregistrerConnu(); render();
+}
+function annuler() {
+  const e = hist.annuler();
+  if (!e) { toast('Rien à annuler'); return; }
+  remettrePhoto(e.avant);
+  toast('Annulé : ' + e.libelle, retablir, 'Rétablir');
+  allerA(e.lieu);
+}
+function retablir() {
+  const e = hist.retablir();
+  if (!e) { toast('Rien à rétablir'); return; }
+  remettrePhoto(e.apres);
+  toast('Rétabli : ' + e.libelle, annuler, 'Annuler');
+  allerA(e.lieu);
+}
+// Des données arrivent d'ailleurs (synchro, autre onglet, import, restauration) : on ne peut plus rien annuler
+function viderHistorique() {
+  hist.vider();
+  fermerToastAnnuler();
+  peindreHist();
+}
+function peindreHist() {
+  const el = $('#hist');
+  if (!el) return;
+  const a = hist.prochainAnnuler(), r = hist.prochainRetablir();
+  const bt = (act, e, verbe, ic) => {
+    const t = e ? `${verbe} : ${e.libelle}` : `Rien à ${verbe.toLowerCase()}`;
+    return `<button type="button" class="hist-b" data-act="${act}" ${e ? '' : 'disabled'} title="${esc(t)}" aria-label="${esc(t)}">${ic}</button>`;
+  };
+  el.innerHTML = bt('hist-undo', a, 'Annuler', ICON.undo) + bt('hist-redo', r, 'Rétablir', ICON.redo);
+}
+// Revient à l'endroit d'une modification : l'écran, puis la ligne (dépliée, défilée, brève surbrillance) si elle est visible
+function allerA(l) {
+  if (!l) return;
+  const montrer = () => {
+    const sel = l.tid ? `#main [data-tid="${CSS.escape(l.tid)}"]` : l.sid ? `#main [data-sid="${CSS.escape(l.sid)}"]` : null;
+    if (!sel) return;
+    let el = $(sel);
+    if (!el) {
+      // Ligne cachée dans un sujet replié : on le déplie
+      const x = l.tid ? task(l.tid) : null;
+      const sid = x ? x.subjectId : l.sid;
+      if (sid && subj(sid) && visible(x || { archived: false, subjectId: sid })) {
+        const s = subj(sid);
+        if (!x && parentOf(s)) expandTo(parentOf(s).id); else expandTo(sid);
+        render();
+        el = $(sel);
+      }
+    }
+    if (!el) return;
+    const doux = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollIntoView({ block: 'center', behavior: doux ? 'smooth' : 'auto' });
+    el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 1600);
+  };
+  if (l.vue && l.vue !== currentView()) {
+    window.addEventListener('todo:rendered', () => setTimeout(montrer, 0), { once: true });
+    location.hash = l.vue;
+  } else montrer();
+}
+// Ctrl+Z / Cmd+Z annule, Ctrl+Y ou Ctrl+Maj+Z rétablit, sauf pendant la frappe dans un champ (le navigateur annule la frappe)
+const enFrappe = el => !!el && (el.isContentEditable || el.tagName === 'TEXTAREA' ||
+  (el.tagName === 'INPUT' && /^(text|search|email|url|tel|password|number|date|time|datetime-local|month|week|)$/.test(el.type)));
+document.addEventListener('keydown', e => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || enFrappe(e.target)) return;
+  const k = e.key.toLowerCase();
+  if (k === 'z' && !e.shiftKey) { e.preventDefault(); annuler(); }
+  else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); retablir(); }
+});
 
 /* ---------- Rendu : éléments ---------- */
 function subjectOptions(selected) {
@@ -954,8 +1108,11 @@ function render() {
   $('#saved').textContent = DEMO ? 'Mode démo' : lastSaved ? 'Enregistré à ' + lastSaved.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'Données locales';
   $('#main').innerHTML = views[v]();
   renderDrawer();
+  peindreHist();
   applyTheme();
   window.dispatchEvent(new Event('todo:rendered'));
+  // Un module affiché pour la première fois complète ses données (valeurs par défaut) : ce n'est pas une modification
+  if (!dansModif) photoConnue = M.photo(db);
 }
 // Re-rendu différé qui garde le focus et le curseur sur le même champ
 let renderPending = false;
@@ -1029,15 +1186,13 @@ document.addEventListener('change', e => {
     const tr = el.closest('[data-tid]');
     if (tr && !f.startsWith('s-')) {
       const t = task(tr.dataset.tid);
-      if (t && setTaskField(t, f, el.value)) { save(); }
-      scheduleRender();
+      if (t) modifier(() => `${CHAMP[f] || 'Tâche modifiée'} : « ${t.title || 'Sans titre'} »`, () => setTaskField(t, f, el.value), { differe: true });
       return;
     }
     const sr = el.closest('[data-sid]');
     if (sr) {
       const s = subj(sr.dataset.sid);
-      if (s && setSubjectField(s, f, el.value)) save();
-      scheduleRender();
+      if (s) modifier(() => `${CHAMP[f] || 'Sujet modifié'} : « ${s.title || 'Sans titre'} »`, () => setSubjectField(s, f, el.value), { differe: true });
     }
     return;
   }
@@ -1058,9 +1213,8 @@ document.addEventListener('submit', e => {
   const subjectId = $('#qa-subject').value || null;
   const deadline = $('#qa-date').value || null;
   qaState.subject = subjectId || '';
-  createTask({ title, subjectId, deadline });
-  toast(`Tâche ajoutée${subjectId ? ' dans « ' + subj(subjectId).title + ' »' : ' dans la boîte de réception'}`);
-  render();
+  modifier(`Tâche ajoutée : « ${title} »`, () => { createTask({ title, subjectId, deadline }); },
+    { toast: `Tâche ajoutée${subjectId ? ' dans « ' + subj(subjectId).title + ' »' : ' dans la boîte de réception'}` });
   focusKey('qa-title');
 });
 
@@ -1087,8 +1241,7 @@ document.addEventListener('keydown', e => {
     const dateEl = document.querySelector(`[data-add-date="${sid}"]`);
     let est = parseDur(estEl ? estEl.value : '');
     if (Number.isNaN(est)) { toast('Durée non comprise. Exemples : 1h30, 45min, 2 (heures)'); return; }
-    createTask({ title, subjectId: sid, deadline: (dateEl && dateEl.value) || null, estimateMin: est });
-    render();
+    modifier(`Tâche ajoutée : « ${title} »`, () => { createTask({ title, subjectId: sid, deadline: (dateEl && dateEl.value) || null, estimateMin: est }); });
     focusKey('add-' + sid);
     return;
   }
@@ -1116,25 +1269,23 @@ document.addEventListener('click', e => {
   const t = tid && task(tid);
   const s = sid && subj(sid);
   switch (act) {
-    case 'toggle-done':
-      setTaskField(t, 'status', t.status === 'done' ? 'todo' : 'done');
-      save(); scheduleRender();
-      if (t.status === 'done') toast('Bravo, tâche faite ✔', () => { setTaskField(t, 'status', 'todo'); save(); render(); });
+    case 'toggle-done': {
+      const fait = t.status !== 'done';
+      modifier(`${fait ? 'Tâche faite' : 'Tâche rouverte'} : « ${t.title || 'Sans titre'} »`, () => setTaskField(t, 'status', fait ? 'done' : 'todo'),
+        fait ? { differe: true, toast: 'Bravo, tâche faite ✔', annuler: true } : { differe: true });
       break;
+    }
     case 'postpone': {
       const base = !t.deadline || t.deadline < today() ? today() : t.deadline;
-      const prev = t.deadline;
-      setTaskField(t, 'deadline', addDays(base, 1)); save(); render();
-      toast('Reportée au ' + longDate(t.deadline), () => { t.deadline = prev; save(); render(); });
+      const nd = addDays(base, 1);
+      modifier(`Tâche reportée : « ${t.title || 'Sans titre'} »`, () => setTaskField(t, 'deadline', nd), { toast: 'Reportée au ' + longDate(nd), annuler: true });
       break;
     }
     case 'archive-task':
-      archiveTask(t); save();
       if (drawerId === t.id) drawerId = null;
-      render();
-      toast('Tâche archivée', () => { archiveTask(t, false); save(); render(); });
+      modifier(`Tâche archivée : « ${t.title || 'Sans titre'} »`, () => archiveTask(t), { toast: 'Tâche archivée', annuler: true });
       break;
-    case 'restore-task': archiveTask(t, false); save(); render(); toast('Tâche restaurée'); break;
+    case 'restore-task': modifier(`Tâche restaurée : « ${t.title || 'Sans titre'} »`, () => archiveTask(t, false), { toast: 'Tâche restaurée' }); break;
     case 'details': drawerId = tid; renderDrawer(); focusKey('dr-title'); break;
     case 'close-drawer': drawerId = null; renderDrawer(); break;
     case 'toggle-subject': {
@@ -1148,9 +1299,11 @@ document.addEventListener('click', e => {
     case 'toggle-closed': db.ui.showClosed = b.checked; save(); render(); break;
     case 'add-child': {
       if (!s || parentOf(s)) break;
-      const ns = createSubject({ title: 'Nouveau sous-sujet', priority: s.priority, parentId: s.id,
-        code: s.code, secteur: s.secteur, produit: s.produit });
-      expandTo(ns.id); db.ui.search = ''; save(); render();
+      let ns;
+      modifier(`Sous-sujet créé dans « ${s.title || 'Sans titre'} »`, () => {
+        ns = createSubject({ title: 'Nouveau sous-sujet', priority: s.priority, parentId: s.id, code: s.code, secteur: s.secteur, produit: s.produit });
+        expandTo(ns.id); db.ui.search = '';
+      });
       focusKey('st-' + ns.id, true);
       break;
     }
@@ -1159,40 +1312,35 @@ document.addEventListener('click', e => {
       const from = subj(t.subjectId);
       // Profondeur 1 : la tâche d'un sous-sujet donne un frère ; un parent archivé ne reçoit rien
       const parent = !from || from.archived ? null : !from.parentId ? from : !isTop(from) ? parentOf(from) : null;
-      const ns = createSubject({ title: t.title || 'Nouveau sujet', priority: from ? from.priority : 3, parentId: parent ? parent.id : null,
-        code: from ? from.code : '', secteur: from ? from.secteur : '', produit: from ? from.produit : '' });
-      const prev = t.subjectId;
-      t.subjectId = ns.id; t.updatedAt = nowIso();
-      expandTo(ns.id); drawerId = null; save();
-      if (currentView() === 'sujets') render(); else location.hash = 'sujets';
-      toast(parent ? `Sous-sujet « ${ns.title} » créé dans « ${parent.title} »` : `Sujet « ${ns.title} » créé`, () => {
-        t.subjectId = prev;
-        db.subjects = db.subjects.filter(x => x !== ns);   // créé à l'instant et vide : on peut le retirer
-        db.ui.expanded = db.ui.expanded.filter(id => id !== ns.id);
-        save(); render();
-      });
+      const titre = t.title || 'Nouveau sujet';
+      drawerId = null;
+      modifier(`Tâche transformée en sujet : « ${titre} »`, () => {
+        const ns = createSubject({ title: titre, priority: from ? from.priority : 3, parentId: parent ? parent.id : null,
+          code: from ? from.code : '', secteur: from ? from.secteur : '', produit: from ? from.produit : '' });
+        t.subjectId = ns.id;
+        expandTo(ns.id);
+      }, { toast: parent ? `Sous-sujet « ${titre} » créé dans « ${parent.title} »` : `Sujet « ${titre} » créé`, annuler: true });
+      if (currentView() !== 'sujets') location.hash = 'sujets';
       break;
     }
     case 'add-subject': {
-      const ns = createSubject({ title: 'Nouveau sujet', priority: 3 });
-      db.ui.expanded.push(ns.id); db.ui.search = ''; save(); render();
+      let ns;
+      modifier('Sujet créé', () => { ns = createSubject({ title: 'Nouveau sujet', priority: 3 }); db.ui.expanded.push(ns.id); db.ui.search = ''; });
       focusKey('st-' + ns.id, true);
       break;
     }
     case 'archive-subject': {
       const st = subjectStats(s);
       if (st.open && !confirm(`Le sujet « ${s.title} » a encore ${st.open} tâche(s) ouverte(s). Archiver quand même ?`)) return;
-      archiveSubject(s); save(); render();
-      toast('Sujet archivé', () => { archiveSubject(s, false); save(); render(); });
+      modifier(`Sujet archivé : « ${s.title || 'Sans titre'} »`, () => archiveSubject(s), { toast: 'Sujet archivé', annuler: true });
       break;
     }
     case 'archive-closed': {
       const list = db.tasks.filter(x => x.subjectId === sid && !x.archived && !isOpen(x));
-      list.forEach(x => archiveTask(x)); save(); render();
-      toast(`${list.length} tâche(s) archivée(s)`, () => { list.forEach(x => archiveTask(x, false)); save(); render(); });
+      modifier(`${list.length} tâche(s) archivée(s)`, () => list.forEach(x => archiveTask(x)), { toast: `${list.length} tâche(s) archivée(s)`, annuler: true });
       break;
     }
-    case 'restore-subject': archiveSubject(s, false); save(); render(); toast('Sujet restauré'); break;
+    case 'restore-subject': modifier(`Sujet restauré : « ${s.title || 'Sans titre'} »`, () => archiveSubject(s, false), { toast: 'Sujet restauré' }); break;
     case 'qa-date': {
       const d = addDays(today(), +b.dataset.d);
       qaState.date = qaState.date === d ? '' : d;
@@ -1209,12 +1357,14 @@ document.addEventListener('click', e => {
       break;
     }
     case 'theme': db.settings.theme = b.dataset.v; save(); render(); break;
-    case 'undo': { const u = $('#toast')._undo; $('#toast').innerHTML = ''; if (u) u(); break; }
+    case 'undo': { const u = $('#toast')._undo; $('#toast').innerHTML = ''; $('#toast')._undo = null; if (u) u(); break; }
+    case 'hist-undo': annuler(); break;
+    case 'hist-redo': retablir(); break;
     case 'export': exportJson(); break;
     case 'demo-start': startDemo(); break;
     case 'demo-exit': exitDemo(); break;
     case 'demo-reset':
-      if (confirm("Remettre les données d'exemple de départ ?")) { db = demoData(); dropBackup(); save(); render(); toast('Exemple remis à zéro'); }
+      if (confirm("Remettre les données d'exemple de départ ?")) { db = demoData(); dropBackup(); viderHistorique(); save(); render(); toast('Exemple remis à zéro'); }
       break;
     case 'import': $('#file').click(); break;
     case 'undo-import': {
@@ -1229,7 +1379,7 @@ document.addEventListener('click', e => {
         // Échange : l'état actuel devient la copie, pour pouvoir annuler ce retour
         const ui = db.ui;
         keepBackup();
-        db = migrate(old); db.ui = ui; save(); render(); toast('État précédent restauré');
+        db = migrate(old); db.ui = ui; viderHistorique(); save(); render(); toast('État précédent restauré');
       }
       break;
     }
@@ -1262,7 +1412,7 @@ $('#file').addEventListener('change', async e => {
     keepBackup();
     delete d.exportedAt;
     db = migrate(d);
-    save(); render();
+    viderHistorique(); save(); render();
     toast('Import terminé');
   } catch (err) {
     alert('Import impossible : ' + err.message);
@@ -1275,11 +1425,11 @@ window.todoApp = {
   today,
   render: () => render(),
   demo: DEMO,
-  replaceData: d => { keepBackup(); db = migrate(d); save(); render(); }
+  replaceData: d => { keepBackup(); db = migrate(d); viderHistorique(); save(); render(); }
 };
 // Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
 const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [], subjectBody: [] };
-Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, save, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats, remaining: M.remaining, taskCmp,
+Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, save, modifier, annuler, retablir, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats, remaining: M.remaining, taskCmp,
   parentOf, childrenOf, subjLabel, setParent, canNest, expandTo, archiveSubject, createSubject,
   esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur });
 
