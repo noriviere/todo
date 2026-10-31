@@ -28,6 +28,16 @@ const projectOfStep = s => { const p = A.parentOf(s); return isProj(p) && !p.arc
 // Calendrier commun : le Gantt compte en jours ouvrés (semaine type, hors fériés), les congés de Noel ne le décalent pas
 const cal = () => A.calendrier();
 const milestonesOf = p => (pjOf(p).milestones || []).filter(m => !m.archived);
+
+// Cohérence des données, branchée même module désactivé (AGENTS.md) : rien de saisi n'est effacé, seuls des liens sans objet
+// Un sujet en mode projet reste au premier niveau
+A.hooks.refusRangement.push(s => !!s.isProject);
+// Une étape sortie de son parent perd ses prédécesseurs, son décalage et ses liens de jalon ; ses sœurs ne la citent plus
+A.hooks.sortieDuParent.push((s, ancien) => {
+  A.childrenOf(ancien, true).forEach(x => { if (Array.isArray(x.after)) x.after = x.after.filter(id => id !== s.id); });
+  ((ancien.pj && ancien.pj.milestones) || []).forEach(m => { if (Array.isArray(m.before)) m.before = m.before.filter(id => id !== s.id); });
+  s.after = []; s.lagDays = 0;
+});
 // Les étapes archivées (souvent terminées) restent des ancres pour celles qui en dépendent, sans être dessinées
 function projectSchedule(p) {
   const all = A.childrenOf(p, true), archived = new Set(all.filter(s => s.archived).map(s => s.id));

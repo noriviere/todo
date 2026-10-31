@@ -207,6 +207,29 @@ function parentOf(s, d) {
 }
 // Sous-sujets d'un sujet ; all = archivés compris
 const childrenOf = (s, d, all) => d.subjects.filter(x => x.parentId === s.id && x !== s && (all || !x.archived) && parentOf(x, d) === s);
+// Premier niveau à l'affichage : sans parent, ou dont le parent est archivé (sous-sujet restauré seul)
+const estPremierNiveau = (s, d) => { const p = parentOf(s, d); return !p || p.archived; };
+// Ranger dans / sortir de (CONTEXT.md). refus : prédicats fournis par les modules (ex. un sujet en mode projet)
+const peutEtreRange = (s, d, refus = []) => !d.subjects.some(x => x.parentId === s.id && x !== s) && !refus.some(f => f(s));
+const peutRanger = (s, cible, d, refus = []) => !!cible && cible !== s && !cible.parentId && !cible.archived && peutEtreRange(s, d, refus);
+// Range s dans le sujet cibleId, ou l'en sort (cibleId vide). Ne touche que parentId ; renvoie { ancien } ou null si rien ne change
+function ranger(s, cibleId, d, refus = []) {
+  const cible = cibleId ? subjOf(d, cibleId) : null;
+  if (cibleId && !peutRanger(s, cible, d, refus)) return null;
+  const ancien = parentOf(s, d);
+  if ((ancien && ancien.id) === (cible && cible.id)) return null;
+  s.parentId = cible ? cible.id : null;
+  return { ancien };
+}
+// Archiver un sujet archive ses sous-sujets ; la restauration ne rend que ceux archivés avec lui. Ne sort personne de son parent
+function archiverSujet(s, d, on = true, maintenant = nowIso()) {
+  childrenOf(s, d, true).forEach(c => {
+    if (on && !c.archived) { c.archivedWithParent = true; c.archived = true; c.archivedAt = maintenant; }
+    else if (!on && c.archivedWithParent) { c.archivedWithParent = false; c.archived = false; c.archivedAt = null; }
+  });
+  s.archived = on; s.archivedAt = on ? maintenant : null;
+  if (!on) s.archivedWithParent = false;
+}
 
 // État d'un sujet déduit de ses tâches (hors archivées) ; un parent compte aussi les tâches de ses sous-sujets actifs
 function subjectStats(s, d, today) {
@@ -357,7 +380,7 @@ function historique(max = 50) {
 }
 
 const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, SEMAINE_TYPE, lundi, feries, calendrier, decaler, prochaineEcheance, DECALAGES, echeancesLes, blank, normSubject, normTask, migrate,
-  isOpen, remaining, bucket, taskCmp, setTaskField, parentOf, childrenOf, subjectStats,
+  isOpen, remaining, bucket, taskCmp, setTaskField, parentOf, childrenOf, estPremierNiveau, peutEtreRange, peutRanger, ranger, archiverSujet, subjectStats,
   photo, remettre, horodater, memesDonnees, historique };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.todoMetier = api;
