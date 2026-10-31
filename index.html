@@ -856,7 +856,7 @@ function taskRow(t, opt = {}) {
       ${t.status === 'doing' ? `<span class="prog"><input type="number" min="0" max="100" step="10" data-field="progress" data-k="p-${t.id}" value="${t.progress}" title="Avancement">%</span>` : ''}
       <input class="inline est" data-field="estimate" data-k="e-${t.id}" value="${esc(fmtDur(t.estimateMin))}" placeholder="durée" title="Temps estimé (ex. 1h30, 45min, 2)">
       <span class="date-wrap ${dateClass(t)}">
-        <input type="date" class="date" data-field="deadline" data-k="d-${t.id}" value="${t.deadline || ''}" title="Deadline">
+        <input type="date" class="date" data-field="deadline" data-k="d-${t.id}" value="${t.deadline || ''}" title="Échéance">
         <span class="rel">${isOpen(t) ? relDate(t.deadline) : ''}</span>
         ${nt ? `<span class="nt" title="Échéance un jour non travaillé (${esc(nt)})">jour non travaillé</span>` : ''}
       </span>
@@ -876,7 +876,7 @@ function quickAdd(defaultSubject) {
       <button type="button" class="chip ${qaState.date === addDays(today(), 1) ? 'on' : ''}" data-act="qa-date" data-d="1">Demain</button>
       <button type="button" class="chip ${qaState.date === addDays(today(), 7) ? 'on' : ''}" data-act="qa-date" data-d="7">+7 j</button>
     </div>
-    <input type="date" id="qa-date" data-k="qa-date" value="${qaState.date || ''}" title="Deadline">
+    <input type="date" id="qa-date" data-k="qa-date" value="${qaState.date || ''}" title="Échéance">
     <button class="btn primary" type="submit" aria-label="Ajouter la tâche"><span class="plus" aria-hidden="true">+</span><span class="lbl">Ajouter</span></button>
   </form>`;
 }
@@ -927,7 +927,7 @@ views.dashboard = () => {
     ${sec('tomorrow', 'Demain', secOpen('tomorrow'))}
     ${sec('week', '7 prochains jours', secOpen('week'))}
     ${sec('later', 'Plus tard', secOpen('later'))}
-    ${sec('nodate', 'Sans deadline', secOpen('nodate'))}
+    ${sec('nodate', 'Sans échéance', secOpen('nodate'))}
   `;
 };
 const dashOpen = {};
@@ -1006,7 +1006,7 @@ function subjectBlock(s, st, open) {
       <span class="s-info">
         ${Object.keys(DIMS).some(k => dimVal(s, k)) ? `<span class="s-tags" title="Code · Secteur · Produit fini">${Object.keys(DIMS).map(k => esc(dimVal(s, k))).filter(Boolean).join(' · ')}</span>` : ''}
         ${st.late ? `<span class="late">⚠ ${st.late} en retard</span>` : ''}
-        ${st.next ? `<span title="Prochaine deadline">⏱ ${relDate(st.next)}</span>` : ''}
+        ${st.next ? `<span title="Prochaine échéance">⏱ ${relDate(st.next)}</span>` : ''}
         ${st.remainMin ? `<span title="Temps restant">${fmtDur(st.remainMin)}</span>` : ''}
         ${st.children ? `<span class="s-kidn" title="Sous-sujets (comptés dans l'avancement)">${ICON.list.replace('<svg', '<svg width="13" height="13"')} ${st.children}</span>` : ''}
         <span title="${st.children ? 'Tâches faites, sous-sujets compris' : 'Tâches faites'}">${st.done}/${st.live}</span>
@@ -1024,7 +1024,7 @@ function subjectBlock(s, st, open) {
       <div class="addrow">
         <input type="text" data-add="${s.id}" data-k="add-${s.id}" placeholder="+ Ajouter une tâche (Entrée)">
         <input class="inline est" data-add-est="${s.id}" data-k="adde-${s.id}" placeholder="durée">
-        <input type="date" class="date" data-add-date="${s.id}" data-k="addd-${s.id}" title="Deadline">
+        <input type="date" class="date" data-add-date="${s.id}" data-k="addd-${s.id}" title="Échéance">
       </div>
       ${closedT.length ? (db.ui.showClosed
         ? `<div class="closed-head">Faites et annulées (${closedT.length}) · <button class="icon" style="display:inline" data-act="archive-closed">tout archiver</button></div>${closedT.map(t => taskRow(t)).join('')}`
@@ -1141,7 +1141,7 @@ function renderDrawer() {
       <div class="f"><label>Avancement (%)</label><input type="number" min="0" max="100" step="5" data-field="progress" data-k="dr-prog" value="${t.progress}"></div>
     </div>
     <div class="row2">
-      <div class="f"><label>Deadline</label><input type="date" data-field="deadline" data-k="dr-dl" value="${t.deadline || ''}">${echeanceNote(t)}</div>
+      <div class="f"><label>Échéance</label><input type="date" data-field="deadline" data-k="dr-dl" value="${t.deadline || ''}">${echeanceNote(t)}</div>
       ${modOn('charge') ? `<div class="f"><label>Date de début</label><input type="date" data-field="startDate" data-k="dr-sd" value="${t.startDate || ''}"></div>` : ''}
     </div>
     <div class="row2">
@@ -1150,8 +1150,8 @@ function renderDrawer() {
     </div>
     ${modOn('charge') ? `<div class="f"><label>Répartition du travail</label>
       <select data-field="planMode" data-k="dr-plan">
-        <option value="deadline" ${t.plan.mode === 'deadline' ? 'selected' : ''}>Tout le jour de la deadline</option>
-        <option value="spread" ${t.plan.mode === 'spread' ? 'selected' : ''}>Réparti entre la date de début et la deadline</option>
+        <option value="deadline" ${t.plan.mode === 'deadline' ? 'selected' : ''}>Tout le jour de l'échéance</option>
+        <option value="spread" ${t.plan.mode === 'spread' ? 'selected' : ''}>Réparti entre la date de début et l'échéance</option>
         <option value="daily" ${t.plan.mode === 'daily' ? 'selected' : ''}>Un temps fixe par jour</option>
       </select>
       ${t.plan.mode === 'daily' ? `<input data-field="planDaily" data-k="dr-daily" value="${esc(fmtDur(t.plan.dailyMin))}" placeholder="par jour, ex. 2h">` : ''}

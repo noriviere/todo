@@ -127,10 +127,14 @@ test('modules Gestion de projet et Récurrence coupés : l\'appli marche et Ctrl
   assert.deepEqual(page.errors, []);
 });
 
-test('contraction : plus aucun module n\'enregistre directement, l\'interface n\'expose plus save', async () => {
+test('contraction : plus aucun module n\'enregistre ni ne date directement, l\'interface n\'expose plus save', async () => {
   const racine = path.resolve(__dirname, '..');
-  for (const f of ['chrono-charge.js', 'pointage.js', 'pointage-import.js', 'organisation.js', 'projets.js', 'excel-import.js', 'sync.js', 'backup.js'])
-    assert.doesNotMatch(fs.readFileSync(path.join(racine, f), 'utf8'), /\b(A|app)\.save\(/, f);
+  for (const f of ['chrono-charge.js', 'pointage.js', 'pointage-import.js', 'organisation.js', 'projets.js', 'excel-import.js', 'sync.js', 'backup.js']) {
+    const src = fs.readFileSync(path.join(racine, f), 'utf8');
+    assert.doesNotMatch(src, /\b(A|app)\.save\(/, f);
+    // Seul A.modifier date une modification ; la forme objet « updatedAt: now » (création) reste permise
+    assert.doesNotMatch(src, /\.updatedAt\s*=(?!=)/, f + ' : affectation manuelle de updatedAt');
+  }
   const page = await openApp(base());
   assert.equal(await page.evaluate(() => typeof window.todoApp.save), 'undefined');
 });

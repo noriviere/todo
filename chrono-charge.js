@@ -267,9 +267,9 @@ function prioColor(p) { return `var(--p${p})`; }
 function planLabel(t, al) {
   if (al.overdue) return 'en retard';
   const m = t.plan && t.plan.mode;
-  if (m === 'daily' && t.plan.dailyMin) return fmtDur(t.plan.dailyMin) + '/jour' + (al.late ? ', finit après la deadline' : '');
+  if (m === 'daily' && t.plan.dailyMin) return fmtDur(t.plan.dailyMin) + '/jour' + (al.late ? ', finit après l\'échéance' : '');
   if (m === 'spread') return 'réparti jusqu\'au ' + parseYmd(t.deadline).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-  return 'jour de la deadline';
+  return 'jour de l\'échéance';
 }
 function chart(days, compact) {
   const max = Math.max(settings().workdayMin, ...days.map(d => d.load)) * 1.08;
@@ -352,15 +352,15 @@ A.views.charge = () => {
       <div class="stat ${td.load > td.cap ? 'late' : 'today'}"><div class="v">${fmtDur(td.load) || '0'}</div><div class="l">aujourd'hui${td.cap ? ' sur ' + fmtDur(td.cap) : ''}</div></div>
       <div class="stat"><div class="v">${fmtDur(sum(wk, 'load')) || '0'}</div><div class="l">sur 7 jours, capacité ${fmtDur(sum(wk, 'cap')) || '0'}${fixedWeek ? ` dont ${fmtDur(fixedWeek)} de fixe` : ''}</div></div>
       <div class="stat ${overDays.length ? 'late' : ''}"><div class="v">${overDays.length}</div><div class="l">jour${overDays.length > 1 ? 's' : ''} en surcharge sur ${n}</div></div>
-      <div class="stat"><div class="v">${fc.unplanned.length + fc.noEst.length}</div><div class="l">tâches non comptées (sans deadline ou sans durée)</div></div>
+      <div class="stat"><div class="v">${fc.unplanned.length + fc.noEst.length}</div><div class="l">tâches non comptées (sans échéance ou sans durée)</div></div>
     </div>
     <div class="card cc-chart-card">${chart(fc.days)}${legend()}
       ${fc.after ? `<p class="hint" style="margin:8px 0 0">${fmtDur(fc.after)} de travail sont prévues après ces ${n} jours.</p>` : ''}
     </div>
     ${dayDetail(fc.days.find(d => d.date === selDay))}
     ${fc.unplanned.length || fc.noEst.length ? `<details class="sec"><summary><span class="chev">${A.ICON.chev}</span>Non comptées dans la charge<span class="cnt">${fc.unplanned.length + fc.noEst.length}</span></summary>
-      <p class="hint" style="margin:0 0 8px 4px">Ajoute une durée estimée, et une deadline ou un temps par jour, pour qu'elles apparaissent dans le graphique.</p>
-      <div class="list">${[...fc.noEst.map(t => [t, 'sans durée estimée']), ...fc.unplanned.map(t => [t, 'sans deadline (' + fmtDur(remaining(t)) + ')'])].map(([t, why]) => { const s = A.subj(t.subjectId); return `<div class="task cc-item" data-tid="${t.id}" style="--pc:var(--p${s ? s.priority : 0})">
+      <p class="hint" style="margin:0 0 8px 4px">Ajoute une durée estimée, et une échéance ou un temps par jour, pour qu'elles apparaissent dans le graphique.</p>
+      <div class="list">${[...fc.noEst.map(t => [t, 'sans durée estimée']), ...fc.unplanned.map(t => [t, 'sans échéance (' + fmtDur(remaining(t)) + ')'])].map(([t, why]) => { const s = A.subj(t.subjectId); return `<div class="task cc-item" data-tid="${t.id}" style="--pc:var(--p${s ? s.priority : 0})">
         <span class="title">${esc(t.title || 'Sans titre')}</span><span class="hint">${s ? esc(s.title) : 'Boîte de réception'} · ${why}</span>
         <button class="icon" data-act="details" title="Détails">${A.ICON.more}</button></div>`; }).join('')}</div>
     </details>` : ''}

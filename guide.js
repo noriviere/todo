@@ -37,7 +37,7 @@ const SECTIONS = [
   { id: 'premiers-pas', g: 'start', title: 'Premiers pas', html: () => `
     <p>Trois façons de démarrer :</p>
     <ul>
-      <li><b>Reprendre ton Excel</b> : onglet Données, carte « Import depuis Excel ». Tes sujets et tâches arrivent avec leurs deadlines, temps et états.</li>
+      <li><b>Reprendre ton Excel</b> : onglet Données, carte « Import depuis Excel ». Tes sujets et tâches arrivent avec leurs échéances, temps et états.</li>
       <li><b>Partir de zéro</b> : crée tes sujets dans l'onglet Sujets, puis ajoute des tâches avec la saisie rapide.</li>
       <li><b>Voir un exemple</b> : le lien « Voir l'exemple » (en bas de la barre latérale ou dans Données) ouvre l'appli remplie de données fictives, sans toucher aux tiennes.</li>
     </ul>
@@ -73,8 +73,8 @@ const SECTIONS = [
     <p>La page d'accueil, pour voir d'un coup d'œil ce qui presse.</p>
     <ul>
       <li><b>Les 4 chiffres</b> en haut : tâches en retard, du jour, de demain, et à ranger (sans sujet). Un clic sur un chiffre amène à la liste correspondante.</li>
-      <li><b>Les sections</b> : En retard, Aujourd'hui, Demain, 7 prochains jours, Plus tard, Sans deadline. Clique sur un titre pour replier ou déplier. À droite du titre : le temps estimé total de la section.</li>
-      <li>Dans chaque section, les tâches sont classées par deadline, puis par priorité du sujet.</li>
+      <li><b>Les sections</b> : En retard, Aujourd'hui, Demain, 7 prochains jours, Plus tard, Sans échéance. Clique sur un titre pour replier ou déplier. À droite du titre : le temps estimé total de la section.</li>
+      <li>Dans chaque section, les tâches sont classées par échéance, puis par priorité du sujet.</li>
       ${when('pointage', `<li><b>Le bandeau Pointage</b> (si tu travailles ce jour-là) montre ton heure d'arrivée et le bouton pour pointer.</li>`)}
       ${when('charge', `<li><b>La charge des 7 prochains jours</b> : mini graphique, un clic ouvre la vue Charge.</li>`)}
     </ul>
@@ -85,7 +85,7 @@ const SECTIONS = [
     <p>La barre en haut du tableau de bord (et de la boîte de réception) sert à noter une tâche en quelques secondes.</p>
     <ul>
       <li>Tape le titre, choisis éventuellement un sujet, puis <b>Entrée</b> ou le bouton <b>Ajouter</b> (<b>+</b> sur téléphone).</li>
-      <li>Les boutons <b>Auj.</b>, <b>Demain</b> et <b>+7 j</b> posent la deadline en un clic (re-clic pour l'enlever). Le champ date permet n'importe quel jour.</li>
+      <li>Les boutons <b>Auj.</b>, <b>Demain</b> et <b>+7 j</b> posent l'échéance en un clic (re-clic pour l'enlever). Le champ date permet n'importe quel jour.</li>
       <li>Sans sujet, la tâche va dans la <b>boîte de réception</b>, à ranger plus tard.</li>
       <li>Le sujet choisi reste sélectionné pour la tâche suivante.</li>
     </ul>
@@ -100,7 +100,7 @@ const SECTIONS = [
       <li><b>Le titre</b> : clique dedans pour le corriger. Entrée valide, Échap annule.</li>
       <li><b>Le sujet</b> (pastille colorée) : change de sujet ou range une tâche de la boîte de réception.</li>
       <li><b>L'état</b> : À faire, En cours, En attente, Fait, Annulé. En cours affiche un champ <b>%</b> d'avancement ; 100 % la passe en Fait.</li>
-      <li><b>La durée estimée</b> et <b>la deadline</b>. La date est écrite en clair (aujourd'hui, demain, dans 3 j, il y a 2 j…) : rouge si en retard, bleu si c'est aujourd'hui.</li>
+      <li><b>La durée estimée</b> et <b>l'échéance</b>. La date est écrite en clair (aujourd'hui, demain, dans 3 j, il y a 2 j…) : rouge si en retard, bleu si c'est aujourd'hui.</li>
       <li><b>+1j</b> reporte d'un jour (à partir d'aujourd'hui si la tâche est en retard).</li>
       <li>${when('chrono', '<b>▶</b> lance le chrono, ')}<b>⋯</b> ouvre les détails, la boîte <b>archive</b> la tâche.</li>
       <li>La barre de couleur à gauche rappelle la priorité du sujet : ${P(1)} ${P(2)} ${P(3)}, gris pour la boîte de réception.${when('recurrence', ' <b>↻</b> signale une tâche récurrente.')}</li>
@@ -111,7 +111,7 @@ const SECTIONS = [
     <p>Le bouton <b>⋯</b> d'une tâche ouvre un panneau à droite avec tous ses champs :</p>
     <ul>
       <li><b>Titre, sujet, état, avancement</b>.</li>
-      <li><b>Deadline</b>${when('charge', ' et <b>date de début</b> : la date de début sert à répartir le travail dans la vue Charge')}.</li>
+      <li><b>Échéance</b>${when('charge', ' et <b>date de début</b> : la date de début sert à répartir le travail dans la vue Charge')}.</li>
       <li><b>Temps estimé</b>${when('chrono', ' et <b>temps réel passé</b> (le réel se remplit aussi avec le chrono)')}.</li>
       ${when('charge', '<li><b>Répartition du travail</b> : comment le temps restant est placé dans la vue Charge.</li>')}
       ${when('chrono', "<li><b>Temps passé</b> : chrono et ajout de temps à la main, avec l'historique.</li>")}
@@ -144,7 +144,7 @@ const SECTIONS = [
 
   { id: 'recurrence', mod: 'recurrence', g: 'daily', title: 'Tâches récurrentes', html: () => `
     <p>Dans les détails d'une tâche, <b>Répéter</b> propose : chaque jour travaillé, chaque semaine, toutes les 2 semaines, chaque mois, chaque trimestre, chaque année.</p>
-    <p>Quand la tâche est faite (ou annulée), la suivante est créée automatiquement avec la prochaine deadline. Si tu l'as faite en retard, la nouvelle date saute directement à la prochaine échéance à venir.</p>
+    <p>Quand la tâche est faite (ou annulée), la suivante est créée automatiquement avec l'échéance suivante. Si tu l'as faite en retard, la nouvelle date saute directement à la prochaine date à venir.</p>
     <p>Une tâche récurrente porte le symbole <b>↻</b> dans sa ligne.</p>
     <ul>
       <li><b>Chaque jour travaillé</b> saute les week-ends, les jours fériés${when('pointage', ' et tes congés d\'une journée posés dans Pointage (une demi-journée compte comme travaillée)')}.</li>
@@ -167,7 +167,7 @@ const SECTIONS = [
     <ul>
       <li><b>La flèche</b> déplie le sujet : paramètres (Code, Secteur, Produit fini), description, tâches ouvertes, et une ligne pour ajouter une tâche.</li>
       <li><b>Le nom</b> se corrige en cliquant dedans.</li>
-      <li>En un coup d'œil : tâches en retard ⚠, prochaine deadline ⏱, temps restant (estimé moins réel déjà passé, ou estimé × reste du % si la tâche est en cours${when('charge', ' : le même chiffre que dans la Charge')}), nombre de tâches faites, barre d'avancement.</li>
+      <li>En un coup d'œil : tâches en retard ⚠, prochaine échéance ⏱, temps restant (estimé moins réel déjà passé, ou estimé × reste du % si la tâche est en cours${when('charge', ' : le même chiffre que dans la Charge')}), nombre de tâches faites, barre d'avancement.</li>
       <li><b>L'état du sujet</b> est calculé à partir de ses tâches (pondéré par leur durée estimée), tu n'as pas à le tenir à jour.</li>
       <li>La barre d'outils : recherche, « Afficher faites et annulées », Tout déplier / Tout replier, « + Nouveau sujet ».</li>
       <li>Les tâches faites ou annulées d'un sujet peuvent être archivées d'un coup avec « tout archiver ».</li>
@@ -192,7 +192,7 @@ const SECTIONS = [
       <li>${P(2)} <b>Important</b>.</li>
       <li>${P(3)} <b>Standard</b>.</li>
     </ul>
-    <p>La priorité se règle sur le sujet (pastille P1/P2/P3 dans son en-tête) et colore toutes ses tâches. La priorité d'une tâche, elle, vient de sa deadline : plus elle est proche, plus la tâche remonte.</p>` },
+    <p>La priorité se règle sur le sujet (pastille P1/P2/P3 dans son en-tête) et colore toutes ses tâches. La priorité d'une tâche, elle, vient de son échéance : plus elle est proche, plus la tâche remonte.</p>` },
 
   { id: 'inbox', g: 'organize', title: 'Boîte de réception', html: () => `
     <p>Les tâches notées vite fait, sans sujet. Range-les ensuite avec la liste déroulante du sujet sur chaque ligne (ou par glisser-déposer sur un sujet).</p>
@@ -201,9 +201,9 @@ const SECTIONS = [
   { id: 'glisser', g: 'organize', title: 'Glisser-déposer', html: () => `
     <p>Attrape une tâche ou un sujet par la poignée <b>⋮⋮</b> (souris) :</p>
     <ul>
-      <li><b>Tâche sur une autre tâche</b> : elle se place juste avant et prend sa deadline.</li>
+      <li><b>Tâche sur une autre tâche</b> : elle se place juste avant et prend son échéance.</li>
       <li><b>Tâche sur l'en-tête d'un sujet</b> : elle est rangée dans ce sujet.</li>
-      <li><b>Tâche sur une section</b> du tableau de bord (Aujourd'hui, Demain, 7 prochains jours, Sans deadline) : sa deadline change.</li>
+      <li><b>Tâche sur une section</b> du tableau de bord (Aujourd'hui, Demain, 7 prochains jours, Sans échéance) : son échéance change.</li>
       <li><b>Sujet</b> : un trait bleu montre où il va se poser, entre deux sujets. Posé dans un autre groupe P1/P2/P3, il prend cette priorité.</li>
       <li><b>Sous-sujet (étape)</b> : le même trait le place entre deux sous-sujets de son parent, ou dans la liste d'un autre sujet. Lâché sur l'en-tête d'un autre sujet, même replié, il y est rangé à la fin (ses liens « commence après » sont alors retirés, et Annuler les remet).</li>
     </ul>
@@ -228,7 +228,7 @@ const SECTIONS = [
       <li><b>Sur téléphone</b> : le Gantt défile horizontalement, les noms restent à gauche ; le bouton <b>Liste</b> affiche les mêmes infos ligne par ligne.</li>
       <li><b>Exporter en PDF</b> : une version imprimable pour l'équipe (Gantt, tableau des étapes et des jalons). Choisis « Enregistrer en PDF » dans la fenêtre d'impression.</li>
     </ul>
-    <div class="gd-tip"><b>Échéance ferme</b> : dans les détails d'une tâche, coche « Échéance ferme » si sa date est une vraie échéance (cadenas dans la liste). Un ⚠ signale une tâche datée après la fin prévue de son étape.</div>`, tab: 'projets' },
+    <div class="gd-tip"><b>Échéance ferme</b> : dans les détails d'une tâche, coche « À ne pas dépasser » sous « Échéance ferme » si son échéance est une vraie limite (cadenas dans la liste). Un ⚠ signale une tâche datée après la fin prévue de son étape.</div>`, tab: 'projets' },
 
   { id: 'charge', mod: 'charge', g: 'plan', title: 'Vue Charge', html: () => `
     <p>Prévision de ton temps de travail sur 7, 14 ou 28 jours.</p>
@@ -236,7 +236,7 @@ const SECTIONS = [
       <li><b>Le graphique</b> : une barre par jour, empilée par priorité (${P(1)} ${P(2)} ${P(3)}, gris pour la boîte de réception, hachuré pour les créneaux fixes, congés et fériés). Le trait horizontal est la capacité du jour ; une barre au-dessus signale une surcharge.</li>
       <li><b>Clique un jour</b> pour voir sous le graphique ce qui y est prévu et le temps libre ou en trop.</li>
       <li><b>Les chiffres</b> : charge du jour, des 7 jours face à ta capacité, nombre de jours en surcharge, tâches non comptées.</li>
-      <li><b>Non comptées</b> : les tâches sans durée estimée, ou sans deadline (et sans temps par jour). Ajoute-leur ces infos pour qu'elles entrent dans le graphique.</li>
+      <li><b>Non comptées</b> : les tâches sans durée estimée, ou sans échéance (et sans temps par jour). Ajoute-leur ces infos pour qu'elles entrent dans le graphique.</li>
     </ul>
     <p>Le temps compté est le <b>temps restant</b> : estimé moins réel déjà passé (ou estimé × reste du % si la tâche est en cours).</p>
     ${see(['repartition', 'creneaux'])}`, tab: 'charge' },
@@ -244,9 +244,9 @@ const SECTIONS = [
   { id: 'repartition', mod: 'charge', g: 'plan', title: 'Répartition du travail', html: () => `
     <p>Dans les détails d'une tâche, trois façons de placer son temps restant :</p>
     <ul>
-      <li><b>Tout le jour de la deadline</b> (par défaut).</li>
-      <li><b>Réparti entre la date de début et la deadline</b> : le temps est étalé sur les jours travaillés. Sans date de début, on part d'aujourd'hui.</li>
-      <li><b>Un temps fixe par jour</b> (ex. <code>2h</code>) jusqu'à épuisement ; la vue Charge prévient si ça finit après la deadline.</li>
+      <li><b>Tout le jour de l'échéance</b> (par défaut).</li>
+      <li><b>Réparti entre la date de début et l'échéance</b> : le temps est étalé sur les jours travaillés. Sans date de début, on part d'aujourd'hui.</li>
+      <li><b>Un temps fixe par jour</b> (ex. <code>2h</code>) jusqu'à épuisement ; la vue Charge prévient si ça finit après l'échéance.</li>
     </ul>
     <p>Une tâche en retard est placée sur aujourd'hui. Les jours de congé, fériés ou entièrement pris par des créneaux fixes ne reçoivent pas de travail.</p>` },
 
@@ -341,7 +341,7 @@ const SECTIONS = [
     <p>Reprend ton fichier ToDoList.xlsm (feuilles « To do list » et « Archive ») :</p>
     <ul>
       <li>Chaque ligne <b>P</b>, <b>I</b> ou <b>A</b> devient un sujet : P → ${P(1)}, I → ${P(2)}, A → ${P(3)}.</li>
-      <li>Les lignes <b>S</b> en dessous deviennent ses tâches : deadline, temps estimé (en heures), état, avancement, commentaires.</li>
+      <li>Les lignes <b>S</b> en dessous deviennent ses tâches : échéance, temps estimé (en heures), état, avancement, commentaires.</li>
       <li>Les colonnes Projet (renommée Code dans l'appli), Secteur et Produit fini deviennent les paramètres du sujet, utilisables dans les filtres.</li>
       <li>La feuille Archive arrive directement dans les archives.</li>
     </ul>
@@ -427,7 +427,7 @@ function build() {
     <div class="gd-body" id="gd-body" tabindex="-1">
       <div id="gd-top">
         <div class="gd-intro">
-          <p><b>Ma To-Do</b> remplace ton fichier Excel : des <b>sujets</b> classés par priorité, qui contiennent des <b>tâches</b> avec deadline et temps estimé. Le but : ne rien oublier et voir tout de suite ce qui est en retard ou prévu aujourd'hui.</p>
+          <p><b>Ma To-Do</b> remplace ton fichier Excel : des <b>sujets</b> classés par priorité, qui contiennent des <b>tâches</b> avec échéance et temps estimé. Le but : ne rien oublier et voir tout de suite ce qui est en retard ou prévu aujourd'hui.</p>
           <p>Tout s'enregistre seul. Rien n'est supprimé : on archive. Les petits <span style="display:inline-flex;vertical-align:middle;color:var(--accent);width:16px">${I_INFO}</span> dans l'appli ouvrent l'explication de la case ou du bouton à côté.</p>
         </div>
         <div class="gd-feats">${FEATS.filter(f => live().some(s => s.id === f[0])).map(([id, icon, t, d]) => `<button type="button" class="gd-feat" data-gd-to="${id}"><b>${ic(icon)}${esc(t)}</b><span>${esc(d)}</span></button>`).join('')}</div>
