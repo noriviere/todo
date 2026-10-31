@@ -338,6 +338,7 @@ body.demo .brand .dot{background:var(--warn)}
 <input type="file" id="file" accept=".json,application/json" hidden>
 
 <script src="demo.js"></script>
+<script src="metier.js"></script>
 <script>
 (function(){
 'use strict';
@@ -352,27 +353,14 @@ const BACKUP_KEY = DEMO ? 'todo-noel-demo-avant-import' : 'todo-noel-v1-avant-im
 const store = DEMO ? sessionStorage : localStorage;
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-const nowIso = () => new Date().toISOString();
-const pad = n => String(n).padStart(2, '0');
-const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const M = window.todoMetier;
+const { uid, nowIso } = M;
+const { pad, ymd, parseYmd, addDays, isDate } = M;
 const today = () => ymd(new Date());
-const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
-const addDays = (s, n) => { const d = parseYmd(s); d.setDate(d.getDate() + n); return ymd(d); };
 const diffDays = (a, b) => Math.round((parseYmd(a) - parseYmd(b)) / 86400000);
-const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
-// Durées : "1h30", "1.5h", "45min", "45m", "2" (= heures), "1j" (= une journée de travail)
-function parseDur(s) {
-  s = String(s ?? '').trim().toLowerCase().replace(',', '.').replace(/\s+/g, '');
-  if (!s) return null;
-  let m;
-  if ((m = s.match(/^(\d+(?:\.\d+)?)h(\d{1,2})?(?:m|min|mn)?$/))) return Math.round(parseFloat(m[1]) * 60 + (m[2] ? +m[2] : 0));
-  if ((m = s.match(/^(\d+)(?:m|min|mn)$/))) return +m[1];
-  if ((m = s.match(/^(\d+(?:\.\d+)?)j$/))) return Math.round(parseFloat(m[1]) * db.settings.workdayMin);
-  if ((m = s.match(/^\d+(?:\.\d+)?$/))) return Math.round(parseFloat(s) * 60);
-  return NaN;
-}
+// Durées : "1h30", "45min", "2" (= heures), "1j" (= une journée de travail des réglages)
+const parseDur = v => M.parseDur(v, db.settings.workdayMin);
 function fmtDur(min) {
   if (min == null || isNaN(min)) return '';
   if (min < 60) return min + 'min';
@@ -438,85 +426,7 @@ function modOn(id) {
 const navOn = n => !n[3] || modOn(n[3]);
 
 /* ---------- Données ---------- */
-function blank() {
-  return {
-    version: 1,
-    subjects: [],
-    tasks: [],
-    settings: { theme: 'auto', workdayMin: 420, lastExport: null, modules: {} },
-    ui: { expanded: [], showClosed: false, search: '', dims: { code: '', secteur: '', produit: '' } }
-  };
-}
-function normSubject(s) {
-  return Object.assign({
-    id: uid(), title: '', priority: 3, description: '', code: '', secteur: '', produit: '', archived: false, archivedAt: null,
-    createdAt: nowIso(), updatedAt: nowIso(), source: null, parentId: null
-  }, s);
-}
-function normTask(t) {
-  return Object.assign({
-    id: uid(), subjectId: null, title: '', notes: '',
-    deadline: null, startDate: null,
-    estimateMin: null,
-    status: 'todo', progress: 0,
-    archived: false, archivedAt: null,
-    createdAt: nowIso(), updatedAt: nowIso(), doneAt: null,
-    // Champs réservés au chrono et au temps réel (module à venir)
-    realMin: 0, timeLogs: [], timerStart: null,
-    // Paramètre de la future prévision de charge :
-    // 'deadline' = tout le jour J, 'spread' = réparti de startDate à deadline, 'daily' = dailyMin par jour
-    plan: { mode: 'deadline', dailyMin: null },
-    source: null
-  }, t);
-}
-function migrate(d) {
-  const b = blank();
-  d = Object.assign(b, d);
-  d.settings = Object.assign(blank().settings, d.settings);
-  if (!d.settings.modules || typeof d.settings.modules !== 'object') d.settings.modules = {};
-  d.ui = Object.assign(blank().ui, d.ui);
-  // Ancienne dimension « Projet » (Excel) renommée « Code » : « Projet » désigne désormais le module Projets
-  const dims = d.ui.dims || {};
-  if (dims.projet != null) { if (!dims.code) dims.code = dims.projet; delete dims.projet; }
-  d.ui.dims = Object.assign({ code: '', secteur: '', produit: '' }, dims);
-  d.subjects = (d.subjects || []).map(s => {
-    if (s && s.projet != null) { if (!s.code) s.code = s.projet; delete s.projet; }
-    return normSubject(s);
-  });
-  d.tasks = (d.tasks || []).map(normTask);
-  migrateProjects(d);
-  return d;
-}
-// Anciens projets séparés (db.projects) : chaque projet devient un sujet en mode projet, ses étapes ses sous-sujets
-function migrateProjects(d) {
-  const ps = Array.isArray(d.projects) ? d.projects : [];
-  for (const p of ps) {
-    if (!p || !p.id) continue;
-    const steps = d.subjects.filter(s => s.projectId === p.id);
-    const pj = { owner: p.owner || '', color: p.color || '', milestones: Array.isArray(p.milestones) ? p.milestones : [] };
-    let s = d.subjects.find(x => x.id === p.id);
-    if (!s) {
-      const common = k => { const v = [...new Set(steps.map(x => (x[k] || '').trim()))]; return v.length === 1 ? v[0] : ''; };
-      s = normSubject({ id: p.id, title: p.name || 'Projet', priority: steps.length ? Math.min(...steps.map(x => +x.priority || 3)) : 2,
-        code: common('code'), secteur: common('secteur'), produit: common('produit'),
-        archived: !!p.archived, archivedAt: p.archivedAt || null, createdAt: p.createdAt || nowIso() });
-      d.subjects.push(s);
-    }
-    s.isProject = true; s.pj = pj; s.parentId = null;
-    steps.forEach(x => {
-      // Un seul niveau : une étape qui a ses propres sous-sujets reste au premier niveau
-      if (x === s || d.subjects.some(y => y.parentId === x.id && y !== x)) return;
-      const old = x.parentId && x.parentId !== p.id ? d.subjects.find(y => y.id === x.parentId) : null;
-      if (old) {   // rangée ailleurs entre-temps (autre appareil) : ses liens d'étape ne valent plus
-        x.after = []; x.lagDays = 0;
-        ((old.pj && old.pj.milestones) || []).forEach(m => { if (Array.isArray(m.before)) m.before = m.before.filter(id => id !== x.id); });
-      }
-      x.parentId = p.id;
-    });
-  }
-  d.subjects.forEach(s => { delete s.projectId; });
-  delete d.projects;
-}
+const { blank, normSubject, normTask, migrate } = M;
 function load() {
   const s = store.getItem(KEY);
   if (s) {
@@ -572,16 +482,16 @@ window.addEventListener('storage', e => { if (e.key === KEY) { db = load(); rend
 
 const subj = id => id ? db.subjects.find(s => s.id === id) : null;
 const task = id => db.tasks.find(t => t.id === id);
-const isOpen = t => t.status === 'todo' || t.status === 'doing' || t.status === 'waiting';
+const isOpen = M.isOpen;
 // Une tâche est visible si elle n'est pas archivée et que son sujet ne l'est pas non plus
 const visible = t => !t.archived && !(subj(t.subjectId)?.archived);
 const activeSubjects = () => db.subjects.filter(s => !s.archived)
   .sort((a, b) => a.priority - b.priority || a.title.localeCompare(b.title, 'fr'));
 // Sous-sujets : un seul niveau. Un parent introuvable ou lui-même rangé ailleurs ne compte pas (le sujet reste au premier niveau).
-const parentOf = s => { const p = s && s.parentId && s.parentId !== s.id ? subj(s.parentId) : null; return p && !p.parentId ? p : null; };
+const parentOf = s => M.parentOf(s, db);
 // Premier niveau à l'affichage : sans parent, ou dont le parent est archivé (sous-sujet restauré seul)
 const isTop = s => { const p = parentOf(s); return !p || p.archived; };
-const childrenOf = (s, all) => db.subjects.filter(x => x.parentId === s.id && x !== s && (all || !x.archived) && parentOf(x) === s);
+const childrenOf = (s, all) => M.childrenOf(s, db, all);
 const subjLabel = s => s ? (parentOf(s) ? parentOf(s).title + ' › ' : '') + (s.title || 'Sans titre') : '';
 // Peut devenir sous-sujet : pas de sous-sujets à lui (même archivés), pas en mode projet ; la cible est de premier niveau
 const canBeChild = s => !childrenOf(s, true).length && !db.subjects.some(x => x.parentId === s.id && x !== s) && !s.isProject;
@@ -632,55 +542,11 @@ function dimsBar() {
   return `<div class="dims-bar"><span class="lbl">Filtrer :</span>${sel}${dimsActive() ? '<button type="button" class="clear" data-act="dims-clear">Tout afficher</button>' : ''}</div>`;
 }
 
-function bucket(t) {
-  if (!t.deadline) return 'nodate';
-  const d = t.deadline, td = today();
-  if (d < td) return 'late';
-  if (d === td) return 'today';
-  if (d === addDays(td, 1)) return 'tomorrow';
-  if (d <= addDays(td, 7)) return 'week';
-  return 'later';
-}
-function taskCmp(a, b) {
-  const pa = subj(a.subjectId)?.priority ?? 4, pb = subj(b.subjectId)?.priority ?? 4;
-  return (a.deadline || '9999').localeCompare(b.deadline || '9999')
-    || (a.order || 0) - (b.order || 0)
-    || pa - pb
-    || (b.status === 'doing') - (a.status === 'doing')
-    || a.createdAt.localeCompare(b.createdAt);
-}
+const bucket = t => M.bucket(t, today());
+const taskCmp = (a, b) => M.taskCmp(db)(a, b);   // pour les modules ; la page trie avec M.taskCmp(db)
 
-// État d'un sujet déduit de ses tâches (hors archivées)
-function subjectStats(s) {
-  // Un parent compte aussi les tâches de ses sous-sujets actifs
-  const ids = new Set([s.id, ...childrenOf(s).map(c => c.id)]);
-  const ts = db.tasks.filter(t => ids.has(t.subjectId) && !t.archived);
-  const live = ts.filter(t => t.status !== 'cancelled');
-  const open = ts.filter(isOpen);
-  const done = live.filter(t => t.status === 'done').length;
-  let status, progress = 0, estMin = 0;
-  if (!ts.length) status = 'empty';
-  else if (!live.length) status = 'cancelled';
-  else {
-    let w = 0, p = 0;
-    for (const t of live) {
-      const wt = t.estimateMin || 60;
-      w += wt;
-      p += wt * (t.status === 'done' ? 100 : t.status === 'doing' ? (t.progress || 0) : 0);
-    }
-    progress = Math.round(p / w);
-    estMin = w;
-    if (done === live.length) status = 'done';
-    else if (done > 0 || live.some(t => t.status === 'doing')) status = 'doing';
-    else if (open.length && open.every(t => t.status === 'waiting')) status = 'waiting';
-    else status = 'todo';
-  }
-  const td = today();
-  const late = open.filter(t => t.deadline && t.deadline < td).length;
-  const next = open.map(t => t.deadline).filter(Boolean).sort()[0] || null;
-  const remainMin = open.reduce((a, t) => a + (t.estimateMin || 0) * (1 - (t.status === 'doing' ? t.progress : 0) / 100), 0);
-  return { total: ts.length, live: live.length, open: open.length, done, status, progress, late, next, remainMin: Math.round(remainMin), estMin, children: ids.size - 1 };
-}
+// État d'un sujet déduit de ses tâches (règle dans metier.js)
+const subjectStats = s => M.subjectStats(s, db, today());
 
 /* ---------- Actions ---------- */
 function createTask(o) {
@@ -695,45 +561,11 @@ function createSubject(o) {
   save();
   return s;
 }
+// Modifie un champ d'une tâche (règle dans metier.js) ; une saisie refusée affiche son message
 function setTaskField(t, f, v) {
-  switch (f) {
-    case 'title': t.title = v.trim(); break;
-    case 'notes': t.notes = v; break;
-    case 'deadline': t.deadline = isDate(v) ? v : null; break;
-    case 'startDate': t.startDate = isDate(v) ? v : null; break;
-    case 'subjectId': t.subjectId = v || null; break;
-    case 'estimate': {
-      const m = parseDur(v);
-      if (Number.isNaN(m)) { toast('Durée non comprise. Exemples : 1h30, 45min, 2 (heures)'); return false; }
-      t.estimateMin = m; break;
-    }
-    case 'real': {
-      const m = parseDur(v);
-      if (Number.isNaN(m)) { toast('Durée non comprise. Exemples : 1h30, 45min, 2 (heures)'); return false; }
-      t.realMin = m || 0; break;
-    }
-    case 'status':
-      t.status = v;
-      if (v === 'done') { t.progress = 100; t.doneAt = nowIso(); }
-      else { t.doneAt = null; if (v === 'todo') t.progress = 0; if (v === 'doing' && t.progress >= 100) t.progress = 90; }
-      break;
-    case 'progress': {
-      const p = Math.max(0, Math.min(100, Math.round(+v || 0)));
-      t.progress = p;
-      if (p >= 100) { t.status = 'done'; t.doneAt = nowIso(); }
-      else if (p > 0 && t.status === 'todo') t.status = 'doing';
-      break;
-    }
-    case 'planMode': t.plan = Object.assign({}, t.plan, { mode: v }); break;
-    case 'planDaily': {
-      const m = parseDur(v);
-      if (Number.isNaN(m)) { toast('Durée non comprise.'); return false; }
-      t.plan = Object.assign({}, t.plan, { dailyMin: m }); break;
-    }
-    default: return false;
-  }
-  t.updatedAt = nowIso();
-  return true;
+  const r = M.setTaskField(t, f, v, db);
+  if (typeof r === 'string') { toast(r); return false; }
+  return r;
 }
 function setSubjectField(s, f, v) {
   if (f === 's-parent') {
@@ -838,7 +670,7 @@ const qaState = { subject: '', date: '' };
 const views = {};
 
 views.dashboard = () => {
-  const tasks = db.tasks.filter(t => visible(t) && isOpen(t) && hooks.dashFilter.every(f => f(t))).sort(taskCmp);
+  const tasks = db.tasks.filter(t => visible(t) && isOpen(t) && hooks.dashFilter.every(f => f(t))).sort(M.taskCmp(db));
   const groups = { late: [], today: [], tomorrow: [], week: [], later: [], nodate: [] };
   tasks.forEach(t => groups[bucket(t)].push(t));
   const inbox = db.tasks.filter(t => visible(t) && isOpen(t) && !t.subjectId).length;
@@ -945,7 +777,7 @@ function parentField(s, st) {
 function subjectBlock(s, st, open) {
   const p = s.priority, child = !isTop(s);
   const tasks = db.tasks.filter(t => t.subjectId === s.id && !t.archived);
-  const openT = tasks.filter(isOpen).sort(taskCmp);
+  const openT = tasks.filter(isOpen).sort(M.taskCmp(db));
   const closedT = tasks.filter(t => !isOpen(t)).sort((a, b) => (b.doneAt || b.updatedAt).localeCompare(a.doneAt || a.updatedAt));
   const stLabel = st.status === 'empty' ? 'Vide' : STATUS[st.status];
   return `<div class="subject ${open ? 'open' : ''}${child ? ' child' : ''}" data-sid="${s.id}" style="--pc:var(--p${p});--pbg:var(--p${p}-bg)">
@@ -959,7 +791,7 @@ function subjectBlock(s, st, open) {
         ${Object.keys(DIMS).some(k => dimVal(s, k)) ? `<span class="s-tags" title="Code · Secteur · Produit fini">${Object.keys(DIMS).map(k => esc(dimVal(s, k))).filter(Boolean).join(' · ')}</span>` : ''}
         ${st.late ? `<span class="late">⚠ ${st.late} en retard</span>` : ''}
         ${st.next ? `<span title="Prochaine deadline">⏱ ${relDate(st.next)}</span>` : ''}
-        ${st.remainMin ? `<span title="Temps estimé restant">${fmtDur(st.remainMin)}</span>` : ''}
+        ${st.remainMin ? `<span title="Temps restant">${fmtDur(st.remainMin)}</span>` : ''}
         ${st.children ? `<span class="s-kidn" title="Sous-sujets (comptés dans l'avancement)">${ICON.list.replace('<svg', '<svg width="13" height="13"')} ${st.children}</span>` : ''}
         <span title="${st.children ? 'Tâches faites, sous-sujets compris' : 'Tâches faites'}">${st.done}/${st.live}</span>
       </span>
@@ -987,7 +819,7 @@ function subjectBlock(s, st, open) {
 }
 
 views.inbox = () => {
-  const tasks = db.tasks.filter(t => !t.archived && !t.subjectId && isOpen(t)).sort(taskCmp);
+  const tasks = db.tasks.filter(t => !t.archived && !t.subjectId && isOpen(t)).sort(M.taskCmp(db));
   return `<h1>Boîte de réception</h1>
     <p class="sub">Les tâches notées vite fait, à ranger dans un sujet avec la liste déroulante.</p>
     ${quickAdd('')}
@@ -1447,7 +1279,7 @@ window.todoApp = {
 };
 // Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
 const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [], subjectBody: [] };
-Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, save, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats,
+Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, save, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats, remaining: M.remaining, taskCmp,
   parentOf, childrenOf, subjLabel, setParent, canNest, expandTo, archiveSubject, createSubject,
   esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur });
 

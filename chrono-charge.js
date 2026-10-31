@@ -132,12 +132,8 @@ function stopTimer(t, quiet) {
 }
 
 /* ---------- Prévision de charge ---------- */
-function remaining(t) {
-  const est = t.estimateMin || 0;
-  if (!est) return 0;
-  if (t.status === 'doing' && t.progress > 0) return Math.round(est * (1 - t.progress / 100));
-  return Math.max(0, est - (t.realMin || 0));
-}
+// Temps restant : règle unique de metier.js, la même que la carte sujet
+const remaining = A.remaining;
 function lastWorkDay(ds, floor) {
   let d = ds;
   for (let i = 0; i < 14 && d > floor && !canWork(d); i++) d = addDays(d, -1);
@@ -335,7 +331,7 @@ A.views.charge = () => {
   const act = slots().filter(s => !s.archived), arch = slots().filter(s => s.archived);
   const fixedWeek = sum(wk, 'fixedMin');
   return `<h1>Charge de travail</h1>
-    <p class="sub">Temps estimé restant des tâches ouvertes, réparti selon le réglage de chaque tâche, plus tes créneaux fixes.</p>
+    <p class="sub">Temps restant des tâches ouvertes, réparti selon le réglage de chaque tâche, plus tes créneaux fixes.</p>
     <div class="toolbar">
       <div class="chips">${[7, 14, 28].map(x => `<button class="chip ${x === n ? 'on' : ''}" data-act="cc-range" data-n="${x}">${x} jours</button>`).join('')}</div>
     </div>

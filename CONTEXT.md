@@ -33,6 +33,10 @@ _À éviter_ : deadline, date limite
 **Temps estimé / temps réel** :
 Le temps prévu pour une tâche, et le temps vraiment passé (mesuré par le chrono ou saisi à la main).
 
+**Temps restant** :
+Ce qu'il reste à passer sur une tâche ouverte : le temps estimé × la part qui reste si elle est en cours avec un pourcentage, sinon le temps estimé moins le temps réel. Jamais négatif : une tâche qui a dépassé son estimation n'a plus de temps restant. Le même chiffre partout (carte sujet, Charge).
+_À éviter_ : reste à faire, temps estimé (pour ce chiffre)
+
 **Boîte de réception** :
 L'endroit des tâches qui n'ont pas encore de sujet ; on les range dans un sujet plus tard.
 _À éviter_ : inbox, tâches orphelines

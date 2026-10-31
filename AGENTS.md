@@ -31,7 +31,7 @@ Noel launches each skill. Your part is the reminder: when a step finishes (or wh
 /mattpocock-skills:code-review
 ```
 
-Keep the `/mattpocock-skills:` prefix on steps 1 to 5: the bare `/code-review` launches a different, built-in skill. `/retro` is a repo skill and takes no prefix. Leave the step's own work to the skill. Agent context and tooling changes (this file, CI checks, hooks) need no thread of their own.
+Keep the `/mattpocock-skills:` prefix on steps 1 to 5: the bare `/code-review` launches a different, built-in skill. `/retro` is a repo skill and takes no prefix; where the session does not offer it, read `.claude/skills/retro/SKILL.md` and follow it. Leave the step's own work to the skill. Agent context and tooling changes (this file, CI checks, hooks) need no thread of their own.
 
 PR bodies follow the `pr` skill (`.claude/skills/pr`).
 
@@ -47,7 +47,8 @@ PR bodies follow the `pr` skill (`.claude/skills/pr`).
 
 ## Where things are
 
-- `index.html`: the core (data model, views, `MODULES` registry, `modOn`). It exposes `window.todoApp` with the hooks and events (`todo:saved`, `todo:rendered`, `todo:modules`) that module files plug into.
+- `metier.js`: pure domain rules (data and migration, subject state, remaining time, due-date buckets, task order, task field edits), taking data and day as parameters; tested under Node in `tests/metier.test.js`. Loaded before the core.
+- `index.html`: the core (views, `MODULES` registry, `modOn`, same-name relays to `metier.js`). It exposes `window.todoApp` with the hooks and events (`todo:saved`, `todo:rendered`, `todo:modules`) that module files plug into.
 - One file per module, loaded after the core: `chrono-charge.js` (Chrono, Charge), `pointage.js` + `pointage-import.js` (Pointage et congés), `organisation.js` (dashboard filters, drag-and-drop, Récurrence), `projets.js` + `projets-plan.js` (Gestion de projet; `projets-plan.js` holds the pure planning calculations).
 - Data: `sync.js` (sync through the private GitHub repo), `backup.js` (local backup folder), `excel-import.js` (import of the original Excel list). Data lives in `localStorage` key `todo-noel-v1`.
 - `guide.js` (user guide), `demo.js` (demo data), `sw.js` (offline cache, network first).
