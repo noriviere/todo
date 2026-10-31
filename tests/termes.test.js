@@ -28,28 +28,34 @@ function verifier(lus, ou) {
   }
 }
 
+// Ouvre un écran par son adresse (#dashboard, #sujets…)
+const aller = (page, ecran) => page.goto(page.url().replace(/#.*$/, '') + '#' + ecran);
+
 test('aucun écran, ni le panneau d\'une tâche, ni le guide n\'affiche deadline, inbox, workload ou date limite', async () => {
   const page = await openApp(null, { query: '?demo' });
   const ecrans = await page.$$eval('.side .nav a[href^="#"]', as => as.map(a => a.getAttribute('href').slice(1)));
   assert.ok(ecrans.includes('charge') && ecrans.includes('projets') && ecrans.includes('pointage'), 'tous les modules actifs en démo : ' + ecrans);
   for (const e of ecrans) {
-    await page.goto(page.url().replace(/#.*$/, '') + '#' + e);
+    await aller(page, e);
     await page.waitForTimeout(50);
     verifier(await textes(page, 'body'), 'écran ' + e);
   }
   // Ouvrir un projet du module Gestion de projet (Gantt, étapes)
-  await page.goto(page.url().replace(/#.*$/, '') + '#projets');
+  await aller(page, 'projets');
   await page.click('#main [data-pj="open-project"]');
   verifier(await textes(page, 'body'), 'projet ouvert');
   // Panneau d'une tâche, avec la répartition de la Charge et la Récurrence
-  await page.goto(page.url().replace(/#.*$/, '') + '#sujets');
+  await aller(page, 'sujets');
   await page.locator('#main [data-act="details"]').first().click();
   assert.ok(await page.locator('#drawer select option[value="spread"]').count(), 'répartition de la Charge visible');
   verifier(await textes(page, '#drawer'), 'panneau d\'une tâche');
   await page.click('#drawer [data-act="close-drawer"]');
-  // Le guide : toutes ses sections sont dans la page une fois ouvert
+  // Le guide : toutes ses sections sont dans la page une fois ouvert ; un échec nomme la section
   await page.click('.gd-open');
-  assert.ok(await page.locator('#guide [data-gd-sec]').count() > 10, 'sections du guide');
-  verifier(await textes(page, '#guide'), 'guide');
+  const sections = await page.$$eval('#guide [data-gd-sec]', ss => ss.map(s => s.id));
+  assert.ok(sections.length > 10, 'sections du guide');
+  verifier(await textes(page, '#guide .gd-head'), 'guide, en-tête');
+  verifier(await textes(page, '#gd-top'), 'guide, accueil et sommaire');
+  for (const id of sections) verifier(await textes(page, '#' + id), 'guide, section ' + id.replace(/^gd-/, ''));
   assert.deepEqual(page.errors, []);
 });
