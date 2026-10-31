@@ -184,38 +184,7 @@ function migrate(d) {
     return normSubject(s);
   });
   d.tasks = (d.tasks || []).map(normTask);
-  migrateProjects(d);
   return d;
-}
-// Anciens projets séparés (db.projects) : chaque projet devient un sujet en mode projet, ses étapes ses sous-sujets
-function migrateProjects(d) {
-  const ps = Array.isArray(d.projects) ? d.projects : [];
-  for (const p of ps) {
-    if (!p || !p.id) continue;
-    const steps = d.subjects.filter(s => s.projectId === p.id);
-    const pj = { owner: p.owner || '', color: p.color || '', milestones: Array.isArray(p.milestones) ? p.milestones : [] };
-    let s = d.subjects.find(x => x.id === p.id);
-    if (!s) {
-      const common = k => { const v = [...new Set(steps.map(x => (x[k] || '').trim()))]; return v.length === 1 ? v[0] : ''; };
-      s = normSubject({ id: p.id, title: p.name || 'Projet', priority: steps.length ? Math.min(...steps.map(x => +x.priority || 3)) : 2,
-        code: common('code'), secteur: common('secteur'), produit: common('produit'),
-        archived: !!p.archived, archivedAt: p.archivedAt || null, createdAt: p.createdAt || nowIso() });
-      d.subjects.push(s);
-    }
-    s.isProject = true; s.pj = pj; s.parentId = null;
-    steps.forEach(x => {
-      // Un seul niveau : une étape qui a ses propres sous-sujets reste au premier niveau
-      if (x === s || d.subjects.some(y => y.parentId === x.id && y !== x)) return;
-      const old = x.parentId && x.parentId !== p.id ? d.subjects.find(y => y.id === x.parentId) : null;
-      if (old) {   // rangée ailleurs entre-temps (autre appareil) : ses liens d'étape ne valent plus
-        x.after = []; x.lagDays = 0;
-        ((old.pj && old.pj.milestones) || []).forEach(m => { if (Array.isArray(m.before)) m.before = m.before.filter(id => id !== x.id); });
-      }
-      x.parentId = p.id;
-    });
-  }
-  d.subjects.forEach(s => { delete s.projectId; });
-  delete d.projects;
 }
 
 /* ---------- Tâches ---------- */

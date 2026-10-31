@@ -3,45 +3,6 @@ const assert = require('node:assert/strict');
 const { openApp, closeAll, day } = require('./helpers');
 after(closeAll);
 
-/* ---------- Task 1 : migration des anciens projets ---------- */
-const legacy = () => ({
-  version: 1,
-  projects: [{ id: 'p1', name: 'Achat', owner: 'Moi', color: '#23915f', archived: false, milestones: [{ id: 'm', name: 'L', date: '2027-01-04', before: ['a'] }] }],
-  subjects: [{ id: 'a', title: 'CDC', priority: 2, projectId: 'p1', code: 'X' }, { id: 'b', title: 'FAT', priority: 1, projectId: 'p1', code: 'X' }],
-  tasks: [], settings: {}, ui: {}
-});
-
-test('un ancien projet devient un sujet en mode projet, ses étapes ses sous-sujets', async () => {
-  const page = await openApp(legacy());
-  const d = await page.db();
-  const p = d.subjects.find(s => s.id === 'p1');
-  assert.equal(p.title, 'Achat');
-  assert.equal(p.isProject, true);
-  assert.equal(p.pj.owner, 'Moi');
-  assert.equal(p.pj.color, '#23915f');
-  assert.equal(p.pj.milestones[0].before[0], 'a');
-  assert.equal(p.priority, 1);
-  assert.equal(p.code, 'X');
-  assert.ok(!p.parentId);
-  for (const id of ['a', 'b']) {
-    const s = d.subjects.find(x => x.id === id);
-    assert.equal(s.parentId, 'p1');
-    assert.equal('projectId' in s, false);
-  }
-  assert.equal('projects' in d, false);
-  assert.deepEqual(page.errors, []);
-});
-
-test('la migration est idempotente', async () => {
-  const page = await openApp(legacy());
-  const n = await page.evaluate(() => {
-    const A = window.todoApp, raw = JSON.stringify(A.getData());
-    A.replaceData(JSON.parse(raw));
-    return A.getData().subjects.length;
-  });
-  assert.equal(n, 3);
-});
-
 /* ---------- Task 2 : sous-sujets dans l'onglet Sujets ---------- */
 const nest = (extra = {}) => Object.assign({
   version: 1,

@@ -109,22 +109,6 @@ test('migration : dimension « Projet » renommée « Code », données vides co
   assert.equal(d.subjects[0].priority, 3);
 });
 
-test('migration : un ancien projet séparé devient un sujet en mode projet, ses étapes ses sous-sujets', () => {
-  const d = M.migrate({
-    projects: [{ id: 'PJ', name: 'Chantier', owner: 'Léa', milestones: [{ id: 'm', date: '2026-12-01', before: ['E1'] }] }],
-    subjects: [{ id: 'E1', title: 'Étape 1', projectId: 'PJ', priority: 2, code: 'K' }, { id: 'E2', title: 'Étape 2', projectId: 'PJ', priority: 1, code: 'K' }]
-  });
-  const pj = d.subjects.find(s => s.id === 'PJ');
-  assert.equal(pj.title, 'Chantier');
-  assert.equal(pj.isProject, true);
-  assert.equal(pj.priority, 1);
-  assert.equal(pj.code, 'K');
-  assert.equal(pj.pj.owner, 'Léa');
-  assert.deepEqual(d.subjects.filter(s => s.parentId === 'PJ').map(s => s.id), ['E1', 'E2']);
-  assert.ok(!('projects' in d));
-  assert.ok(d.subjects.every(s => !('projectId' in s)));
-});
-
 test('modification d\'un champ : statut et pourcentage', () => {
   const d = M.blank();
   const t = tache({ status: 'doing', progress: 40 });
