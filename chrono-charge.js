@@ -331,7 +331,7 @@ A.views.charge = () => {
   const act = slots().filter(s => !s.archived), arch = slots().filter(s => s.archived);
   const fixedWeek = sum(wk, 'fixedMin');
   return `<h1>Charge de travail</h1>
-    <p class="sub">Temps estimé restant des tâches ouvertes, réparti selon le réglage de chaque tâche, plus tes créneaux fixes.</p>
+    <p class="sub">Temps restant des tâches ouvertes, réparti selon le réglage de chaque tâche, plus tes créneaux fixes.</p>
     <div class="toolbar">
       <div class="chips">${[7, 14, 28].map(x => `<button class="chip ${x === n ? 'on' : ''}" data-act="cc-range" data-n="${x}">${x} jours</button>`).join('')}</div>
     </div>

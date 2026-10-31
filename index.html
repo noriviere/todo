@@ -543,9 +543,7 @@ function dimsBar() {
 }
 
 const bucket = t => M.bucket(t, today());
-// Comparateur reconstruit seulement quand les données sont remplacées (db réaffecté), pas à chaque comparaison
-let cmpFor = null, cmpFn = null;
-const taskCmp = (a, b) => { if (cmpFor !== db) { cmpFor = db; cmpFn = M.taskCmp(db); } return cmpFn(a, b); };
+const taskCmp = (a, b) => M.taskCmp(db)(a, b);   // pour les modules ; la page trie avec M.taskCmp(db)
 
 // État d'un sujet déduit de ses tâches (règle dans metier.js)
 const subjectStats = s => M.subjectStats(s, db, today());
@@ -672,7 +670,7 @@ const qaState = { subject: '', date: '' };
 const views = {};
 
 views.dashboard = () => {
-  const tasks = db.tasks.filter(t => visible(t) && isOpen(t) && hooks.dashFilter.every(f => f(t))).sort(taskCmp);
+  const tasks = db.tasks.filter(t => visible(t) && isOpen(t) && hooks.dashFilter.every(f => f(t))).sort(M.taskCmp(db));
   const groups = { late: [], today: [], tomorrow: [], week: [], later: [], nodate: [] };
   tasks.forEach(t => groups[bucket(t)].push(t));
   const inbox = db.tasks.filter(t => visible(t) && isOpen(t) && !t.subjectId).length;
@@ -779,7 +777,7 @@ function parentField(s, st) {
 function subjectBlock(s, st, open) {
   const p = s.priority, child = !isTop(s);
   const tasks = db.tasks.filter(t => t.subjectId === s.id && !t.archived);
-  const openT = tasks.filter(isOpen).sort(taskCmp);
+  const openT = tasks.filter(isOpen).sort(M.taskCmp(db));
   const closedT = tasks.filter(t => !isOpen(t)).sort((a, b) => (b.doneAt || b.updatedAt).localeCompare(a.doneAt || a.updatedAt));
   const stLabel = st.status === 'empty' ? 'Vide' : STATUS[st.status];
   return `<div class="subject ${open ? 'open' : ''}${child ? ' child' : ''}" data-sid="${s.id}" style="--pc:var(--p${p});--pbg:var(--p${p}-bg)">
@@ -821,7 +819,7 @@ function subjectBlock(s, st, open) {
 }
 
 views.inbox = () => {
-  const tasks = db.tasks.filter(t => !t.archived && !t.subjectId && isOpen(t)).sort(taskCmp);
+  const tasks = db.tasks.filter(t => !t.archived && !t.subjectId && isOpen(t)).sort(M.taskCmp(db));
   return `<h1>Boîte de réception</h1>
     <p class="sub">Les tâches notées vite fait, à ranger dans un sujet avec la liste déroulante.</p>
     ${quickAdd('')}
