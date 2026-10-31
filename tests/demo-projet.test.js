@@ -15,8 +15,9 @@ test('démo : le projet d\'exemple affiche une alerte de jalon quel que soit le 
   for (let i = 0; i < 14; i++) {   // deux semaines : chaque jour de la semaine, week-end compris
     const td = ymd(new Date(Date.UTC(2026, 9, 26 + i)));
     const d = demo.data(td), pj = d.subjects.find(s => s.isProject);
-    const steps = d.subjects.filter(s => s.parentId === pj.id);
-    const sc = P.schedule(steps, pj.pj.milestones, d.settings.workDays);
-    assert.ok(sc.alerts.length > 0, `alerte attendue le ${td}`);
+    const steps = d.subjects.filter(s => s.parentId === pj.id), archived = new Set(steps.filter(s => s.archived).map(s => s.id));
+    // Comme la carte du projet : les étapes archivées ne donnent pas d'alerte
+    const alerts = P.schedule(steps, pj.pj.milestones, d.settings.workDays).alerts.filter(a => !archived.has(a.subjectId));
+    assert.ok(alerts.some(a => a.milestoneId === 'm1' && a.subjectId === 's10'), `alerte « Livraison machine » attendue le ${td}`);
   }
 });

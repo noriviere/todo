@@ -21,4 +21,7 @@ async function openApp(data, { hash = '', viewport = { width: 1280, height: 900 
 }
 async function closeAll() { if (browser) await browser.close(); browser = null; }
 const day = (n, from = new Date()) => { const d = new Date(from); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
-module.exports = { openApp, closeAll, day };
+// Échelle dessinée du Gantt de l'écran, en pixels par jour
+const ppd = page => page.locator('#main .pj-gantt').evaluate(g => +g.dataset.ppd);
+
+module.exports = { openApp, closeAll, day, ppd };
