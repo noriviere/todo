@@ -338,6 +338,7 @@ body.demo .brand .dot{background:var(--warn)}
 <input type="file" id="file" accept=".json,application/json" hidden>
 
 <script src="demo.js"></script>
+<script src="metier.js"></script>
 <script>
 (function(){
 'use strict';
@@ -352,8 +353,8 @@ const BACKUP_KEY = DEMO ? 'todo-noel-demo-avant-import' : 'todo-noel-v1-avant-im
 const store = DEMO ? sessionStorage : localStorage;
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-const nowIso = () => new Date().toISOString();
+const M = window.todoMetier;
+const { uid, nowIso } = M;
 const pad = n => String(n).padStart(2, '0');
 const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const today = () => ymd(new Date());
@@ -438,37 +439,7 @@ function modOn(id) {
 const navOn = n => !n[3] || modOn(n[3]);
 
 /* ---------- Données ---------- */
-function blank() {
-  return {
-    version: 1,
-    subjects: [],
-    tasks: [],
-    settings: { theme: 'auto', workdayMin: 420, lastExport: null, modules: {} },
-    ui: { expanded: [], showClosed: false, search: '', dims: { code: '', secteur: '', produit: '' } }
-  };
-}
-function normSubject(s) {
-  return Object.assign({
-    id: uid(), title: '', priority: 3, description: '', code: '', secteur: '', produit: '', archived: false, archivedAt: null,
-    createdAt: nowIso(), updatedAt: nowIso(), source: null, parentId: null
-  }, s);
-}
-function normTask(t) {
-  return Object.assign({
-    id: uid(), subjectId: null, title: '', notes: '',
-    deadline: null, startDate: null,
-    estimateMin: null,
-    status: 'todo', progress: 0,
-    archived: false, archivedAt: null,
-    createdAt: nowIso(), updatedAt: nowIso(), doneAt: null,
-    // Champs réservés au chrono et au temps réel (module à venir)
-    realMin: 0, timeLogs: [], timerStart: null,
-    // Paramètre de la future prévision de charge :
-    // 'deadline' = tout le jour J, 'spread' = réparti de startDate à deadline, 'daily' = dailyMin par jour
-    plan: { mode: 'deadline', dailyMin: null },
-    source: null
-  }, t);
-}
+const { blank, normSubject, normTask } = M;
 function migrate(d) {
   const b = blank();
   d = Object.assign(b, d);
@@ -572,16 +543,16 @@ window.addEventListener('storage', e => { if (e.key === KEY) { db = load(); rend
 
 const subj = id => id ? db.subjects.find(s => s.id === id) : null;
 const task = id => db.tasks.find(t => t.id === id);
-const isOpen = t => t.status === 'todo' || t.status === 'doing' || t.status === 'waiting';
+const isOpen = M.isOpen;
 // Une tâche est visible si elle n'est pas archivée et que son sujet ne l'est pas non plus
 const visible = t => !t.archived && !(subj(t.subjectId)?.archived);
 const activeSubjects = () => db.subjects.filter(s => !s.archived)
   .sort((a, b) => a.priority - b.priority || a.title.localeCompare(b.title, 'fr'));
 // Sous-sujets : un seul niveau. Un parent introuvable ou lui-même rangé ailleurs ne compte pas (le sujet reste au premier niveau).
-const parentOf = s => { const p = s && s.parentId && s.parentId !== s.id ? subj(s.parentId) : null; return p && !p.parentId ? p : null; };
+const parentOf = s => M.parentOf(s, db);
 // Premier niveau à l'affichage : sans parent, ou dont le parent est archivé (sous-sujet restauré seul)
 const isTop = s => { const p = parentOf(s); return !p || p.archived; };
-const childrenOf = (s, all) => db.subjects.filter(x => x.parentId === s.id && x !== s && (all || !x.archived) && parentOf(x) === s);
+const childrenOf = (s, all) => M.childrenOf(s, db, all);
 const subjLabel = s => s ? (parentOf(s) ? parentOf(s).title + ' › ' : '') + (s.title || 'Sans titre') : '';
 // Peut devenir sous-sujet : pas de sous-sujets à lui (même archivés), pas en mode projet ; la cible est de premier niveau
 const canBeChild = s => !childrenOf(s, true).length && !db.subjects.some(x => x.parentId === s.id && x !== s) && !s.isProject;
@@ -650,37 +621,8 @@ function taskCmp(a, b) {
     || a.createdAt.localeCompare(b.createdAt);
 }
 
-// État d'un sujet déduit de ses tâches (hors archivées)
-function subjectStats(s) {
-  // Un parent compte aussi les tâches de ses sous-sujets actifs
-  const ids = new Set([s.id, ...childrenOf(s).map(c => c.id)]);
-  const ts = db.tasks.filter(t => ids.has(t.subjectId) && !t.archived);
-  const live = ts.filter(t => t.status !== 'cancelled');
-  const open = ts.filter(isOpen);
-  const done = live.filter(t => t.status === 'done').length;
-  let status, progress = 0, estMin = 0;
-  if (!ts.length) status = 'empty';
-  else if (!live.length) status = 'cancelled';
-  else {
-    let w = 0, p = 0;
-    for (const t of live) {
-      const wt = t.estimateMin || 60;
-      w += wt;
-      p += wt * (t.status === 'done' ? 100 : t.status === 'doing' ? (t.progress || 0) : 0);
-    }
-    progress = Math.round(p / w);
-    estMin = w;
-    if (done === live.length) status = 'done';
-    else if (done > 0 || live.some(t => t.status === 'doing')) status = 'doing';
-    else if (open.length && open.every(t => t.status === 'waiting')) status = 'waiting';
-    else status = 'todo';
-  }
-  const td = today();
-  const late = open.filter(t => t.deadline && t.deadline < td).length;
-  const next = open.map(t => t.deadline).filter(Boolean).sort()[0] || null;
-  const remainMin = open.reduce((a, t) => a + (t.estimateMin || 0) * (1 - (t.status === 'doing' ? t.progress : 0) / 100), 0);
-  return { total: ts.length, live: live.length, open: open.length, done, status, progress, late, next, remainMin: Math.round(remainMin), estMin, children: ids.size - 1 };
-}
+// État d'un sujet déduit de ses tâches (règle dans metier.js)
+const subjectStats = s => M.subjectStats(s, db, today());
 
 /* ---------- Actions ---------- */
 function createTask(o) {
@@ -1447,7 +1389,7 @@ window.todoApp = {
 };
 // Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
 const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [], subjectBody: [] };
-Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, save, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats,
+Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, save, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats, remaining: M.remaining,
   parentOf, childrenOf, subjLabel, setParent, canNest, expandTo, archiveSubject, createSubject,
   esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur });
 

@@ -132,12 +132,8 @@ function stopTimer(t, quiet) {
 }
 
 /* ---------- Prévision de charge ---------- */
-function remaining(t) {
-  const est = t.estimateMin || 0;
-  if (!est) return 0;
-  if (t.status === 'doing' && t.progress > 0) return Math.round(est * (1 - t.progress / 100));
-  return Math.max(0, est - (t.realMin || 0));
-}
+// Temps restant : règle unique de metier.js, la même que la carte sujet
+const remaining = A.remaining;
 function lastWorkDay(ds, floor) {
   let d = ds;
   for (let i = 0; i < 14 && d > floor && !canWork(d); i++) d = addDays(d, -1);

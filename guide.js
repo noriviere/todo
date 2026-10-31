@@ -151,7 +151,7 @@ const SECTIONS = [
     <ul>
       <li><b>La flèche</b> déplie le sujet : paramètres (Code, Secteur, Produit fini), description, tâches ouvertes, et une ligne pour ajouter une tâche.</li>
       <li><b>Le nom</b> se corrige en cliquant dedans.</li>
-      <li>En un coup d'œil : tâches en retard ⚠, prochaine deadline ⏱, temps restant, nombre de tâches faites, barre d'avancement.</li>
+      <li>En un coup d'œil : tâches en retard ⚠, prochaine deadline ⏱, temps restant (estimé moins réel déjà passé, ou estimé × reste du % si la tâche est en cours${when('charge', ' : le même chiffre que dans la Charge')}), nombre de tâches faites, barre d'avancement.</li>
       <li><b>L'état du sujet</b> est calculé à partir de ses tâches (pondéré par leur durée estimée), tu n'as pas à le tenir à jour.</li>
       <li>La barre d'outils : recherche, « Afficher faites et annulées », Tout déplier / Tout replier, « + Nouveau sujet ».</li>
       <li>Les tâches faites ou annulées d'un sujet peuvent être archivées d'un coup avec « tout archiver ».</li>
