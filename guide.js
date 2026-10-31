@@ -58,6 +58,16 @@ const SECTIONS = [
     <p>Sujets, tâches, tableau de bord, boîte de réception, archives et données restent toujours là. <b>Masquer un module ne supprime rien</b> : ses données sont gardées, sauvegardées et synchronisées, et réapparaissent quand tu le réactives. Si un chrono tourne au moment où tu masques le chrono, il est arrêté et son temps enregistré.</p>
     <p>Le choix est rangé avec tes données : il suit la synchro sur tes autres appareils. Ce mode d'emploi n'affiche que les modules actifs.</p>`, tab: 'donnees' },
 
+  { id: 'calendrier', g: 'start', title: 'Calendrier : jours ouvrés et fériés', html: () => `
+    <p>Onglet Données, carte <b>Calendrier</b> : une seule semaine type pour toute l'appli, quels que soient les modules actifs.</p>
+    <ul>
+      <li><b>Jours ouvrés</b> : les jours où l'on travaille normalement (du lundi au vendredi au départ). Clique un jour pour l'ajouter ou le retirer.</li>
+      <li><b>Jours fériés français automatiques</b> : Pâques, Ascension et Pentecôte compris. Le prochain férié est rappelé à côté.</li>
+      <li>Un <b>jour ouvré</b> est un jour de la semaine type qui n'est pas férié. ${when('projet', 'Le Gantt des projets compte en jours ouvrés : tes congés ne le décalent pas, puisque les étapes sont souvent faites par d\'autres.')}</li>
+      ${when('pointage', '<li>Un <b>jour travaillé</b> est un jour ouvré où tu es là : sans congé ni absence d\'une journée entière posés dans Pointage. La Charge et l\'objectif du Pointage comptent en jours travaillés.</li>')}
+    </ul>
+    <p>Un changement s'annule avec Ctrl+Z, comme le reste.</p>`, tab: 'donnees' },
+
   { id: 'dashboard', g: 'daily', title: 'Tableau de bord', html: () => `
     <p>La page d'accueil, pour voir d'un coup d'œil ce qui presse.</p>
     <ul>
@@ -203,7 +213,7 @@ const SECTIONS = [
       <li><b>Passer un sujet en projet</b> : dans sa fiche (onglet Sujets), coche « Mode projet ». Il reste dans la liste des sujets et apparaît dans l'onglet Projets. Le décocher ne perd rien.</li>
       <li><b>Créer un projet de zéro</b> : onglet Projets, « + Nouveau projet ».</li>
       <li><b>Les étapes</b> sont les sous-sujets du projet : « + Nouvelle étape » dans le projet, « + Sous-sujet » dans le sujet, ou la liste « Dans » d'un sujet existant. Les tâches du quotidien (emails…) n'apparaissent pas dans le Gantt, elles font juste avancer l'étape. Les tâches posées directement dans le sujet du projet comptent dans l'avancement global, hors Gantt.</li>
-      <li><b>Planifier une étape</b> : un début, puis une durée en jours ouvrés ou directement la « Fin prévue » (la durée se recalcule), et « Qui » (Production, Entreprise A, un nom…). Les dates du Gantt sont celles de l'étape, pas celles des tâches, qui restent tes rappels.</li>
+      <li><b>Planifier une étape</b> : un début, puis une durée en jours ouvrés (week-ends et fériés sautés, voir Données › Calendrier) ou directement la « Fin prévue » (la durée se recalcule), et « Qui » (Production, Entreprise A, un nom…). Les dates du Gantt sont celles de l'étape, pas celles des tâches, qui restent tes rappels.</li>
       <li><b>Commence après</b> : coche les étapes qui doivent être finies avant. Son début est alors calculé (plus un décalage éventuel). Quand une étape glisse, les suivantes se décalent toutes seules. Un lien qui ferait une boucle est refusé.</li>
       <li><b>Jalons</b> : dates fixes (livraison, paiements). Indique les étapes à finir avant chacun. Ils ne bougent jamais seuls : si une étape les dépasse, une <b>alerte</b> s'affiche ; à toi de décaler le jalon ou de réorganiser, puis de ré-exporter.</li>
       <li><b>Le Gantt</b> : une barre par étape, remplie selon l'avancement, flèches de dépendance, losanges des jalons, ligne d'aujourd'hui. Clic sur une barre pour ouvrir l'étape. À la souris, glisse une étape libre pour la déplacer ou étire sa fin pour changer sa durée.</li>
@@ -239,9 +249,9 @@ const SECTIONS = [
     <ul>
       <li>Nom, durée, fréquence (chaque semaine, une semaine sur deux, chaque jour, un jour du mois, une seule fois…), jours de la semaine, dates de début et de fin.</li>
       <li>Un créneau s'archive et se restaure comme le reste.</li>
-      ${when('pointage', '<li>Les congés posés dans Pointage et les jours fériés sont retirés automatiquement : pas besoin de créneau pour eux.</li>')}
+      <li>Les jours fériés${when('pointage', ' et les congés posés dans Pointage')} sont retirés automatiquement : pas besoin de créneau pour eux.</li>
     </ul>
-    <p><b>Ma semaine type</b> : la capacité d'une journée (sert aussi pour écrire <code>1j</code>) et les jours travaillés.</p>`, tab: 'charge' },
+    <p><b>Ma semaine type</b> : la capacité d'une journée (sert aussi pour écrire <code>1j</code>) ; les jours ouvrés se règlent dans Données › Calendrier.</p>`, tab: 'charge' },
 
   { id: 'pointer', mod: 'pointage', g: 'pointage', title: 'Pointer sa journée', html: () => `
     <p>Onglet Pointage, sous-onglet <b>Semaine</b> (et bandeau du tableau de bord) :</p>
@@ -255,7 +265,7 @@ const SECTIONS = [
   { id: 'conges', mod: 'pointage', g: 'pointage', title: 'Poser un congé', html: () => `
     <p>Sous-onglet <b>Congés</b> :</p>
     <ul>
-      <li><b>Poser une absence</b> : dates de début et de fin, type (congés payés, RTT, maladie…), journée ou demi-journée, puis <b>Poser</b>. Seuls les jours travaillés sont marqués : week-ends et fériés sont sautés.</li>
+      <li><b>Poser une absence</b> : dates de début et de fin, type (congés payés, RTT, maladie…), journée ou demi-journée, puis <b>Poser</b>. Seuls les jours ouvrés sont marqués : week-ends et fériés sont sautés.</li>
       <li><b>Absences de l'année</b> : la liste, regroupée par période, avec le total par type. ✕ retire une absence.</li>
       <li>Une absence posée à l'avance bloque ces jours dans la vue Charge.</li>
     </ul>
@@ -283,7 +293,7 @@ const SECTIONS = [
       <li>La moyenne et la médiane ne prennent que les <b>semaines complètes</b> : sans congé, absence ni férié, et terminées. Les autres apparaissent pâles dans le graphique.</li>
       <li><b>Heures par semaine</b> : clique une barre pour ouvrir la semaine. Le trait est l'objectif de la semaine (diminué des absences et fériés).</li>
       <li><b>Par mois</b> : heures, jours pointés, moyenne par jour, objectif et écart.</li>
-      <li><b>Réglages</b> : objectif d'heures pour chaque jour de la semaine, jours fériés français automatiques.</li>
+      <li><b>Réglages</b> : objectif d'heures pour chaque jour de la semaine. Les jours fériés se règlent dans Données › Calendrier.</li>
     </ul>
     ${see(['pointage-import'])}`, tab: 'pointage', ptTab: 'bilan' },
 
@@ -510,6 +520,7 @@ const SPOTS = [
   ['#main .card h3', 'Par mois', 'bilan'],
   ['#main .card h3', 'Réglages', 'bilan'],
   ['#main .card h3', 'Modules actifs', 'modules'],
+  ['#main .card h3', 'Calendrier', 'calendrier'],
   ['#main .card h3', 'Mode démo', 'demo'],
   ['#main .card h3', 'Sauvegarde automatique', 'sauvegarde-auto'],
   ['#main .card h3', 'Sauvegarde manuelle', 'export'],

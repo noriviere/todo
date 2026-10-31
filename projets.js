@@ -25,7 +25,8 @@ const projects = () => db().subjects.filter(s => isProj(s) && !s.archived).sort(
 const project = id => { const s = A.subj(id); return isProj(s) ? s : null; };
 const stepsOf = pid => { const p = A.subj(pid); return p ? A.childrenOf(p) : []; };
 const projectOfStep = s => { const p = A.parentOf(s); return isProj(p) && !p.archived ? p : null; };
-const workDays = () => Array.isArray(db().settings.workDays) ? db().settings.workDays : [1, 2, 3, 4, 5];
+// Jours ouvrés du calendrier commun (semaine type, hors fériés) : les congés de Noel ne décalent pas le Gantt
+const workDays = () => A.calendrier().ouvre;
 const milestonesOf = p => (pjOf(p).milestones || []).filter(m => !m.archived);
 // Les étapes archivées (souvent terminées) restent des ancres pour celles qui en dépendent, sans être dessinées
 function projectSchedule(p) {
@@ -560,12 +561,7 @@ window.addEventListener('afterprint', () => {
 
 /* ---------- Édition directe : glisser une étape libre, étirer sa fin (souris, pas sur écran tactile) ---------- */
 let drag = null, swallowClick = false;
-function workdaysBetween(a, b) {   // nombre de jours ouvrés de a à b inclus
-  const wd = workDays();
-  let n = 0;
-  for (let d = a; d <= b; d = shift(d, 1)) if (wd.includes(new Date(T(d)).getUTCDay())) n++;
-  return n;
-}
+const workdaysBetween = (a, b) => A.calendrier().ouvresEntre(a, b);   // nombre de jours ouvrés de a à b inclus
 document.addEventListener('pointerdown', e => {
   const bar = e.target.closest('.pj-bar');
   if (!bar || e.button !== 0 || coarse() || !on()) return;

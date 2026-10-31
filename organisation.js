@@ -315,10 +315,7 @@
   }
   function step(ds, r) {
     if (r.freq === 'workday') {
-      const wd = Array.isArray(db().settings.workDays) && db().settings.workDays.length ? db().settings.workDays : [1, 2, 3, 4, 5];
-      let n = ds;
-      for (let i = 0; i < 14; i++) { n = addDays(n, 1); if (wd.includes(parseYmd(n).getDay())) break; }
-      return n;
+      return A.calendrier().ouvreSuivant(addDays(ds, 1));   // jour ouvré suivant (calendrier commun)
     }
     if (r.freq === 'week') return addDays(ds, 7 * r.interval);
     if (r.freq === 'month') return addMonths(ds, r.interval);

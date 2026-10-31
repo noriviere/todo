@@ -3,25 +3,31 @@
 (function (root) {
 'use strict';
 
+const M = typeof module !== 'undefined' && module.exports ? require('./metier.js') : root.todoMetier;
 const toT = ymd => Date.UTC(+ymd.slice(0, 4), +ymd.slice(5, 7) - 1, +ymd.slice(8, 10));
 const toYmd = t => new Date(t).toISOString().slice(0, 10);
 const DAY = 864e5;
-const isWork = (t, wd) => wd.includes(new Date(t).getUTCDay());
 const okDate = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
-const workDaysOf = wd => Array.isArray(wd) && wd.length ? wd : [1, 2, 3, 4, 5];
+// Jours ouvrés : une fonction « est ouvré » sur 'AAAA-MM-JJ' (calendrier commun, fériés compris)
+// ou une liste de jours de la semaine (0 = dimanche). Rend un test sur un instant UTC.
+function estOuvre(wd) {
+  if (typeof wd === 'function') return t => wd(toYmd(t));
+  const l = Array.isArray(wd) && wd.length ? wd : M.JOURS_OUVRES;
+  return t => l.includes(new Date(t).getUTCDay());
+}
 
 // Le jour ouvré lui-même, ou le suivant
 function nextWorkday(ymd, workDays) {
-  const wd = workDaysOf(workDays);
+  const ouvre = estOuvre(workDays);
   let t = toT(ymd);
-  for (let i = 0; i < 14 && !isWork(t, wd); i++) t += DAY;
+  for (let i = 0; i < 366 && !ouvre(t); i++) t += DAY;
   return toYmd(t);
 }
 // n jours ouvrés après ymd (n = 0 : ymd tel quel)
 function addWorkdays(ymd, n, workDays) {
-  const wd = workDaysOf(workDays);
+  const ouvre = estOuvre(workDays);
   let t = toT(ymd);
-  for (let k = 0; k < n; k++) { t += DAY; for (let i = 0; i < 14 && !isWork(t, wd); i++) t += DAY; }
+  for (let k = 0; k < n; k++) { t += DAY; for (let i = 0; i < 366 && !ouvre(t); i++) t += DAY; }
   return toYmd(t);
 }
 
@@ -46,7 +52,7 @@ function topo(steps) {
 }
 
 function schedule(steps, milestones, workDays) {
-  const wd = workDaysOf(workDays);
+  const wd = workDays;
   const byStep = new Map(steps.map(s => [s.id, s]));
   const ids = new Set(byStep.keys());
   const { order, looped } = topo(steps);

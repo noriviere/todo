@@ -31,6 +31,13 @@ function frHolidays(y) {
   return new Set([`${y}-01-01`, add(ea, 1), `${y}-05-01`, `${y}-05-08`, add(ea, 39), add(ea, 50), `${y}-07-14`, `${y}-08-15`, `${y}-11-01`, `${y}-11-11`, `${y}-12-25`]);
 }
 
+// Prochain jour férié tombant en semaine, à partir de la date
+function nextHoliday(s) {
+  let d = s;
+  for (let i = 0; i < 400; i++, d = add(d, 1)) if (isWork(d) && frHolidays(+d.slice(0, 4)).has(d)) return d;
+  return s;
+}
+
 function data(td) {
   const now = new Date().toISOString();
   const at = (ds, h = 9) => new Date(parse(ds).getTime() + h * 3600000).toISOString();
@@ -60,7 +67,9 @@ function data(td) {
     S('s10', 'FAT chez le fournisseur', 1, 'Presse 450T', 'Industrie', '', 'Essais de réception en usine.', { parentId: 'pj1', plan: { durDays: 4 }, after: ['s9'], lagDays: 5, who: 'Fournisseur' }),
     S('s11', 'Raccordement électrique', 2, 'Presse 450T', 'Industrie', '', '', { parentId: 'pj1', plan: { durDays: 6 }, after: ['s9'], who: 'Entreprise A' }),
     S('s12', 'Déchargement et mise en place', 2, 'Presse 450T', 'Industrie', '', '', { parentId: 'pj1', plan: { durDays: 2 }, after: ['s10'], lagDays: 3, who: 'Entreprise B' }),
-    S('s13', 'SAT et mise en production', 1, 'Presse 450T', 'Industrie', '', 'Essais sur site puis démarrage.', { parentId: 'pj1', plan: { durDays: 5 }, after: ['s10', 's11', 's12'], who: 'Production' })
+    S('s13', 'SAT et mise en production', 1, 'Presse 450T', 'Industrie', '', 'Essais sur site puis démarrage.', { parentId: 'pj1', plan: { durDays: 5 }, after: ['s10', 's11', 's12'], who: 'Production' }),
+    // Étape posée la veille du prochain férié de semaine : sa barre saute le férié (Données › Calendrier)
+    S('s15', 'Formation des opérateurs', 3, 'Presse 450T', 'Industrie', '', 'Trois jours ouvrés : le jour férié au milieu est sauté.', { parentId: 'pj1', plan: { start: work(nextHoliday(add(td, 10)), -1), durDays: 3 }, who: 'Production' })
   ];
 
   let n = 0;
@@ -151,7 +160,7 @@ function data(td) {
     subjects,
     tasks,
     fixedSlots,
-    settings: { theme: 'auto', workdayMin: 420, lastExport: null, workDays: [1, 2, 3, 4, 5], modules: { projet: true } },
+    settings: { theme: 'auto', workdayMin: 420, lastExport: null, modules: { projet: true } },
     ui: { expanded: ['s1', 's3'], showClosed: false, search: '', dims: { code: '', secteur: '', produit: '' } },
     pointage: {
       days,

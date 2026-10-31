@@ -27,7 +27,6 @@ A.ICON.chart = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 /* ---------- Réglages et créneaux fixes (stockés dans les mêmes données) ---------- */
 function settings() {
   const s = db().settings;
-  if (!Array.isArray(s.workDays)) s.workDays = [1, 2, 3, 4, 5];
   if (!s.workdayMin) s.workdayMin = 420;
   return s;
 }
@@ -36,9 +35,19 @@ function slots() {
   if (!Array.isArray(d.fixedSlots)) d.fixedSlots = [];
   return d.fixedSlots;
 }
-const isWorkDay = ds => settings().workDays.includes(parseYmd(ds).getDay());
+// Jour de la semaine type (calendrier commun) : un jour férié garde sa capacité, prise par un créneau « Férié »
+const isWorkDay = ds => A.calendrier().semaine.includes(parseYmd(ds).getDay());
 const capacity = ds => isWorkDay(ds) ? settings().workdayMin : 0;
-function mondayOf(ds) { const wd = parseYmd(ds).getDay(); return addDays(ds, -((wd + 6) % 7)); }
+const mondayOf = A.lundi;
+// Fériés (calendrier commun) et absences (fournies par le Pointage) d'un jour de la semaine type, en créneaux virtuels
+function joursPris(ds) {
+  if (!isWorkDay(ds)) return [];
+  const cal = A.calendrier(), f = cal.ferie(ds), cap = settings().workdayMin;
+  if (f) return [{ id: 'cal-fer-' + ds, title: 'Férié : ' + f, durMin: cap, freq: 'once', start: ds, days: [], virtual: true }];
+  const a = A.absenceDu(ds);
+  if (!a) return [];
+  return [{ id: 'cal-abs-' + ds, title: a.label || 'Absence', durMin: Math.round(cap * (a.part === 'full' ? 1 : 0.5)), freq: 'once', start: ds, days: [], virtual: true }];
+}
 function slotOn(sl, ds) {
   if (sl.archived || !sl.durMin) return false;
   if (sl.start && ds < sl.start) return false;
@@ -57,10 +66,10 @@ function slotOn(sl, ds) {
   }
   return false;
 }
-// Créneaux fixes du jour, plus les absences et fériés fournis par d'autres modules (pointage.js)
+// Créneaux fixes du jour, plus les fériés et les absences (et ce qu'ajoutent d'autres modules par hooks.dayOff)
 // Un jour entièrement pris (congé, férié) ne reçoit pas les créneaux fixes : la réunion n'a pas lieu sans toi
 function slotsOn(ds) {
-  const off = [].concat(...(A.hooks.dayOff || []).map(f => f(ds)));
+  const off = joursPris(ds).concat(...(A.hooks.dayOff || []).map(f => f(ds)));
   if (off.length && off.reduce((a, sl) => a + sl.durMin, 0) >= capacity(ds)) return off;
   return slots().filter(sl => slotOn(sl, ds)).concat(off);
 }
@@ -369,7 +378,7 @@ A.views.charge = () => {
     <div class="card"><h3>Ma semaine type</h3>
       <div class="cc-settings">
         <label>Capacité d'une journée <input class="inline est" data-cc-set="workday" data-k="cc-wd" value="${esc(fmtDur(st.workdayMin))}" title="Temps de travail disponible par jour (sert aussi pour « 1j »)"></label>
-        <span>Jours travaillés <span class="cc-days">${WD_ORDER.map(x => `<button class="${st.workDays.includes(x) ? 'on' : ''}" data-act="cc-workday" data-wd="${x}" title="${WD_LONG[x]}">${WD[x]}</button>`).join('')}</span></span>
+        <span>Jours ouvrés : ${esc(WD_ORDER.filter(x => A.calendrier().semaine.includes(x)).map(x => WD_LONG[x].slice(0, 3) + '.').join(' '))} <a href="#donnees" class="cc-cal-lien">Régler dans Données › Calendrier</a></span>
       </div>
     </div>`;
 };
@@ -449,11 +458,6 @@ document.addEventListener('click', e => {
     }
     case 'cc-slot-archive': { const sl = findSlot(b); if (!sl) return; A.modifier(`Créneau archivé : ${nomCreneau(sl)}`, () => { sl.archived = true; }, { toast: 'Créneau archivé', annuler: true }); break; }
     case 'cc-slot-restore': { const sl = findSlot(b); if (!sl) return; A.modifier(`Créneau restauré : ${nomCreneau(sl)}`, () => { sl.archived = false; }); break; }
-    case 'cc-workday': {
-      const s = settings(), wd = +b.dataset.wd;
-      A.modifier('Jours travaillés', () => { s.workDays = s.workDays.includes(wd) ? s.workDays.filter(x => x !== wd) : [...s.workDays, wd]; });
-      break;
-    }
   }
 });
 document.addEventListener('change', e => {

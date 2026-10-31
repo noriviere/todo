@@ -36,7 +36,6 @@ function P() {
   if (!Array.isArray(p.types)) p.types = DEFAULT_TYPES.map(t => Object.assign({}, t));
   if (!p.rights || typeof p.rights !== 'object') p.rights = {};      // { typeId: { année: { acq, n1 } } }
   if (!p.defaults || typeof p.defaults !== 'object') p.defaults = { cp: 25 };  // droits annuels par défaut
-  if (p.holidays === undefined) p.holidays = true;
   // Le congé paternité se décompte en jours calendaires (week-ends compris)
   if (!p.calV) { p.types.forEach(t => { if (t.id === 'paternite' && t.calendar === undefined) t.calendar = true; }); p.calV = 1; }
   if (!p.dayMin || typeof p.dayMin !== 'object') p.dayMin = { 1: 465, 2: 465, 3: 465, 4: 465, 5: 240, 6: 0, 0: 0 };  // 7h45 du lundi au jeudi, 4h le vendredi                   // jours fériés français automatiques
@@ -49,7 +48,8 @@ function cleanDay(ds) {
   if (d && !d.in && !d.lunchOut && !d.lunchIn && !d.out && !d.abs && !d.note) delete p.days[ds];
 }
 const type = id => P().types.find(t => t.id === id) || { id, label: id, short: id, color: '#9aa1b2', counted: false };
-const workDays = () => Array.isArray(db().settings.workDays) ? db().settings.workDays : [1, 2, 3, 4, 5];
+// Semaine type et fériés : calendrier commun du noyau (Données › Calendrier)
+const workDays = () => A.calendrier().semaine;
 const workdayMin = () => db().settings.workdayMin || 420;
 // Objectif de temps par jour de la semaine (index = getDay()), en minutes
 const WD_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -57,27 +57,8 @@ const WD_SHORT = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 const dayTarget = wd => { const m = P().dayMin && P().dayMin[wd]; return m != null ? m : workDays().includes(wd) ? workdayMin() : 0; };
 const weekTarget = () => WD_ORDER.reduce((a, wd) => a + dayTarget(wd), 0);
 
-/* ---------- Jours fériés (France métropolitaine) ---------- */
-const holCache = {};
-function easter(y) {
-  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
-  const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
-  const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
-  const month = Math.floor((h + l - 7 * m + 114) / 31), dd = ((h + l - 7 * m + 114) % 31) + 1;
-  return ymd(new Date(y, month - 1, dd));
-}
-function holidays(y) {
-  if (holCache[y]) return holCache[y];
-  const e = easter(y), r = {};
-  [['01-01', "Jour de l'an"], ['05-01', 'Fête du travail'], ['05-08', 'Victoire 1945'], ['07-14', 'Fête nationale'],
-   ['08-15', 'Assomption'], ['11-01', 'Toussaint'], ['11-11', 'Armistice'], ['12-25', 'Noël']].forEach(([md, n]) => { r[y + '-' + md] = n; });
-  r[addDays(e, 1)] = 'Lundi de Pâques';
-  r[addDays(e, 39)] = 'Ascension';
-  r[addDays(e, 50)] = 'Lundi de Pentecôte';
-  return (holCache[y] = r);
-}
-const holiday = ds => P().holidays ? holidays(+ds.slice(0, 4))[ds] || null : null;
-const isWork = ds => workDays().includes(parseYmd(ds).getDay()) && !holiday(ds);
+const holiday = ds => A.calendrier().ferie(ds);
+const isWork = ds => A.calendrier().ouvre(ds);   // jour ouvré : semaine type, hors fériés
 
 /* ---------- Calculs d'heures ---------- */
 const toMin = s => { if (!s) return null; const [h, m] = s.split(':').map(Number); return h * 60 + m; };
@@ -101,7 +82,7 @@ function worked(ds) {
 const absFrac = d => d && d.abs ? (d.abs.part === 'am' || d.abs.part === 'pm' ? 0.5 : 1) : 0;
 // Temps attendu d'un jour (objectif), diminué des absences et nul les jours fériés ou non travaillés
 const expected = ds => holiday(ds) ? 0 : Math.round(dayTarget(parseYmd(ds).getDay()) * (1 - absFrac(day(ds))));
-function mondayOf(ds) { const wd = parseYmd(ds).getDay(); return addDays(ds, -((wd + 6) % 7)); }
+const mondayOf = A.lundi;
 function isoWeek(ds) {
   const d = parseYmd(ds); d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
   const w1 = new Date(d.getFullYear(), 0, 4);
@@ -146,18 +127,12 @@ function counter(typeId, y) {
   return res;
 }
 
-/* ---------- Charge de travail : absences et fériés retirent la capacité du jour ---------- */
-if (A.hooks.dayOff) A.hooks.dayOff.push(ds => {
-  const out = [];
-  if (!on()) return out;
-  const h = holiday(ds);
-  if (h && workDays().includes(parseYmd(ds).getDay())) out.push({ id: 'pt-hol-' + ds, title: 'Férié : ' + h, durMin: workdayMin(), freq: 'once', start: ds, days: [], virtual: true });
-  const d = day(ds);
-  if (d && d.abs && !h && workDays().includes(parseYmd(ds).getDay())) {
-    const t = type(d.abs.type);
-    out.push({ id: 'pt-abs-' + ds, title: t.label + (d.abs.part !== 'full' ? ' (' + PART[d.abs.part].toLowerCase() + ')' : ''), durMin: Math.round(workdayMin() * absFrac(d)), freq: 'once', start: ds, days: [], virtual: true });
-  }
-  return out;
+/* ---------- Calendrier commun : les absences font d'un jour ouvré un jour non travaillé (Charge, Récurrence) ---------- */
+if (A.hooks.absence) A.hooks.absence.push(ds => {
+  const d = on() ? day(ds) : null;
+  if (!d || !d.abs) return null;
+  const t = type(d.abs.type);
+  return { part: d.abs.part === 'am' || d.abs.part === 'pm' ? d.abs.part : 'full', label: t.label + (d.abs.part !== 'full' ? ' (' + PART[d.abs.part].toLowerCase() + ')' : '') };
 });
 
 /* ---------- Pointer maintenant ---------- */
@@ -287,7 +262,7 @@ function viewLeave() {
       ${y !== +today().slice(0, 4) ? '<button class="chip" data-act="pt-year" data-n="0">Cette année</button>' : ''}
     </div>
     <div class="card"><h3>Poser une absence</h3>
-      <p>Les jours travaillés de la période sont marqués (week-ends et fériés sautés, sauf pour un type en jours calendaires comme le congé paternité). Une absence posée à l'avance bloque la capacité de ces jours dans la vue Charge.</p>
+      <p>Les jours ouvrés de la période sont marqués (week-ends et fériés sautés, sauf pour un type en jours calendaires comme le congé paternité). Une absence posée à l'avance bloque la capacité de ces jours dans la vue Charge.</p>
       <div class="pt-form">
         <label>Du <input type="date" class="date" id="pt-from" value="${t0}"></label>
         <label>au <input type="date" class="date" id="pt-to" value="${t0}"></label>
@@ -308,7 +283,7 @@ function viewLeave() {
     </div>
     <details class="sec"><summary><span class="chev">${A.ICON.chev}</span>Types d'absence et droits annuels</summary>
       <div class="card">
-        <p>« Jours calendaires » : poser une période marque aussi les week-ends et fériés, qui sont décomptés (congé paternité). Sinon seuls les jours travaillés sont posés. « Compteur » : le type a des droits en jours, suivis en N-1 et N. Le reste de N à la fin de l'année devient le N-1 de l'année suivante, et les jours posés puisent d'abord dans N-1.</p>
+        <p>« Jours calendaires » : poser une période marque aussi les week-ends et fériés, qui sont décomptés (congé paternité). Sinon seuls les jours ouvrés sont posés. « Compteur » : le type a des droits en jours, suivis en N-1 et N. Le reste de N à la fin de l'année devient le N-1 de l'année suivante, et les jours posés puisent d'abord dans N-1.</p>
         <div class="pt-types">${P().types.map(t => `<div class="pt-type${t.archived ? ' arch' : ''}" data-tyid="${t.id}">
           <input type="color" data-pt-type="color" value="${t.color}" title="Couleur">
           <input class="inline" data-pt-type="label" value="${esc(t.label)}">
@@ -386,7 +361,7 @@ function viewStats() {
     <div class="card"><h3>Réglages</h3>
       <div class="cc-settings">
         <span>Objectif par jour ${WD_ORDER.map(wd => `<label class="pt-dmin">${WD_SHORT[wd]} <input class="inline est" data-pt-set="day" data-wd="${wd}" value="${esc(fmtDur(dayTarget(wd)) || '0')}" title="Ex. 7h45, 4h, 0"></label>`).join('')} <span class="hint">soit ${fmtH(weekTarget())} par semaine</span></span>
-        <label class="tog"><input type="checkbox" data-pt-set="hol" ${P().holidays ? 'checked' : ''}> Jours fériés français automatiques</label>
+        <span class="hint">Jours ouvrés et jours fériés : <a href="#donnees">Données › Calendrier</a></span>
       </div>
     </div>
     <div id="pt-import"></div>`;
@@ -441,7 +416,7 @@ document.addEventListener('click', e => {
       if (diffDays(to, from) > 370) { toast('Période trop longue (plus d\'un an)'); return; }
       const set = [];
       for (let ds = from; ds <= to; ds = addDays(ds, 1)) if (isWork(ds) || type(typeId).calendar) set.push(ds);
-      if (!set.length) { toast('Aucun jour travaillé dans cette période'); return; }
+      if (!set.length) { toast('Aucun jour ouvré dans cette période'); return; }
       const n = set.length * (part === 'full' ? 1 : 0.5);
       const msg = `${fmtJ(n)} de ${type(typeId).label} posé${n > 1 ? 's' : ''}`;
       A.modifier(`Absence posée : ${fmtJ(n)} de ${type(typeId).label}`, () => { set.forEach(ds => setAbs(ds, typeId, part)); }, { toast: msg, annuler: true });
@@ -502,7 +477,7 @@ document.addEventListener('change', e => {
     const m = v === '' || v === '0' ? 0 : A.parseDur(v);
     if (m == null || Number.isNaN(m)) { toast('Durée non comprise. Exemple : 7h45'); el.value = fmtDur(dayTarget(wd)) || '0'; return; }
     A.modifier('Horaire de référence', () => { P().dayMin[wd] = m; });
-  } else if (el.dataset.ptSet === 'hol') { const v = el.checked; A.modifier('Jours fériés', () => { P().holidays = v; }); }
+  }
 });
 document.addEventListener('keydown', e => {
   const el = e.target;

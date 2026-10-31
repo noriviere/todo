@@ -26,13 +26,53 @@ function parseDur(s, workdayMin = 420) {
   return NaN;
 }
 
+/* ---------- Calendrier (CONTEXT.md « Calendrier ») ---------- */
+// Semaine type par défaut : du lundi au vendredi (0 = dimanche)
+const JOURS_OUVRES = [1, 2, 3, 4, 5];
+const semaineType = settings => settings && Array.isArray(settings.workDays) && settings.workDays.length ? settings.workDays : JOURS_OUVRES;
+const lundi = ds => addDays(ds, -((parseYmd(ds).getDay() + 6) % 7));
+// Jours fériés de France métropolitaine d'une année : { 'AAAA-MM-JJ': nom }
+const feriesCache = {};
+function paques(y) {
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31), dd = ((h + l - 7 * m + 114) % 31) + 1;
+  return ymd(new Date(y, month - 1, dd));
+}
+function feries(y) {
+  if (feriesCache[y]) return feriesCache[y];
+  const e = paques(y), r = {};
+  [['01-01', "Jour de l'an"], ['05-01', 'Fête du travail'], ['05-08', 'Victoire 1945'], ['07-14', 'Fête nationale'],
+   ['08-15', 'Assomption'], ['11-01', 'Toussaint'], ['11-11', 'Armistice'], ['12-25', 'Noël']].forEach(([md, n]) => { r[y + '-' + md] = n; });
+  r[addDays(e, 1)] = 'Lundi de Pâques';
+  r[addDays(e, 39)] = 'Ascension';
+  r[addDays(e, 50)] = 'Lundi de Pentecôte';
+  return (feriesCache[y] = r);
+}
+// Calendrier d'après les réglages (semaine type, fériés automatiques) et les absences de Noel :
+// absenceDe(jour) → 'full' | 'am' | 'pm' | null, fourni par le module Pointage quand il est actif.
+function calendrier(settings, absenceDe = () => null) {
+  const sem = semaineType(settings), avecFeries = !settings || settings.feries !== false;
+  const ferie = ds => avecFeries ? feries(+ds.slice(0, 4))[ds] || null : null;
+  const ouvre = ds => sem.includes(parseYmd(ds).getDay()) && !ferie(ds);
+  const absence = ds => absenceDe(ds) || null;
+  const travaille = ds => ouvre(ds) && absence(ds) !== 'full';
+  // Le jour lui-même s'il convient, sinon le suivant (au plus un an plus loin : semaine type réduite à rien d'ouvré)
+  const suivant = test => ds => { let d = ds; for (let i = 0; i < 366 && !test(d); i++) d = addDays(d, 1); return d; };
+  const ouvreSuivant = suivant(ouvre), travailleSuivant = suivant(travaille);
+  const ajouterOuvres = (ds, n) => { let d = ds; for (let k = 0; k < n; k++) d = ouvreSuivant(addDays(d, 1)); return d; };
+  const ouvresEntre = (a, b) => { let n = 0; for (let d = a; d <= b; d = addDays(d, 1)) if (ouvre(d)) n++; return n; };
+  return { semaine: sem, ferie, ouvre, absence, travaille, ouvreSuivant, travailleSuivant, ajouterOuvres, ouvresEntre };
+}
+
 /* ---------- Données ---------- */
 function blank() {
   return {
     version: 1,
     subjects: [],
     tasks: [],
-    settings: { theme: 'auto', workdayMin: 420, lastExport: null, modules: {} },
+    settings: { theme: 'auto', workdayMin: 420, lastExport: null, modules: {}, workDays: JOURS_OUVRES.slice(), feries: true },
     ui: { expanded: [], showClosed: false, search: '', dims: { code: '', secteur: '', produit: '' } }
   };
 }
@@ -62,9 +102,13 @@ function normTask(t) {
 
 function migrate(d) {
   const b = blank();
+  const feriesAvant = d && d.settings && d.settings.feries;
   d = Object.assign(b, d);
   d.settings = Object.assign(blank().settings, d.settings);
   if (!d.settings.modules || typeof d.settings.modules !== 'object') d.settings.modules = {};
+  // Fériés automatiques : réglage commun, repris de l'ancienne case du Pointage
+  if (typeof feriesAvant !== 'boolean') d.settings.feries = !(d.pointage && d.pointage.holidays === false);
+  if (!Array.isArray(d.settings.workDays)) d.settings.workDays = JOURS_OUVRES.slice();
   d.ui = Object.assign(blank().ui, d.ui);
   // Ancienne dimension « Projet » (Excel) renommée « Code » : « Projet » désigne désormais le module Projets
   const dims = d.ui.dims || {};
@@ -272,7 +316,7 @@ function historique(max = 50) {
   };
 }
 
-const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, blank, normSubject, normTask, migrate,
+const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, JOURS_OUVRES, lundi, feries, calendrier, blank, normSubject, normTask, migrate,
   isOpen, remaining, bucket, taskCmp, setTaskField, parentOf, childrenOf, subjectStats,
   photo, remettre, horodater, memesDonnees, historique };
 if (typeof module === 'object' && module.exports) module.exports = api;
