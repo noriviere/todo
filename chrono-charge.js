@@ -38,7 +38,6 @@ function slots() {
 // Jour de la semaine type (calendrier commun) : un jour férié garde sa capacité, prise par un créneau « Férié »
 const isWorkDay = ds => A.calendrier().semaine.includes(parseYmd(ds).getDay());
 const capacity = ds => isWorkDay(ds) ? settings().workdayMin : 0;
-const mondayOf = A.lundi;
 // Fériés (calendrier commun) et absences (fournies par le Pointage) d'un jour de la semaine type, en créneaux virtuels
 function joursPris(ds) {
   if (!isWorkDay(ds)) return [];
@@ -60,7 +59,7 @@ function slotOn(sl, ds) {
     case 'weekly': return (sl.days || []).includes(wd);
     case 'biweekly':
       if (!(sl.days || []).includes(wd)) return false;
-      return Math.round(diffDays(mondayOf(ds), mondayOf(sl.start || ds)) / 7) % 2 === 0;
+      return Math.round(diffDays(A.lundi(ds), A.lundi(sl.start || ds)) / 7) % 2 === 0;
     case 'monthday': return !!st && d.getDate() === st.getDate();
     case 'monthweek': return !!st && wd === st.getDay() && Math.ceil(d.getDate() / 7) === Math.ceil(st.getDate() / 7);
   }

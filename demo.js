@@ -28,12 +28,8 @@ const frHolidays = y => new Set(Object.keys(window.todoMetier.feries(y)));
 const nextSat = s => add(s, (6 - wd(s) + 7) % 7);
 // Jour travaillé suivant d'après le calendrier commun (semaine type par défaut, fériés compris)
 const decale = s => { const M = window.todoMetier; return M.calendrier(M.blank().settings).travailleSuivant(s); };
-// Prochain jour férié tombant en semaine, à partir de la date
-function nextHoliday(s) {
-  let d = s;
-  for (let i = 0; i < 400; i++, d = add(d, 1)) if (isWork(d) && frHolidays(+d.slice(0, 4)).has(d)) return d;
-  return s;
-}
+// Prochain jour férié tombant en semaine (calendrier commun)
+const nextHoliday = s => { const M = window.todoMetier; return M.calendrier(M.blank().settings).prochainFerie(s, { enSemaine: true }) || s; };
 
 function data(td) {
   const now = new Date().toISOString();

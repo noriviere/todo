@@ -653,8 +653,9 @@ function archiveSubject(s, on = true) {
 /* ---------- Toast ---------- */
 let toastTimer;
 // action : fonction du bouton (« Annuler » par défaut, ou « Rétablir »)
-// voir : second bouton facultatif { label, fn } (ex. « Voir les tâches »)
-function toast(msg, action, label = 'Annuler', voir = null) {
+// o.action + o.label : bouton qui défait (« Annuler », « Rétablir ») ; o.voir : second bouton facultatif { label, fn }
+function toast(msg, o = {}) {
+  const action = o.action || null, label = o.label || 'Annuler', voir = o.voir || null;
   const el = $('#toast');
   el.innerHTML = `<div class="toast" role="status" aria-live="polite"><span>${esc(msg)}</span>${voir ? `<button data-act="toast-voir">${esc(voir.label)}</button>` : ''}${action ? `<button data-act="undo">${esc(label)}</button>` : ''}</div>`;
   el._undo = action || null;
@@ -717,7 +718,7 @@ function modifier(libelle, fn, o = {}) {
   const avecSuites = t => [t, ...suites].filter(Boolean).join(' · ');
   // Un bandeau « Annuler » d'une modification plus ancienne ne peut plus rien défaire proprement : on le retire
   if (entree && !texte && !avecAnnuler) fermerToastAnnuler();
-  if (entree && (texte || avecAnnuler)) toast(avecSuites(texte || libelle), avecAnnuler ? () => { if (hist.prochainAnnuler() === entree) annuler(); } : null, 'Annuler', voir);
+  if (entree && (texte || avecAnnuler)) toast(avecSuites(texte || libelle), { action: avecAnnuler ? () => { if (hist.prochainAnnuler() === entree) annuler(); } : null, voir });
   else if (entree && suites.length) toast(avecSuites(''));
   else if (!entree && texte && r !== false) toast(texte);
   return r;
@@ -741,14 +742,14 @@ function annuler() {
   const e = hist.annuler();
   if (!e) { toast('Rien à annuler'); return; }
   remettrePhoto(e.avant);
-  toast('Annulé : ' + e.libelle, retablir, 'Rétablir');
+  toast('Annulé : ' + e.libelle, { action: retablir, label: 'Rétablir' });
   allerA(e.lieu);
 }
 function retablir() {
   const e = hist.retablir();
   if (!e) { toast('Rien à rétablir'); return; }
   remettrePhoto(e.apres);
-  toast('Rétabli : ' + e.libelle, annuler, 'Annuler');
+  toast('Rétabli : ' + e.libelle, { action: annuler });
   allerA(e.lieu);
 }
 // Des données arrivent d'ailleurs (synchro, autre onglet, import, restauration) : on ne peut plus rien annuler
@@ -1068,8 +1069,7 @@ const JOURS_SEMAINE = [[1, 'L', 'lundi'], [2, 'M', 'mardi'], [3, 'M', 'mercredi'
 const DECALAGES = M.DECALAGES;
 function calendrierCard() {
   const st = db.settings, cal = calendrier(), sem = cal.semaine;
-  let proch = null;
-  if (st.feries !== false) for (let d = today(), i = 0; i < 400 && !proch; i++, d = addDays(d, 1)) if (cal.ferie(d)) proch = d;
+  const proch = cal.prochainFerie(today());
   return `<div class="card" id="calendrier"><h3>Calendrier</h3>
     <p>Les jours où l'on travaille normalement, pour toute l'appli : la Charge, la Récurrence, le Pointage et le Gantt des projets. Un jour ouvré est un jour de la semaine type qui n'est pas férié.</p>
     <div class="cal-set">
@@ -1559,7 +1559,7 @@ function enregistrerAffichage() {
 }
 Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, enregistrerAffichage, modifier, normTask, titre, annuler, retablir, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats, remaining: M.remaining, taskCmp,
   parentOf, childrenOf, subjLabel, setParent, canNest, expandTo, archiveSubject, createSubject,
-  esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur, calendrier, absenceDu, lundi: M.lundi, prochaineEcheance: M.prochaineEcheance, nonTravaille, montrerTaches });
+  esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur, calendrier, absenceDu, lundi: M.lundi, prochaineEcheance: M.prochaineEcheance, echeancesLes: ds => M.echeancesLes(db, ds), nonTravaille, montrerTaches });
 
 if (DEMO) {
   document.body.classList.add('demo');

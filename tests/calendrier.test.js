@@ -162,3 +162,24 @@ test('raison d\'un jour non travaillé', () => {
   assert.deepEqual(conge.raison('2026-11-14'), { jour: 'samedi' });
   assert.deepEqual(conge.raison('2026-11-12'), { absence: 'full' });
 });
+
+test('prochain férié, en semaine ou non', () => {
+  assert.equal(cal().prochainFerie('2026-10-28'), '2026-11-01');
+  assert.equal(cal().prochainFerie('2026-10-28', { enSemaine: true }), '2026-11-11', 'le 1er novembre 2026 est un dimanche');
+  assert.equal(cal({ feries: false }).prochainFerie('2026-10-28'), null);
+});
+
+test('échéances ouvertes des jours donnés : ni faites, ni archivées, ni dans un sujet archivé', () => {
+  const d = Object.assign(M.blank(), {
+    subjects: [M.normSubject({ id: 'S' }), M.normSubject({ id: 'X', archived: true })],
+    tasks: [M.normTask({ id: 'a', subjectId: 'S', deadline: '2026-11-12' }), M.normTask({ id: 'b', subjectId: 'S', deadline: '2026-11-12', status: 'done' }),
+      M.normTask({ id: 'c', subjectId: 'S', deadline: '2026-11-12', archived: true }), M.normTask({ id: 'e', subjectId: 'X', deadline: '2026-11-12' }),
+      M.normTask({ id: 'f', subjectId: 'S', deadline: '2026-11-14' }), M.normTask({ id: 'g', subjectId: null, deadline: '2026-11-13' })]
+  });
+  assert.deepEqual(M.echeancesLes(d, ['2026-11-12', '2026-11-13']).map(t => t.id), ['a', 'g']);
+});
+
+test('occurrence décalée : la date théorique à garder est donnée', () => {
+  assert.equal(suivante({ deadline: '2026-10-01', recur: { freq: 'month', interval: 1 } }).decaleeDe, '2026-11-01');
+  assert.equal(suivante({ deadline: '2026-10-02', recur: { freq: 'month', interval: 1 } }).decaleeDe, null);
+});

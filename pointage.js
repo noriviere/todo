@@ -49,7 +49,8 @@ function cleanDay(ds) {
 }
 const type = id => P().types.find(t => t.id === id) || { id, label: id, short: id, color: '#9aa1b2', counted: false };
 // Semaine type et fériés : calendrier commun du noyau (Données › Calendrier)
-const workDays = () => A.calendrier().semaine;
+const cal = () => A.calendrier();
+const workDays = () => cal().semaine;
 const workdayMin = () => db().settings.workdayMin || 420;
 // Objectif de temps par jour de la semaine (index = getDay()), en minutes
 const WD_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -57,8 +58,6 @@ const WD_SHORT = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 const dayTarget = wd => { const m = P().dayMin && P().dayMin[wd]; return m != null ? m : workDays().includes(wd) ? workdayMin() : 0; };
 const weekTarget = () => WD_ORDER.reduce((a, wd) => a + dayTarget(wd), 0);
 
-const holiday = ds => A.calendrier().ferie(ds);
-const isWork = ds => A.calendrier().ouvre(ds);   // jour ouvré : semaine type, hors fériés
 
 /* ---------- Calculs d'heures ---------- */
 const toMin = s => { if (!s) return null; const [h, m] = s.split(':').map(Number); return h * 60 + m; };
@@ -81,8 +80,7 @@ function worked(ds) {
 }
 const absFrac = d => d && d.abs ? (d.abs.part === 'am' || d.abs.part === 'pm' ? 0.5 : 1) : 0;
 // Temps attendu d'un jour (objectif), diminué des absences et nul les jours fériés ou non travaillés
-const expected = ds => holiday(ds) ? 0 : Math.round(dayTarget(parseYmd(ds).getDay()) * (1 - absFrac(day(ds))));
-const mondayOf = A.lundi;
+const expected = ds => cal().ferie(ds) ? 0 : Math.round(dayTarget(parseYmd(ds).getDay()) * (1 - absFrac(day(ds))));
 function isoWeek(ds) {
   const d = parseYmd(ds); d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
   const w1 = new Date(d.getFullYear(), 0, 4);
@@ -154,13 +152,13 @@ function punchButtons(ds, small) {
 }
 function todayLine() {
   const ds = today(), d = day(ds), w = worked(ds);
-  const h = holiday(ds);
+  const h = cal().ferie(ds);
   if (d && d.abs && d.abs.part === 'full') return `<b>${esc(type(d.abs.type).label)}</b> aujourd'hui`;
   const parts = [];
   if (d && d.in) parts.push('arrivé à ' + d.in.replace(':', 'h'));
   if (d && d.lunchOut) parts.push('repas ' + d.lunchOut.replace(':', 'h') + (d.lunchIn ? '–' + d.lunchIn.replace(':', 'h') : ' (en pause)'));
   if (d && d.out) parts.push('parti à ' + d.out.replace(':', 'h'));
-  if (!parts.length) return h ? `Jour férié (${esc(h)})` : isWork(ds) ? "Pas encore pointé aujourd'hui" : 'Jour non travaillé';
+  if (!parts.length) return h ? `Jour férié (${esc(h)})` : cal().ouvre(ds) ? "Pas encore pointé aujourd'hui" : 'Jour non travaillé';
   return parts.join(' · ') + ` · <b${w.live ? ' data-pt-live' : ''}>${fmtH(w.min)}</b>${w.live ? ' <span class="pt-live">en cours</span>' : ''}`;
 }
 
@@ -172,7 +170,7 @@ function weekRows(mon) {
   let tot = 0, exp = 0;
   const rows = [];
   for (let i = 0; i < 7; i++) {
-    const ds = addDays(mon, i), d = day(ds) || {}, w = worked(ds), h = holiday(ds);
+    const ds = addDays(mon, i), d = day(ds) || {}, w = worked(ds), h = cal().ferie(ds);
     const off = !workDays().includes(parseYmd(ds).getDay());
     const full = d.abs && d.abs.part === 'full';
     tot += w.min; exp += expected(ds);
@@ -195,7 +193,7 @@ function weekRows(mon) {
 }
 
 function viewWeek() {
-  const mon = weekStart || mondayOf(today());
+  const mon = weekStart || A.lundi(today());
   const { html, tot, exp } = weekRows(mon);
   const ecart = tot - exp;
   const end = addDays(mon, 6);
@@ -207,7 +205,7 @@ function viewWeek() {
       <button class="btn" data-act="pt-week" data-n="-7" title="Semaine précédente">‹</button>
       <b>Semaine ${isoWeek(mon)}</b><span class="hint">du ${parseYmd(mon).getDate()} ${MONTHS[parseYmd(mon).getMonth()]} au ${parseYmd(end).getDate()} ${MONTHS[parseYmd(end).getMonth()]} ${end.slice(0, 4)}</span>
       <button class="btn" data-act="pt-week" data-n="7" title="Semaine suivante">›</button>
-      ${mon !== mondayOf(today()) ? '<button class="chip" data-act="pt-week" data-n="0">Cette semaine</button>' : ''}
+      ${mon !== A.lundi(today()) ? '<button class="chip" data-act="pt-week" data-n="0">Cette semaine</button>' : ''}
     </div>
     <div class="card pt-week">
       <div class="pt-row pt-head"><span>Jour</span><span>Présence</span><span class="pt-times"><i>Arrivée</i><i>Début repas</i><i>Fin repas</i><i>Départ</i></span><span class="pt-tot">Total</span><span></span></div>
@@ -225,7 +223,7 @@ function rangesOf(y) {
     let gapOk = false;
     if (last && last.type === a.type && last.part === a.part) {
       gapOk = true;
-      for (let x = addDays(last.to, 1); x < ds; x = addDays(x, 1)) if (isWork(x) && !(day(x) && day(x).abs)) { gapOk = false; break; }
+      for (let x = addDays(last.to, 1); x < ds; x = addDays(x, 1)) if (cal().ouvre(x) && !(day(x) && day(x).abs)) { gapOk = false; break; }
     }
     if (gapOk) { last.to = ds; last.days.push(ds); last.n += absFrac(P().days[ds]); }
     else out.push({ type: a.type, part: a.part, from: ds, to: ds, days: [ds], n: absFrac(P().days[ds]) });
@@ -306,7 +304,7 @@ function stats(y) {
   const start = !first ? addDays(end, 1) : first > `${y}-01-01` ? first : `${y}-01-01`;
   for (let ds = start; ds <= end; ds = addDays(ds, 1)) {
     const w = worked(ds), e = expected(ds), mi = parseYmd(ds).getMonth();
-    const wk = mondayOf(ds);
+    const wk = A.lundi(ds);
     if (!weeks[wk]) weeks[wk] = { min: 0, exp: 0, days: 0 };
     weeks[wk].min += w.min; weeks[wk].exp += e;
     months[mi].min += w.min; months[mi].exp += e;
@@ -383,7 +381,7 @@ if (!A.NAV.some(x => x[0] === 'pointage')) {
 A.hooks.dashTop.push(() => {
   if (!on()) return '';
   const ds = today();
-  if (!isWork(ds) && !day(ds)) return '';
+  if (!cal().ouvre(ds) && !day(ds)) return '';
   return `<div class="card pt-today pt-dash"><div class="pt-today-l"><a href="#pointage" class="hint">Pointage</a><div>${todayLine()}</div></div><div class="pt-today-r">${punchButtons(ds, true)}</div></div>`;
 });
 
@@ -400,7 +398,7 @@ document.addEventListener('click', e => {
   const act = b.dataset.act;
   switch (act) {
     case 'pt-tab': ui().ptTab = b.dataset.t; A.enregistrerAffichage(); A.render(); break;
-    case 'pt-week': { const n = +b.dataset.n; weekStart = n ? addDays(weekStart || mondayOf(today()), n) : null; A.render(); break; }
+    case 'pt-week': { const n = +b.dataset.n; weekStart = n ? addDays(weekStart || A.lundi(today()), n) : null; A.render(); break; }
     case 'pt-goweek': weekStart = b.dataset.d; ui().ptTab = 'semaine'; A.enregistrerAffichage(); A.render(); break;
     case 'pt-year': { const n = +b.dataset.n; year = n ? (year || +today().slice(0, 4)) + n : null; A.render(); break; }
     case 'pt-punch': {
@@ -415,14 +413,13 @@ document.addEventListener('click', e => {
       if (!from || to < from) { toast('Choisis une période valide'); return; }
       if (diffDays(to, from) > 370) { toast('Période trop longue (plus d\'un an)'); return; }
       const set = [];
-      for (let ds = from; ds <= to; ds = addDays(ds, 1)) if (isWork(ds) || type(typeId).calendar) set.push(ds);
+      for (let ds = from; ds <= to; ds = addDays(ds, 1)) if (cal().ouvre(ds) || type(typeId).calendar) set.push(ds);
       if (!set.length) { toast('Aucun jour ouvré dans cette période'); return; }
       const n = set.length * (part === 'full' ? 1 : 0.5);
       const msg = `${fmtJ(n)} de ${type(typeId).label} posé${n > 1 ? 's' : ''}`;
       // Échéances déjà prévues les jours posés en journée entière (une demi-journée reste travaillée) :
       // rien n'est déplacé, on les signale. Tâches visibles seulement (pas d'archive ni de sujet archivé).
-      const poses = new Set(part === 'full' ? set : []);
-      const dues = db().tasks.filter(t => A.isOpen(t) && A.visible(t) && poses.has(t.deadline));
+      const dues = part === 'full' ? A.echeancesLes(set) : [];
       const avert = dues.length ? ` · ${dues.length} tâche${dues.length > 1 ? 's ont' : ' a'} une échéance pendant cette absence` : '';
       A.modifier(`Absence posée : ${fmtJ(n)} de ${type(typeId).label}`, () => { set.forEach(ds => setAbs(ds, typeId, part)); },
         { toast: msg + avert, annuler: true, voir: dues.length ? { label: dues.length > 1 ? 'Les voir' : 'La voir', fn: () => A.montrerTaches(dues.map(t => t.id)) } : null });
@@ -497,6 +494,6 @@ setInterval(() => {
 }, 30000);
 
 // Accès pour d'autres modules (import d'historique…)
-A.pointage = { P, day, worked, holiday, isWork, counter, type };
+A.pointage = { P, day, worked, counter, type };
 A.render();
 })();

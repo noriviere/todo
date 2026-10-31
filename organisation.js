@@ -348,7 +348,7 @@
           startDate: t.startDate && t.deadline ? addDays(nd, A.diffDays(t.startDate, t.deadline)) : null,
           createdAt: now, updatedAt: now, doneAt: null, archived: false, archivedAt: null,
           realMin: 0, timeLogs: [], timerStart: null, order: 0, recurNextId: null, recurFromId: t.id,
-          decaleeDe: prochaine.decalee ? prochaine.theorique : null,
+          decaleeDe: prochaine.decaleeDe,
           recur: Object.assign({}, t.recur, { jour: prochaine.jour })   // jour d'ancrage : le 31 revient le 31
         }));
         d.tasks.push(n);
@@ -367,8 +367,11 @@
     if (!creees.length) return '';
     if (creees.length > 1) return `↻ ${creees.length} prochaines occurrences créées` + (creees.some(n => n.decaleeDe) ? ' (dont des décalées hors des jours non travaillés)' : '');
     const n = creees[0];
+    // « (le dimanche 1er n'est pas travaillé) » : le mois n'est répété que s'il change
+    const memeMois = n.decaleeDe && n.decaleeDe.slice(0, 7) === n.deadline.slice(0, 7);
+    const origine = n.decaleeDe && (memeMois ? A.longDate(n.decaleeDe).replace(/\s\S+$/, '') : A.longDate(n.decaleeDe));
     return n.decaleeDe
-      ? `↻ Prochaine occurrence le ${A.longDate(n.deadline)} (le ${A.longDate(n.decaleeDe)} n'est pas travaillé)`
+      ? `↻ Prochaine occurrence le ${A.longDate(n.deadline)} (le ${origine} n'est pas travaillé)`
       : '↻ Prochaine occurrence créée pour le ' + A.longDate(n.deadline);
   }
   A.hooks.apresModif.push(checkRecurring);

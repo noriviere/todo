@@ -28,10 +28,10 @@ function parseDur(s, workdayMin = 420) {
 
 /* ---------- Calendrier (CONTEXT.md « Calendrier ») ---------- */
 // Semaine type par défaut : du lundi au vendredi (0 = dimanche)
-const JOURS_OUVRES = [1, 2, 3, 4, 5];
+const SEMAINE_TYPE = [1, 2, 3, 4, 5];
 const UN_AN = 366;   // borne des recherches de jour : on ne cherche jamais plus loin qu'un an
 const JOURS_LONGS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
-const semaineType = settings => settings && Array.isArray(settings.workDays) && settings.workDays.length ? settings.workDays : JOURS_OUVRES;
+const semaineType = settings => settings && Array.isArray(settings.workDays) && settings.workDays.length ? settings.workDays : SEMAINE_TYPE;
 const lundi = ds => addDays(ds, -((parseYmd(ds).getDay() + 6) % 7));
 // Jours fériés de France métropolitaine d'une année : { 'AAAA-MM-JJ': nom }
 const feriesCache = {};
@@ -72,7 +72,13 @@ function calendrier(settings, absenceDe = () => null) {
     if (!sem.includes(parseYmd(ds).getDay())) return { jour: JOURS_LONGS[parseYmd(ds).getDay()] };
     return { absence: absence(ds) };
   };
-  return { semaine: sem, ferie, ouvre, absence, travaille, raison, ouvreSuivant, travailleSuivant, ajouterOuvres, ouvresEntre };
+  // Premier jour férié à partir de ds (enSemaine : tombant un jour de la semaine type), null sans fériés
+  const prochainFerie = (ds, o = {}) => {
+    if (!avecFeries) return null;
+    for (let d = ds, i = 0; i < UN_AN * 2; i++, d = addDays(d, 1)) if (ferie(d) && (!o.enSemaine || sem.includes(parseYmd(d).getDay()))) return d;
+    return null;
+  };
+  return { semaine: sem, ferie, ouvre, absence, travaille, raison, prochainFerie, ouvreSuivant, travailleSuivant, ajouterOuvres, ouvresEntre };
 }
 // Échéance d'une occurrence de récurrence qui tombe un jour non travaillé, selon la règle des réglages :
 // 'suivant' (par défaut) le jour travaillé suivant, 'precedent' le précédent mais jamais avant aujourd'hui
@@ -90,6 +96,12 @@ function decaler(date, regle, cal, aujourdhui) {
   return { date: d, decalee: d !== date };
 }
 
+// Tâches ouvertes et visibles (ni archivées, ni dans un sujet archivé) dont l'échéance tombe un des jours donnés
+function echeancesLes(d, jours) {
+  const set = new Set(jours), archives = new Set((d.subjects || []).filter(s => s.archived).map(s => s.id));
+  return (d.tasks || []).filter(t => isOpen(t) && !t.archived && !archives.has(t.subjectId) && set.has(t.deadline));
+}
+
 /* ---------- Récurrence : occurrence suivante ---------- */
 // n mois après ds, au jour d'ancrage de la série (le 31 revient le 31, ou le dernier jour des mois plus courts)
 function ajouterMois(ds, n, jour) {
@@ -104,7 +116,7 @@ function pasRecurrence(ds, r, cal, jour) {
   if (r.freq === 'month') return ajouterMois(ds, r.interval, jour);
   return ajouterMois(ds, 12 * r.interval, jour);
 }
-// Échéance de l'occurrence suivante d'une tâche récurrente → { date, theorique, decalee, jour }.
+// Échéance de l'occurrence suivante d'une tâche récurrente → { date, theorique, decalee, decaleeDe, jour }.
 // La date théorique part de la théorique de la précédente (decaleeDe), jamais de la date décalée, au jour
 // d'ancrage de la série (recur.jour) ; faite en retard, on saute à la prochaine à venir ; puis decaler().
 function prochaineEcheance(t, cal, regle, aujourdhui) {
@@ -112,8 +124,9 @@ function prochaineEcheance(t, cal, regle, aujourdhui) {
   const jour = t.recur.jour || parseYmd(base).getDate();
   let n = pasRecurrence(base, t.recur, cal, jour);
   for (let i = 0; i < 1000 && n < aujourdhui; i++) n = pasRecurrence(n, t.recur, cal, jour);
-  if (t.recur.freq === 'workday') return { date: n, theorique: n, decalee: false, jour };
-  return Object.assign(decaler(n, regle, cal, aujourdhui), { theorique: n, jour });
+  if (t.recur.freq === 'workday') return { date: n, theorique: n, decalee: false, decaleeDe: null, jour };
+  const r = decaler(n, regle, cal, aujourdhui);
+  return Object.assign(r, { theorique: n, decaleeDe: r.decalee ? n : null, jour });
 }
 
 /* ---------- Données ---------- */
@@ -122,7 +135,7 @@ function blank() {
     version: 1,
     subjects: [],
     tasks: [],
-    settings: { theme: 'auto', workdayMin: 420, lastExport: null, modules: {}, workDays: JOURS_OUVRES.slice(), feries: true, decalage: 'suivant' },
+    settings: { theme: 'auto', workdayMin: 420, lastExport: null, modules: {}, workDays: SEMAINE_TYPE.slice(), feries: true, decalage: 'suivant' },
     ui: { expanded: [], showClosed: false, search: '', dims: { code: '', secteur: '', produit: '' } }
   };
 }
@@ -160,7 +173,7 @@ function migrate(d) {
   if (!d.settings.modules || typeof d.settings.modules !== 'object') d.settings.modules = {};
   // Fériés automatiques : réglage commun, repris de l'ancienne case du Pointage
   if (typeof feriesAvant !== 'boolean') d.settings.feries = !(d.pointage && d.pointage.holidays === false);
-  if (!Array.isArray(d.settings.workDays)) d.settings.workDays = JOURS_OUVRES.slice();
+  if (!Array.isArray(d.settings.workDays)) d.settings.workDays = SEMAINE_TYPE.slice();
   d.ui = Object.assign(blank().ui, d.ui);
   // Ancienne dimension « Projet » (Excel) renommée « Code » : « Projet » désigne désormais le module Projets
   const dims = d.ui.dims || {};
@@ -374,7 +387,7 @@ function historique(max = 50) {
   };
 }
 
-const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, JOURS_OUVRES, lundi, feries, calendrier, decaler, prochaineEcheance, DECALAGES, blank, normSubject, normTask, migrate,
+const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, SEMAINE_TYPE, lundi, feries, calendrier, decaler, prochaineEcheance, DECALAGES, echeancesLes, blank, normSubject, normTask, migrate,
   isOpen, remaining, bucket, taskCmp, setTaskField, parentOf, childrenOf, subjectStats,
   photo, remettre, horodater, memesDonnees, historique };
 if (typeof module === 'object' && module.exports) module.exports = api;

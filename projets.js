@@ -25,13 +25,13 @@ const projects = () => db().subjects.filter(s => isProj(s) && !s.archived).sort(
 const project = id => { const s = A.subj(id); return isProj(s) ? s : null; };
 const stepsOf = pid => { const p = A.subj(pid); return p ? A.childrenOf(p) : []; };
 const projectOfStep = s => { const p = A.parentOf(s); return isProj(p) && !p.archived ? p : null; };
-// Jours ouvrés du calendrier commun (semaine type, hors fériés) : les congés de Noel ne décalent pas le Gantt
-const workDays = () => A.calendrier().ouvre;
+// Calendrier commun : le Gantt compte en jours ouvrés (semaine type, hors fériés), les congés de Noel ne le décalent pas
+const cal = () => A.calendrier();
 const milestonesOf = p => (pjOf(p).milestones || []).filter(m => !m.archived);
 // Les étapes archivées (souvent terminées) restent des ancres pour celles qui en dépendent, sans être dessinées
 function projectSchedule(p) {
   const all = A.childrenOf(p, true), archived = new Set(all.filter(s => s.archived).map(s => s.id));
-  const sc = PL.schedule(all, milestonesOf(p), workDays());
+  const sc = PL.schedule(all, milestonesOf(p), cal());
   sc.order = sc.order.filter(id => !archived.has(id));
   sc.unplanned = sc.unplanned.filter(id => !archived.has(id));
   sc.alerts = sc.alerts.filter(a => !archived.has(a.subjectId));
@@ -420,7 +420,7 @@ const CHAMPS_ETAPE = {
   'is-project': { nom: 'mode projet', poser: (s, v, o) => setProject(s, o.coche) },
   start: { nom: 'début', poser: (s, v) => poserPlan(s, { start: v || null }) },
   dur: { nom: 'durée', poser: (s, v) => poserPlan(s, { durDays: v ? Math.max(1, Math.round(+v) || 1) : null }) },
-  end: { nom: 'fin prévue', poser: (s, v, o) => poserPlan(s, { durDays: Math.max(1, workdaysBetween(o.debut, v)) }) },
+  end: { nom: 'fin prévue', poser: (s, v, o) => poserPlan(s, { durDays: Math.max(1, cal().ouvresEntre(o.debut, v)) }) },
   lag: { nom: 'décalage', poser: (s, v) => { s.lagDays = Math.max(0, Math.round(+v) || 0); } },
   who: { nom: 'qui', poser: (s, v) => { s.who = v.trim(); } }
 };
@@ -561,7 +561,6 @@ window.addEventListener('afterprint', () => {
 
 /* ---------- Édition directe : glisser une étape libre, étirer sa fin (souris, pas sur écran tactile) ---------- */
 let drag = null, swallowClick = false;
-const workdaysBetween = (a, b) => A.calendrier().ouvresEntre(a, b);   // nombre de jours ouvrés de a à b inclus
 document.addEventListener('pointerdown', e => {
   const bar = e.target.closest('.pj-bar');
   if (!bar || e.button !== 0 || coarse() || !on()) return;
@@ -593,8 +592,8 @@ document.addEventListener('pointerup', () => {
   A.modifier(`Étape « ${A.titre(s)} » ${resize ? 'allongée ou raccourcie' : 'déplacée'} sur le planning`, () => {
     if (resize) {
       const newEnd = shift(end, days);
-      s.plan = Object.assign({}, s.plan, { durDays: Math.max(1, newEnd < start ? 1 : workdaysBetween(start, newEnd)) });
-    } else s.plan = Object.assign({}, s.plan, { start: PL.nextWorkday(shift(start, days), workDays()) });
+      s.plan = Object.assign({}, s.plan, { durDays: Math.max(1, newEnd < start ? 1 : cal().ouvresEntre(start, newEnd)) });
+    } else s.plan = Object.assign({}, s.plan, { start: cal().ouvreSuivant(shift(start, days)) });
   }, { lieu: { vue: 'projets', sid: s.id } });
 });
 // Un glisser ne doit pas ouvrir l'étape

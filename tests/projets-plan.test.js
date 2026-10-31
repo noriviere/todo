@@ -1,14 +1,16 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const P = require('../projets-plan.js');
-const WD = [1, 2, 3, 4, 5];
+const M = require('../metier.js');
+// Semaine du lundi au vendredi, sans fériés (les cas avec fériés sont plus bas)
+const WD = M.calendrier({ workDays: [1, 2, 3, 4, 5], feries: false });
 const run = (steps, ms = []) => P.schedule(steps, ms, WD);
 
 test('jours ouvrés', () => {
-  assert.equal(P.nextWorkday('2026-10-24', WD), '2026-10-26');
-  assert.equal(P.nextWorkday('2026-10-26', WD), '2026-10-26');
-  assert.equal(P.addWorkdays('2026-10-23', 1, WD), '2026-10-26');
-  assert.equal(P.addWorkdays('2026-10-23', 0, WD), '2026-10-23');
+  assert.equal(WD.ouvreSuivant('2026-10-24'), '2026-10-26');
+  assert.equal(WD.ouvreSuivant('2026-10-26'), '2026-10-26');
+  assert.equal(WD.ajouterOuvres('2026-10-23', 1), '2026-10-26');
+  assert.equal(WD.ajouterOuvres('2026-10-23', 0), '2026-10-23');
 });
 
 test('chaîne simple', () => {
@@ -89,8 +91,7 @@ test('lignes du Gantt', () => {
 });
 
 // Avec le calendrier commun : les fériés ne sont pas ouvrés (le congé de Noel ne compte pas)
-const M = require('../metier.js');
-const OUVRE = M.calendrier(M.blank().settings, ds => ds === '2026-11-13' ? 'full' : null).ouvre;
+const OUVRE = M.calendrier(M.blank().settings, ds => ds === '2026-11-13' ? 'full' : null);
 
 test('calendrier : une étape de 5 jours du lundi 9 novembre finit le lundi 16 (11 novembre férié)', () => {
   const r = P.schedule([{ id: 'A', plan: { start: '2026-11-09', durDays: 5 } }], [], OUVRE);
@@ -98,8 +99,6 @@ test('calendrier : une étape de 5 jours du lundi 9 novembre finit le lundi 16 (
 });
 
 test('calendrier : un début posé un jour férié part du jour ouvré suivant', () => {
-  assert.equal(P.nextWorkday('2026-11-11', OUVRE), '2026-11-12');
-  assert.equal(P.addWorkdays('2026-11-10', 1, OUVRE), '2026-11-12');
   const r = P.schedule([{ id: 'A', plan: { start: '2026-11-11', durDays: 1 } }], [], OUVRE);
   assert.equal(r.byId.A.start, '2026-11-12');
 });

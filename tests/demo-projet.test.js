@@ -6,7 +6,7 @@ const vm = require('node:vm');
 const P = require('../projets-plan.js');
 const M = require('../metier.js');
 // Jours ouvrés comme dans la page : calendrier commun (semaine type, fériés)
-const ouvre = d => M.calendrier(M.migrate(JSON.parse(JSON.stringify(d))).settings).ouvre;
+const ouvre = d => M.calendrier(M.migrate(JSON.parse(JSON.stringify(d))).settings);
 
 // demo.js est un script navigateur : on le charge avec un window factice pour appeler todoDemo.data(today)
 const ctx = { window: { todoMetier: require('../metier.js') } };

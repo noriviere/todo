@@ -18,7 +18,7 @@ test('récurrence mensuelle : le dimanche 1er novembre devient le lundi 2, bande
   const n = await occurrence(page, 'r');
   assert.equal(n.deadline, '2026-11-02');
   assert.equal(n.decaleeDe, '2026-11-01');
-  assert.match(await page.locator('#toast').innerText(), /Prochaine occurrence le lundi 2 novembre \(le dimanche 1er novembre n'est pas travaillé\)/);
+  assert.match(await page.locator('#toast').innerText(), /Prochaine occurrence le lundi 2 novembre \(le dimanche 1er n'est pas travaillé\)/);
   await ligne(page, n.id).locator('[data-act="details"]').click();
   assert.match(await page.locator('#drawer').innerText(), /Décalée du dimanche 1er novembre/);
   await page.keyboard.press('Escape');
