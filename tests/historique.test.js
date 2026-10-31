@@ -103,3 +103,13 @@ test('une tâche ou un sujet créé a la même date de création et de modificat
     assert.equal(s.updatedAt, s.createdAt);
   }
 });
+
+test('mêmes données : seule la date de modification change, ce n\'est pas une modification', () => {
+  const d = donnees();
+  const a = M.photo(d);
+  d.tasks[0].updatedAt = '2030-01-01T00:00:00.000Z';
+  d.subjects[0].updatedAt = '2030-01-01T00:00:00.000Z';
+  assert.equal(M.memesDonnees(a, M.photo(d)), true);
+  d.tasks[0].title = 'Autre';
+  assert.equal(M.memesDonnees(a, M.photo(d)), false);
+});

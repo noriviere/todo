@@ -482,10 +482,15 @@ function exitDemo() {
 }
 let db = load();
 let lastSaved = null;
+// Photo des données telles que l'historique les connaît. Un enregistrement qui ne passe pas par modifier()
+// (module pas encore migré) et change les données vide l'historique : un Ctrl+Z ne pourra pas l'effacer.
+let photoConnue = null, dansModif = false;
 function save() {
+  if (!dansModif && photoConnue !== null && M.photo(db) !== photoConnue) viderHistorique();
   try {
     store.setItem(KEY, JSON.stringify(db));
     lastSaved = new Date();
+    if (!dansModif) photoConnue = M.photo(db);
     window.dispatchEvent(new Event('todo:saved'));
   } catch (e) {
     alert("Impossible d'enregistrer dans le navigateur : " + e.message + "\nFais un export JSON pour ne rien perdre.");
@@ -629,6 +634,7 @@ function toast(msg, action, label = 'Annuler') {
 // Le libellé peut être une fonction, lue après la modification (titre qu'on vient de changer).
 // fn reçoit les données ; elle peut renvoyer de nouvelles données complètes (import), qui remplacent les actuelles.
 const hist = M.historique(50);
+photoConnue = M.photo(db);
 let enModif = false;
 // Dernier élément touché par l'utilisateur : sert à retrouver l'endroit d'une modification
 let derniereCible = null;
@@ -649,24 +655,37 @@ function modifier(libelle, fn, o = {}) {
     db = M.remettre(db, M.photo(migrate(r)));
   }
   let entree = null;
-  if (M.photo(db) !== avant) {
+  // Champ revalidé sans changement : on remet aussi les dates de modification, aucun pas n'est créé
+  if (M.memesDonnees(avant, M.photo(db))) db = M.remettre(db, avant);
+  else {
     M.horodater(avant, db, nowIso());
     if (typeof libelle === 'function') libelle = libelle();
-    entree = { libelle, avant, apres: M.photo(db), lieu };
-    hist.enregistrer(entree);
+    entree = { libelle, avant, apres: null, lieu };
   }
-  save();
+  // Ce que les écouteurs de l'enregistrement ajoutent (occurrence suivante d'une récurrence) fait partie du même pas
+  enregistrerConnu();
+  if (entree) { entree.apres = photoConnue; hist.enregistrer(entree); }
   o.differe ? scheduleRender() : render();
   // Un bandeau « Annuler » d'une modification plus ancienne ne peut plus rien défaire proprement : on le retire
-  if (entree && !o.toast && !o.annuler && $('#toast')._undo) { $('#toast').innerHTML = ''; $('#toast')._undo = null; }
+  if (entree && !o.toast && !o.annuler) fermerToastAnnuler();
   if (entree && (o.toast || o.annuler)) toast(o.toast || libelle, o.annuler ? () => { if (hist.prochainAnnuler() === entree) annuler(); } : null);
   else if (!entree && o.toast && r !== false) toast(o.toast);
   return r;
 }
+// Enregistre sans vider l'historique, puis retient la photo obtenue (écouteurs compris)
+function enregistrerConnu() {
+  dansModif = true;
+  try { save(); } finally { dansModif = false; }
+  photoConnue = M.photo(db);
+}
+function fermerToastAnnuler() {
+  const el = $('#toast');
+  if (el._undo) { el.innerHTML = ''; el._undo = null; }
+}
 function remettrePhoto(p) {
   db = M.remettre(db, p);
   if (drawerId && !task(drawerId)) drawerId = null;
-  save(); render();
+  enregistrerConnu(); render();
 }
 function annuler() {
   const e = hist.annuler();
@@ -685,8 +704,7 @@ function retablir() {
 // Des données arrivent d'ailleurs (synchro, autre onglet, import, restauration) : on ne peut plus rien annuler
 function viderHistorique() {
   hist.vider();
-  const el = $('#toast');
-  if (el._undo) { el.innerHTML = ''; el._undo = null; }
+  fermerToastAnnuler();
   peindreHist();
 }
 function peindreHist() {
@@ -730,7 +748,7 @@ function allerA(l) {
 }
 // Ctrl+Z / Cmd+Z annule, Ctrl+Y ou Ctrl+Maj+Z rétablit, sauf pendant la frappe dans un champ (le navigateur annule la frappe)
 const enFrappe = el => !!el && (el.isContentEditable || el.tagName === 'TEXTAREA' ||
-  (el.tagName === 'INPUT' && /^(text|search|email|url|tel|password|number|)$/.test(el.type)));
+  (el.tagName === 'INPUT' && /^(text|search|email|url|tel|password|number|date|time|datetime-local|month|week|)$/.test(el.type)));
 document.addEventListener('keydown', e => {
   if (!(e.ctrlKey || e.metaKey) || e.altKey || enFrappe(e.target)) return;
   const k = e.key.toLowerCase();

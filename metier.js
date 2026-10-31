@@ -252,6 +252,12 @@ function horodater(avant, d, now = nowIso()) {
     for (const x of d[k] || []) if (prev.has(x.id) && prev.get(x.id) !== sans(x)) x.updatedAt = now;
   }
 }
+// Les deux photos ne diffèrent que par des dates de modification (champ revalidé sans changement)
+function memesDonnees(a, b) {
+  if (a === b) return true;
+  const sans = p => { const d = JSON.parse(p); ['tasks', 'subjects'].forEach(k => (d[k] || []).forEach(x => { x.updatedAt = null; })); return JSON.stringify(d); };
+  return sans(a) === sans(b);
+}
 // Deux piles : ce qu'on peut annuler (le plus récent en dernier) et ce qu'on peut rétablir
 function historique(max = 50) {
   let passe = [], futur = [];
@@ -268,7 +274,7 @@ function historique(max = 50) {
 
 const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, blank, normSubject, normTask, migrate,
   isOpen, remaining, bucket, taskCmp, setTaskField, parentOf, childrenOf, subjectStats,
-  photo, remettre, horodater, historique };
+  photo, remettre, horodater, memesDonnees, historique };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.todoMetier = api;
 })(typeof window !== 'undefined' ? window : this);

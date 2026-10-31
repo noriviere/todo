@@ -349,6 +349,7 @@ const SECTIONS = [
       <li>Pendant que tu tapes dans un champ, <kbd>Ctrl</kbd>+<kbd>Z</kbd> défait seulement ta frappe, comme d'habitude.</li>
       <li>Sur téléphone (ou à la souris) : les boutons <b>↶</b> et <b>↷</b> à côté du nom de l'appli. Leur info-bulle dit ce qu'ils vont défaire ; ils sont grisés quand il n'y a rien à faire.</li>
       <li>Après une annulation, un bandeau « Annulé : … » propose <b>Rétablir</b>, et l'appli te ramène là où tu avais fait la modification (la ligne clignote brièvement).</li>
+      <li>Un import de ta liste Excel compte pour une seule modification : un Ctrl+Z le défait d'un coup.</li>
       <li>Seules tes données reviennent en arrière : les sujets dépliés, les filtres, la recherche, le thème et les modules actifs ne bougent pas.</li>
       <li>L'historique repart de zéro au rechargement de la page, et dès que des données arrivent d'ailleurs (synchro GitHub, autre onglet, restauration d'une sauvegarde) : un Ctrl+Z n'efface jamais ce qui vient de ton autre appareil.</li>
     </ul>` },

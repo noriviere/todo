@@ -46,7 +46,7 @@ Là où vont les sujets et les tâches dont on ne veut plus : rien n'est jamais 
 _À éviter_ : corbeille, suppression
 
 **Annuler** :
-Revenir aux données d'avant une modification, la plus récente d'abord, en remontant l'historique de la session (Ctrl+Z, ou le bandeau qui confirme certaines modifications). Annuler ramène à l'endroit où la modification a été faite. Les données seulement : l'affichage (sujets dépliés, filtres, recherche) ne bouge pas. Ce n'est pas une suppression : annuler la création d'un sujet vide le fait disparaître, puisqu'il n'existait pas l'instant d'avant. Annuler défait aussi ce que la modification a entraîné (l'occurrence suivante d'une récurrence). L'historique se vide dès que des données arrivent d'ailleurs (synchro, autre onglet, import, restauration).
+Revenir aux données d'avant une modification, la plus récente d'abord, en remontant l'historique de la session (Ctrl+Z, ou le bandeau qui confirme certaines modifications). Annuler ramène à l'endroit où la modification a été faite. Les données seulement : l'affichage (sujets dépliés, filtres, recherche) ne bouge pas. Ce n'est pas une suppression : annuler la création d'un sujet vide le fait disparaître, puisqu'il n'existait pas l'instant d'avant. Annuler défait aussi ce que la modification a entraîné (l'occurrence suivante d'une récurrence). L'historique se vide dès que des données arrivent d'ailleurs (synchro, autre onglet, restauration d'une sauvegarde JSON) ; un import Excel ou de pointage, lui, s'annule d'un coup.
 _À éviter_ : supprimer, retour arrière
 
 ### Modules

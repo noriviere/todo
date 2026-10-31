@@ -198,3 +198,79 @@ test('mode démo, modules coupés, téléphone : Ctrl+Z et boutons ↶ ↷ march
   assert.equal(await tel.evaluate(() => document.documentElement.scrollWidth), 390);
   assert.deepEqual(tel.errors, []);
 });
+
+// Corrections issues de la revue de la PR #29 (chacune d'abord en échec)
+test('une modification de module hors du point unique vide l\'historique : Ctrl+Z n\'efface jamais le chrono', async () => {
+  const page = await openApp(base());
+  await ligne(page, 'a').locator('[data-act="archive-task"]').click();
+  await ligne(page, 'b').locator('[data-act="cc-timer"]').click();
+  assert.ok((await tache(page, 'b')).timerStart, 'chrono démarré');
+  assert.equal(await page.locator('#toast [data-act="undo"]').count(), 0, 'le bandeau « Annuler » de l\'archivage est retiré');
+  await page.locator('body').click({ position: { x: 5, y: 5 } });
+  await ctrl(page, 'z');
+  assert.ok((await tache(page, 'b')).timerStart, 'le chrono est toujours là');
+  assert.equal((await tache(page, 'a')).archived, true);
+});
+
+test('une validation sans changement ne crée pas de pas dans l\'historique', async () => {
+  const page = await openApp(base({ tasks: [{ id: 'a', subjectId: 'p', title: 'Tâche A', deadline: day(0), estimateMin: 90, updatedAt: VIEUX }] }), { hash: 'sujets' });
+  const est = ligne(page, 'a').locator('[data-field="estimate"]');
+  await est.fill('90min');
+  await est.press('Enter');
+  await page.waitForTimeout(50);
+  assert.deepEqual((await boutons(page)).map(b => b.off), [true, true]);
+  assert.equal((await tache(page, 'a')).updatedAt, VIEUX, 'date « modifiée le » inchangée');
+});
+
+test('Ctrl+Z dans un champ date n\'annule pas la modification de l\'appli', async () => {
+  const page = await openApp(base());
+  await ligne(page, 'a').locator('[data-act="archive-task"]').click();
+  await page.focus('#qa-date');
+  await ctrl(page, 'z');
+  assert.equal((await tache(page, 'a')).archived, true);
+});
+
+test('Fait sur une tâche récurrente puis Ctrl+Z : la tâche rouverte et l\'occurrence suivante retirée', async () => {
+  const page = await openApp(base({ tasks: [{ id: 'a', subjectId: 'p', title: 'Hebdo', deadline: day(0), recur: { freq: 'week', interval: 1 } }] }));
+  await ligne(page, 'a').locator('[data-act="toggle-done"]').click();
+  await page.waitForTimeout(50);
+  assert.equal((await page.db()).tasks.length, 2, 'occurrence suivante créée');
+  await page.locator('body').click({ position: { x: 5, y: 5 } });
+  await ctrl(page, 'z');
+  const d = await page.db();
+  assert.equal(d.tasks.length, 1);
+  assert.equal(d.tasks[0].status, 'todo');
+  await ctrl(page, 'y');
+  assert.equal((await page.db()).tasks.length, 2, 'Rétablir remet la tâche faite et son occurrence');
+});
+
+test('import JSON, retour à l\'état d\'avant et démo remise à zéro vident l\'historique', async () => {
+  const page = await openApp(base(), { hash: 'donnees' });
+  const vide = async () => assert.deepEqual((await boutons(page)).map(b => b.off), [true, true]);
+  const archiver = () => page.evaluate(() => window.todoApp.modifier('Test', d => { d.tasks[0].archived = !d.tasks[0].archived; }));
+  await archiver();
+  await page.setInputFiles('#file', { name: 's.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(base())) });
+  await page.waitForTimeout(100);
+  await vide();
+  await archiver();
+  await page.click('[data-act="undo-import"]');
+  await page.waitForTimeout(50);
+  await vide();
+  const demo = await openApp(null, { query: '?demo', hash: 'donnees' });
+  await demo.evaluate(() => window.todoApp.modifier('Test', d => { d.tasks[0].archived = true; }));
+  await demo.click('#demo-bar [data-act="demo-reset"]');
+  await demo.waitForTimeout(50);
+  assert.deepEqual((await boutons(demo)).map(b => b.off), [true, true]);
+});
+
+test('après Rétablir, retour à l\'endroit de la modification avec surbrillance', async () => {
+  const page = await openApp(base(), { hash: 'sujets' });
+  await page.locator('.subject[data-sid="q"] .task[data-tid="c"] [data-act="postpone"]').click();
+  await ctrl(page, 'z');
+  await page.goto(page.url().replace(/#.*$/, '#dashboard'));
+  await page.waitForTimeout(50);
+  await ctrl(page, 'y');
+  await page.waitForTimeout(80);
+  assert.match(page.url(), /#sujets/);
+  assert.equal(await page.locator('.subject[data-sid="q"] .task[data-tid="c"].flash').count(), 1);
+});
