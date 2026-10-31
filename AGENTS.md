@@ -48,7 +48,7 @@ PR bodies follow the `pr` skill (`.claude/skills/pr`).
 ## Where things are
 
 - `metier.js`: pure domain rules (data and migration, subject state, remaining time, due-date buckets, task order, task field edits), taking data and day as parameters; tested under Node in `tests/metier.test.js`. Loaded before the core.
-- `index.html`: the core (views, `MODULES` registry, `modOn`, same-name relays to `metier.js`). It exposes `window.todoApp` with the hooks and events (`todo:saved`, `todo:rendered`, `todo:modules`) that module files plug into.
+- `index.html`: the core (views, `MODULES` registry, `modOn`, same-name relays to `metier.js`). It exposes `window.todoApp` with the hooks (`hooks.apresModif` adds what a modification entails, in the same undo step) and events (`todo:saved`, `todo:rendered`, `todo:modules`, `todo:historique-vide`) that module files plug into. Modules change data only through `A.modifier`; display-only state goes through `A.enregistrerAffichage`.
 - One file per module, loaded after the core: `chrono-charge.js` (Chrono, Charge), `pointage.js` + `pointage-import.js` (Pointage et congés), `organisation.js` (dashboard filters, drag-and-drop, Récurrence), `projets.js` + `projets-plan.js` (Gestion de projet; `projets-plan.js` holds the pure planning calculations).
 - Data: `sync.js` (sync through the private GitHub repo), `backup.js` (local backup folder), `excel-import.js` (import of the original Excel list). Data lives in `localStorage` key `todo-noel-v1`.
 - `guide.js` (user guide), `demo.js` (demo data), `sw.js` (offline cache, network first).

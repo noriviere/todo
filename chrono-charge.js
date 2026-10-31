@@ -428,7 +428,7 @@ document.addEventListener('click', e => {
       }, { toast: `${fmtDur(l.min)} retirées`, annuler: true });
       break;
     }
-    case 'cc-range': db().ui.ccRange = +b.dataset.n; A.save(); A.render(); break;
+    case 'cc-range': db().ui.ccRange = +b.dataset.n; A.enregistrerAffichage(); A.render(); break;
     case 'cc-day': selDay = b.dataset.d; A.render(); break;
     case 'cc-slot-add': {
       const off = b.dataset.preset === 'off';
@@ -518,7 +518,7 @@ window.addEventListener('todo:modules', e => {
   const kept = running().length;
   if (kept) db().settings.modules.chrono = true;
   const added = rs.reduce((a, r) => a + (r.realMin || 0), 0) - before;
-  A.save(); A.render();
+  A.enregistrerAffichage(); A.render();
   // Après le message de index.html
   setTimeout(() => toast(kept ? 'Chrono gardé : arrête d\'abord le chrono en cours'
     : `Chrono masqué. Le chrono en cours a été arrêté${added ? ', ' + fmtDur(added) + ' ajoutées au temps réel' : ''}`), 10);

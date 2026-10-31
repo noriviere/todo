@@ -1,6 +1,6 @@
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { openApp, closeAll } = require('./helpers');
+const { openApp, closeAll, glisserPoignee } = require('./helpers');
 after(closeAll);
 
 // Projet « Achat » avec 3 étapes, un autre sujet « Autre » (replié), un sujet P2
@@ -22,20 +22,13 @@ const order = page => page.evaluate(() => [...document.querySelectorAll('.subjec
 
 // Glisse la poignée de `id` jusqu'au point (x, y) ; renvoie l'état du trait juste avant de lâcher
 async function drag(page, id, to, { drop = true } = {}) {
-  await head(page, id).hover();
-  const g = await head(page, id).locator('.org-grip').boundingBox();
-  await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(g.x + 20, g.y + 10, { steps: 4 });
-  await page.mouse.move(to.x, to.y, { steps: 8 });
-  await page.mouse.move(to.x, to.y + 1);
-  const line = await page.evaluate(() => {
-    const l = document.querySelector('.org-line');
-    return l && { zone: l.parentElement.className, rect: l.getBoundingClientRect().toJSON() };
-  });
-  const into = await page.evaluate(() => [...document.querySelectorAll('.org-into')].map(x => x.className));
-  if (drop) await page.mouse.up();
-  return { line, into };
+  return glisserPoignee(page, head(page, id), to, { lacher: drop, avantLacher: async page => ({
+    line: await page.evaluate(() => {
+      const l = document.querySelector('.org-line');
+      return l && { zone: l.parentElement.className, rect: l.getBoundingClientRect().toJSON() };
+    }),
+    into: await page.evaluate(() => [...document.querySelectorAll('.org-into')].map(x => x.className))
+  }) });
 }
 const gapBetween = async (page, x, y) => {
   const r1 = await card(page, x).boundingBox(), r2 = await card(page, y).boundingBox();

@@ -27,7 +27,7 @@ test('module désactivé par défaut : pas d\'onglet, #projets retombe sur le ta
 
 test('module désactivé : les données projet survivent à une sauvegarde', async () => {
   const page = await openApp(data(false, { subjects: [{ id: 's1', title: 'CDC', priority: 1, parentId: 'p1', plan: { start: '2026-11-02', durDays: 3 } }] }), { hash: 'sujets' });
-  await page.evaluate(() => { window.todoApp.getData().tasks[0].title = 'modifié'; window.todoApp.save(); });
+  await page.evaluate(() => { window.todoApp.modifier('Titre', d => { d.tasks[0].title = 'modifié'; }); });
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('todo-noel-v1')));
   assert.equal(pjOf(saved).owner, 'Noel');
   assert.equal(saved.subjects.find(s => s.id === 'p1').isProject, true);
@@ -156,7 +156,7 @@ test('créer un jalon, le relier à une étape, alerte de dépassement', async (
   assert.equal(pjOf(d).milestones[0].date, '2026-11-10');   // le jalon ne bouge pas
   assert.deepEqual(pjOf(d).milestones[0].before, ['s2']);
   // Raccourcir la FAT supprime le dépassement
-  await page.evaluate(() => { const s = window.todoApp.subj('s1'); s.plan.durDays = 2; window.todoApp.save(); window.todoApp.render(); });
+  await page.evaluate(() => { window.todoApp.modifier('Durée', () => { window.todoApp.subj('s1').plan.durDays = 2; }); });
   assert.equal(await page.locator('.pj-alert').count(), 0);
   assert.deepEqual(page.errors, []);
 });

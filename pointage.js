@@ -424,9 +424,9 @@ document.addEventListener('click', e => {
   if (!b || !b.dataset.act.startsWith('pt-')) return;
   const act = b.dataset.act;
   switch (act) {
-    case 'pt-tab': ui().ptTab = b.dataset.t; A.save(); A.render(); break;
+    case 'pt-tab': ui().ptTab = b.dataset.t; A.enregistrerAffichage(); A.render(); break;
     case 'pt-week': { const n = +b.dataset.n; weekStart = n ? addDays(weekStart || mondayOf(today()), n) : null; A.render(); break; }
-    case 'pt-goweek': weekStart = b.dataset.d; ui().ptTab = 'semaine'; A.save(); A.render(); break;
+    case 'pt-goweek': weekStart = b.dataset.d; ui().ptTab = 'semaine'; A.enregistrerAffichage(); A.render(); break;
     case 'pt-year': { const n = +b.dataset.n; year = n ? (year || +today().slice(0, 4)) + n : null; A.render(); break; }
     case 'pt-punch': {
       const ds = b.dataset.d, f = b.dataset.f, h = nowHm();

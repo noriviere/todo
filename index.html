@@ -632,7 +632,10 @@ function toast(msg, action, label = 'Annuler') {
 // options : toast (texte du bandeau, sinon pas de bandeau sauf annuler), annuler (bouton « Annuler » dans le bandeau),
 //   differe (réaffichage qui garde le focus, pour la frappe), copie (garde la copie « avant import »), lieu ({ vue, tid, sid }),
 //   historique: false (conséquence d'un réglage, qui ne doit pas s'annuler : l'historique est alors vidé).
-// Le libellé peut être une fonction, lue après la modification (titre qu'on vient de changer).
+// Le libellé, toast et annuler peuvent être des fonctions, lues après la modification (titre qu'on vient de changer,
+//   message qui dépend de ce que la modification a fait).
+// Les accroches hooks.apresModif(données, photo d'avant) ajoutent ce que la modification entraîne, dans le même pas ;
+//   le texte qu'elles renvoient s'ajoute au bandeau.
 // fn reçoit les données ; elle peut renvoyer de nouvelles données complètes (import), qui remplacent les actuelles.
 const hist = M.historique(50);
 photoConnue = M.photo(db);
@@ -648,13 +651,17 @@ function modifier(libelle, fn, o = {}) {
   if (enModif) return fn(db);   // modification imbriquée : fait partie de celle en cours
   const avant = M.photo(db);
   const lieu = Object.assign(lieuActuel(), o.lieu);
-  let r;
+  let r, suites = [];
   enModif = true;
-  try { r = fn(db); } finally { enModif = false; }
-  if (r && typeof r === 'object' && Array.isArray(r.tasks)) {
-    if (o.copie) keepBackup();
-    db = M.remettre(db, M.photo(migrate(r)));
-  }
+  try {
+    r = fn(db);
+    if (r && typeof r === 'object' && Array.isArray(r.tasks)) {
+      if (o.copie) keepBackup();
+      db = M.remettre(db, M.photo(migrate(r)));
+    }
+    // Ce qu'une modification entraîne (occurrence suivante d'une récurrence) fait partie du même pas
+    if (r !== false) suites = hooks.apresModif.map(f => f(db, avant)).filter(Boolean);
+  } finally { enModif = false; }
   let entree = null;
   // Champ revalidé sans changement : on remet aussi les dates de modification, aucun pas n'est créé
   if (M.memesDonnees(avant, M.photo(db))) db = M.remettre(db, avant);
@@ -663,15 +670,18 @@ function modifier(libelle, fn, o = {}) {
     if (typeof libelle === 'function') libelle = libelle();
     entree = { libelle, avant, apres: null, lieu };
   }
-  // Ce que les écouteurs de l'enregistrement ajoutent (occurrence suivante d'une récurrence) fait partie du même pas
   enregistrerConnu();
   if (entree && o.historique === false) { viderHistorique(); entree = null; }
   if (entree) { entree.apres = photoConnue; hist.enregistrer(entree); }
   o.differe ? scheduleRender() : render();
+  const lire = v => typeof v === 'function' ? v() : v;
+  const texte = lire(o.toast), avecAnnuler = lire(o.annuler);
+  const avecSuites = t => [t, ...suites].filter(Boolean).join(' · ');
   // Un bandeau « Annuler » d'une modification plus ancienne ne peut plus rien défaire proprement : on le retire
-  if (entree && !o.toast && !o.annuler) fermerToastAnnuler();
-  if (entree && (o.toast || o.annuler)) toast(o.toast || libelle, o.annuler ? () => { if (hist.prochainAnnuler() === entree) annuler(); } : null);
-  else if (!entree && o.toast && r !== false) toast(o.toast);
+  if (entree && !texte && !avecAnnuler) fermerToastAnnuler();
+  if (entree && (texte || avecAnnuler)) toast(avecSuites(texte || libelle), avecAnnuler ? () => { if (hist.prochainAnnuler() === entree) annuler(); } : null);
+  else if (entree && suites.length) toast(avecSuites(''));
+  else if (!entree && texte && r !== false) toast(texte);
   return r;
 }
 // Enregistre sans vider l'historique, puis retient la photo obtenue (écouteurs compris)
@@ -704,8 +714,10 @@ function retablir() {
   allerA(e.lieu);
 }
 // Des données arrivent d'ailleurs (synchro, autre onglet, import, restauration) : on ne peut plus rien annuler
+// Vidé quand les données viennent d'ailleurs (synchro, autre onglet, restauration) : les modules peuvent alors rattraper
 function viderHistorique() {
   hist.vider();
+  window.dispatchEvent(new Event('todo:historique-vide'));
   fermerToastAnnuler();
   peindreHist();
 }
@@ -1428,8 +1440,21 @@ window.todoApp = {
   replaceData: d => { keepBackup(); db = migrate(d); viderHistorique(); save(); render(); }
 };
 // Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
-const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [], subjectBody: [] };
-Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, save, modifier, annuler, retablir, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats, remaining: M.remaining, taskCmp,
+const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [], subjectBody: [], apresModif: [] };
+const titre = x => (x && x.title) || 'Sans titre';
+// Enregistre l'affichage (filtres, onglets, sujets dépliés, modules actifs), hors historique.
+// Une donnée changée en route (oubli de modifier()) n'est ni perdue ni effaçable : elle devient un pas annulable.
+function enregistrerAffichage() {
+  if (enModif || photoConnue === null || M.photo(db) === photoConnue) { save(); return; }
+  console.warn('enregistrerAffichage : une donnée a changé hors de modifier(), enregistrée comme une modification');
+  const avant = photoConnue;
+  M.horodater(avant, db, nowIso());
+  enregistrerConnu();
+  hist.enregistrer({ libelle: 'Modification', avant, apres: photoConnue, lieu: lieuActuel() });
+  fermerToastAnnuler();
+  peindreHist();
+}
+Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, enregistrerAffichage, modifier, normTask, titre, annuler, retablir, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats, remaining: M.remaining, taskCmp,
   parentOf, childrenOf, subjLabel, setParent, canNest, expandTo, archiveSubject, createSubject,
   esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur });
 

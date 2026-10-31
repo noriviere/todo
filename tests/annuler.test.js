@@ -200,15 +200,16 @@ test('mode démo, modules coupés, téléphone : Ctrl+Z et boutons ↶ ↷ march
 });
 
 // Corrections issues de la revue de la PR #29 (chacune d'abord en échec)
-test('un enregistrement direct (module pas encore migré) vide l\'historique : Ctrl+Z ne l\'efface jamais', async () => {
+test('une donnée changée puis « enregistrer l\'affichage » devient un pas annulable : rien n\'est perdu, l\'historique reste', async () => {
   const page = await openApp(base());
   await ligne(page, 'a').locator('[data-act="archive-task"]').click();
-  await page.evaluate(() => { const A = window.todoApp; A.getData().tasks.find(t => t.id === 'b').title = 'Changée ailleurs'; A.save(); });
-  assert.equal(await page.locator('#toast [data-act="undo"]').count(), 0, 'le bandeau « Annuler » de l\'archivage est retiré');
+  await page.evaluate(() => { const A = window.todoApp; A.getData().tasks.find(t => t.id === 'b').title = 'Changée ailleurs'; A.enregistrerAffichage(); });
+  assert.equal((await tache(page, 'b')).title, 'Changée ailleurs', 'enregistrée');
   await page.locator('body').click({ position: { x: 5, y: 5 } });
   await ctrl(page, 'z');
-  assert.equal((await tache(page, 'b')).title, 'Changée ailleurs', 'la modification directe est toujours là');
-  assert.equal((await tache(page, 'a')).archived, true);
+  assert.equal((await tache(page, 'b')).title, 'Tâche B', 'Ctrl+Z la défait');
+  await ctrl(page, 'z');
+  assert.equal((await tache(page, 'a')).archived, false, 'l\'historique d\'avant est gardé');
 });
 
 test('une validation sans changement ne crée pas de pas dans l\'historique', async () => {

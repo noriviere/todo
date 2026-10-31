@@ -4,7 +4,7 @@
 'use strict';
 const A = window.todoApp, PL = window.projetsPlan;
 if (!A || !A.hooks || !PL) { console.warn('projets.js : index.html ou projets-plan.js manquant.'); return; }
-const { esc, uid, nowIso, today, toast } = A;
+const { esc, uid, today, toast } = A;
 const db = () => A.getData();
 // Module activable (Données › Modules actifs), désactivé par défaut
 const on = () => !A.modOn || A.modOn('projet');
@@ -283,15 +283,15 @@ function ganttSection(p, sc) {
 function newProject() {
   const name = (prompt('Nom du projet ?') || '').trim();
   if (!name) return;
-  A.createSubject({ title: name, priority: 2, isProject: true,
-    pj: { owner: '', color: COLORS[projects().length % COLORS.length], milestones: [] } });
-  A.render();
+  A.modifier(`Projet créé : « ${name} »`, () => {
+    A.createSubject({ title: name, priority: 2, isProject: true,
+      pj: { owner: '', color: COLORS[projects().length % COLORS.length], milestones: [] } });
+  });
 }
 function setProject(s, on) {
   s.isProject = !!on;
   if (on && !pjOf(s).color) pjOf(s).color = COLORS[projects().length % COLORS.length];
   if (!on && db().ui.pjOpen === s.id) db().ui.pjOpen = null;
-  s.updatedAt = nowIso();
 }
 
 document.addEventListener('click', e => {
@@ -303,11 +303,11 @@ document.addEventListener('click', e => {
     case 'new-project': newProject(); break;
     case 'unproject':
       if (!p || !confirm(`Quitter le mode projet pour « ${p.title} » ? Le sujet, ses sous-sujets, leur planning et les jalons sont gardés : il suffit de recocher « Mode projet » pour les retrouver.`)) return;
-      setProject(p, false); A.save(); A.render(); toast('Mode projet retiré');
+      A.modifier(`Mode projet retiré : « ${p.title} »`, () => { setProject(p, false); }, { toast: 'Mode projet retiré' });
       break;
     case 'open-project':
       if (!p) return;
-      db().ui.pjOpen = p.id; A.save();
+      db().ui.pjOpen = p.id; A.enregistrerAffichage();
       if (view() === 'projets') { A.render(); window.scrollTo(0, 0); } else location.hash = 'projets';
       break;
     case 'new-step': if (p) newStep(p); break;
@@ -316,24 +316,23 @@ document.addEventListener('click', e => {
       const box = b.closest('.pj-ms-add');
       const name = box.querySelector('[data-pjm="new-name"]').value.trim(), date = box.querySelector('[data-pjm="new-date"]').value;
       if (!name || !date) { toast('Indique un nom et une date pour le jalon'); return; }
-      (pjOf(p).milestones = pjOf(p).milestones || []).push({ id: uid(), name, date, before: [], archived: false });
-      A.save(); A.render();
+      A.modifier(`Jalon ajouté : « ${name} »`, () => { (pjOf(p).milestones = pjOf(p).milestones || []).push({ id: uid(), name, date, before: [], archived: false }); });
       break;
     }
     case 'restore-milestone': {
       const m = p && (pjOf(p).milestones || []).find(x => x.id === b.closest('[data-mid]')?.dataset.mid);
       if (!m) return;
-      m.archived = false; A.save(); A.render(); toast('Jalon restauré');
+      A.modifier(`Jalon restauré : « ${m.name} »`, () => { m.archived = false; }, { toast: 'Jalon restauré' });
       break;
     }
     case 'archive-milestone': {
       const m = p && (pjOf(p).milestones || []).find(x => x.id === b.closest('[data-mid]')?.dataset.mid);
       if (!m) return;
-      m.archived = true; A.save(); A.render(); toast('Jalon archivé');
+      A.modifier(`Jalon archivé : « ${m.name} »`, () => { m.archived = true; }, { toast: 'Jalon archivé' });
       break;
     }
     case 'open-step': openStep(b.dataset.sid); break;
-    case 'scale': db().ui.pjScale = b.dataset.v; db().ui.pjPpd = null; A.save(); A.render(); break;
+    case 'scale': db().ui.pjScale = b.dataset.v; db().ui.pjPpd = null; A.enregistrerAffichage(); A.render(); break;
     case 'zoom': {
       const g = b.closest('.pj-gsec')?.querySelector('.pj-gantt'), sc = g?.querySelector('.pj-g-scroll');
       if (!g || !sc) return;
@@ -342,9 +341,9 @@ document.addEventListener('click', e => {
       break;
     }
     case 'export-pdf': { const q = project(db().ui.pjOpen); if (q) exportPdf(q); break; }
-    case 'pview': db().ui.pjView = b.dataset.v; A.save(); A.render(); break;
+    case 'pview': db().ui.pjView = b.dataset.v; A.enregistrerAffichage(); A.render(); break;
     case 'back':
-      db().ui.pjOpen = null; A.save(); A.render();
+      db().ui.pjOpen = null; A.enregistrerAffichage(); A.render();
       break;
   }
 });
@@ -384,16 +383,18 @@ A.hooks.subjectBody.push(s => {
 });
 
 // En-tête du projet : nom, chef de projet, couleur
+const CHAMPS_PROJET = {
+  name: { nom: 'nom', poser: (p, v) => { if (v) p.title = v; } },
+  owner: { nom: 'chef de projet', poser: (p, v) => { pjOf(p).owner = v; } },
+  color: { nom: 'couleur', poser: (p, v) => { pjOf(p).color = safeColor(v); } }
+};
 document.addEventListener('change', e => {
   const el = e.target.closest('[data-pjh]');
   if (!el || !on()) return;
   const p = project(el.closest('[data-pid]')?.dataset.pid);
   if (!p) return;
-  const v = el.value.trim();
-  if (el.dataset.pjh === 'name') { if (v) { p.title = v; p.updatedAt = nowIso(); } }
-  else if (el.dataset.pjh === 'owner') pjOf(p).owner = v;
-  else if (el.dataset.pjh === 'color') pjOf(p).color = safeColor(v);
-  A.save(); A.render();
+  const v = el.value.trim(), c = CHAMPS_PROJET[el.dataset.pjh];
+  if (c) A.modifier(`Projet « ${A.titre(p)} » : ${c.nom}`, () => { c.poser(p, v); });
 });
 
 // Jalons : nom, date, étapes à finir avant
@@ -403,14 +404,25 @@ document.addEventListener('change', e => {
   const p = project(el.closest('[data-pid]')?.dataset.pid);
   const m = p && (pjOf(p).milestones || []).find(x => x.id === el.closest('[data-mid]').dataset.mid);
   if (!m) return;
-  if (el.dataset.pjBefore) {
-    m.before = (m.before || []).filter(x => x !== el.dataset.pjBefore);
-    if (el.checked) m.before.push(el.dataset.pjBefore);
-  } else if (el.dataset.pjm === 'name') { if (el.value.trim()) m.name = el.value.trim(); }
-  else if (el.dataset.pjm === 'date') { if (el.value) m.date = el.value; }
-  A.save(); A.render();
+  A.modifier(`Jalon modifié : « ${m.name} »`, () => {
+    if (el.dataset.pjBefore) {
+      m.before = (m.before || []).filter(x => x !== el.dataset.pjBefore);
+      if (el.checked) m.before.push(el.dataset.pjBefore);
+    } else if (el.dataset.pjm === 'name') { if (el.value.trim()) m.name = el.value.trim(); }
+    else if (el.dataset.pjm === 'date') { if (el.value) m.date = el.value; }
+  });
 });
 
+// Champs d'une étape (et interrupteur « Mode projet » d'un sujet de premier niveau)
+const poserPlan = (s, x) => { s.plan = Object.assign({}, s.plan, x); };
+const CHAMPS_ETAPE = {
+  'is-project': { nom: 'mode projet', poser: (s, v, o) => setProject(s, o.coche) },
+  start: { nom: 'début', poser: (s, v) => poserPlan(s, { start: v || null }) },
+  dur: { nom: 'durée', poser: (s, v) => poserPlan(s, { durDays: v ? Math.max(1, Math.round(+v) || 1) : null }) },
+  end: { nom: 'fin prévue', poser: (s, v, o) => poserPlan(s, { durDays: Math.max(1, workdaysBetween(o.debut, v)) }) },
+  lag: { nom: 'décalage', poser: (s, v) => { s.lagDays = Math.max(0, Math.round(+v) || 0); } },
+  who: { nom: 'qui', poser: (s, v) => { s.who = v.trim(); } }
+};
 document.addEventListener('change', e => {
   const el = e.target.closest('[data-pjf], [data-pj-after]');
   if (!el || !on()) return;
@@ -419,31 +431,24 @@ document.addEventListener('change', e => {
   const v = el.value;
   if (el.dataset.pjAfter) {
     const id = el.dataset.pjAfter;
-    s.after = (s.after || []).filter(x => x !== id);
-    if (el.checked) {
-      if (PL.wouldCycle(A.childrenOf(A.parentOf(s), true), id, s.id)) { el.checked = false; toast('Ce lien créerait une boucle entre étapes'); return; }
-      s.after.push(id);
-    }
-  } else switch (el.dataset.pjf) {
-    case 'is-project':
-      if (A.parentOf(s)) return;
-      setProject(s, el.checked);
-      break;
-    case 'start': s.plan = Object.assign({}, s.plan, { start: v || null }); break;
-    case 'dur': s.plan = Object.assign({}, s.plan, { durDays: v ? Math.max(1, Math.round(+v) || 1) : null }); break;
-    case 'end': {   // fin choisie : la durée devient le nombre de jours ouvrés depuis le début (choisi ou calculé)
-      const c = projectSchedule(projectOfStep(s)).byId[s.id];
-      if (!c || !v) { A.render(); return; }
-      if (v < c.start) { toast('La fin ne peut pas être avant le début de l\'étape'); A.render(); return; }
-      s.plan = Object.assign({}, s.plan, { durDays: Math.max(1, workdaysBetween(c.start, v)) });
-      break;
-    }
-    case 'lag': s.lagDays = Math.max(0, Math.round(+v) || 0); break;
-    case 'who': s.who = v.trim(); break;
-    default: return;
+    if (el.checked && PL.wouldCycle(A.childrenOf(A.parentOf(s), true), id, s.id)) { el.checked = false; toast('Ce lien créerait une boucle entre étapes'); return; }
+    A.modifier(`Étape « ${A.titre(s)} » : commence après`, () => {
+      s.after = (s.after || []).filter(x => x !== id);
+      if (el.checked) s.after.push(id);
+    });
+    return;
   }
-  s.updatedAt = nowIso();
-  A.save(); A.render();
+  const f = el.dataset.pjf, c = CHAMPS_ETAPE[f];
+  if (!c || (f === 'is-project' && A.parentOf(s))) return;
+  let debut = null;
+  if (f === 'end') {   // fin choisie : la durée devient le nombre de jours ouvrés depuis le début (choisi ou calculé)
+    const x = projectSchedule(projectOfStep(s)).byId[s.id];
+    if (!x || !v) { A.render(); return; }
+    if (v < x.start) { toast('La fin ne peut pas être avant le début de l\'étape'); A.render(); return; }
+    debut = x.start;
+  }
+  A.modifier(f === 'is-project' ? `Mode projet ${el.checked ? 'activé' : 'retiré'} : « ${A.titre(s)} »` : `Étape « ${A.titre(s)} » : ${c.nom}`,
+    () => { c.poser(s, v, { coche: el.checked, debut }); });
 });
 
 // Nouvelle étape depuis un projet : un sujet rattaché, ouvert dans l'onglet Sujets
@@ -451,12 +456,12 @@ let goTo = null;
 function newStep(p) {
   const title = (prompt('Nom de la nouvelle étape ?') || '').trim();
   if (!title) return;
-  const s = A.createSubject({ title, priority: p.priority, code: p.code, secteur: p.secteur, produit: p.produit,
-    parentId: p.id, plan: {}, after: [], lagDays: 0, who: '' });
+  const s = A.modifier(`Étape créée : « ${title} »`, () => A.createSubject({ title, priority: p.priority, code: p.code, secteur: p.secteur, produit: p.produit,
+    parentId: p.id, plan: {}, after: [], lagDays: 0, who: '' }));
   openStep(s.id);
 }
 function openStep(sid) {
-  A.expandTo(sid); A.save();
+  A.expandTo(sid); A.enregistrerAffichage();
   goTo = sid;
   if (view() === 'sujets') A.render(); else location.hash = 'sujets';
 }
@@ -494,8 +499,8 @@ document.addEventListener('change', e => {
   if (!e.target.matches('[data-pj-hard]')) return;
   const t = A.task(e.target.closest('[data-tid]')?.dataset.tid);
   if (!t) return;
-  t.hardDue = e.target.checked; t.updatedAt = nowIso();
-  A.save(); A.render();
+  const v = e.target.checked;
+  A.modifier(`Échéance ${v ? 'ferme' : 'non ferme'} : « ${A.titre(t)} »`, () => { t.hardDue = v; });
 });
 
 /* ---------- Export PDF : une page d'impression dédiée, puis la fenêtre d'impression du navigateur ---------- */
@@ -589,12 +594,12 @@ document.addEventListener('pointerup', () => {
   const s = A.subj(bar.dataset.sid);
   if (!s || !days) { A.render(); return; }
   const start = bar.dataset.start, end = bar.dataset.end;
-  if (resize) {
-    const newEnd = shift(end, days);
-    s.plan = Object.assign({}, s.plan, { durDays: Math.max(1, newEnd < start ? 1 : workdaysBetween(start, newEnd)) });
-  } else s.plan = Object.assign({}, s.plan, { start: PL.nextWorkday(shift(start, days), workDays()) });
-  s.updatedAt = nowIso();
-  A.save(); A.render();
+  A.modifier(`Étape « ${A.titre(s)} » ${resize ? 'allongée ou raccourcie' : 'déplacée'} sur le planning`, () => {
+    if (resize) {
+      const newEnd = shift(end, days);
+      s.plan = Object.assign({}, s.plan, { durDays: Math.max(1, newEnd < start ? 1 : workdaysBetween(start, newEnd)) });
+    } else s.plan = Object.assign({}, s.plan, { start: PL.nextWorkday(shift(start, days), workDays()) });
+  }, { lieu: { vue: 'projets', sid: s.id } });
 });
 // Un glisser ne doit pas ouvrir l'étape
 document.addEventListener('click', e => { if (swallowClick && e.target.closest('.pj-gantt')) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
@@ -627,7 +632,7 @@ function zoomTo(g, ppd, ax) {
   if (!sc || ppd === old) return;
   const key = g.closest('[data-pid]')?.dataset.pid, at = DAY0(g) + (sc.scrollLeft + ax) / old;
   scrollPos.set(key, at - ax / ppd);
-  db().ui.pjPpd = ppd; A.save(); A.render();
+  db().ui.pjPpd = ppd; A.enregistrerAffichage(); A.render();
 }
 function zoomAll(g, sc) {
   const p = project(g.closest('[data-pid]')?.dataset.pid);
@@ -640,7 +645,7 @@ function zoomAll(g, sc) {
   const fits = ['week', 'month', 'quarter'].map(m => [m, w / (dd(alignLo(shift(lo, -3), m), shift(hi, 10)) + 1)]);
   const ppd = (fits.find(([m, v]) => tickMode(v) === m) || fits[2])[1];
   scrollPos.set(g.closest('[data-pid]').dataset.pid, -1e9);   // bord gauche
-  db().ui.pjPpd = clampPpd(Math.floor(ppd * 100) / 100); A.save(); A.render();
+  db().ui.pjPpd = clampPpd(Math.floor(ppd * 100) / 100); A.enregistrerAffichage(); A.render();
 }
 // Ctrl + molette (et pincement du pavé tactile, qui arrive en Ctrl + molette)
 let wheelAcc = 0, wheelRaf = 0;
