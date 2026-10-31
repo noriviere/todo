@@ -3,7 +3,7 @@ const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { openApp, closeAll, day, ctrl, ailleurs } = require('./helpers');
+const { openApp, closeAll, day, ctrl, ailleurs, glisserPoignee } = require('./helpers');
 after(closeAll);
 
 const base = (extra = {}) => Object.assign({
@@ -17,15 +17,8 @@ const tache = async (page, id) => (await page.db()).tasks.find(t => t.id === id)
 const ligne = (page, id) => page.locator(`#main .task[data-tid="${id}"]`).first();
 
 async function glisserTache(page, id, versId) {
-  const row = ligne(page, id);
-  await row.hover();
-  const g = await row.locator('.org-grip').boundingBox();
   const t = await ligne(page, versId).boundingBox();
-  await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(g.x + 20, g.y + 10, { steps: 4 });
-  await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2, { steps: 8 });
-  await page.mouse.up();
+  await glisserPoignee(page, ligne(page, id), { x: t.x + t.width / 2, y: t.y + t.height / 2 });
   await page.waitForTimeout(50);
 }
 
@@ -140,4 +133,54 @@ test('contraction : plus aucun module n\'enregistre directement, l\'interface n\
     assert.doesNotMatch(fs.readFileSync(path.join(racine, f), 'utf8'), /\b(A|app)\.save\(/, f);
   const page = await openApp(base());
   assert.equal(await page.evaluate(() => typeof window.todoApp.save), 'undefined');
+});
+
+// Corrections issues de la revue du ticket #28 (chacune d'abord en échec)
+test('Gantt : barre glissée puis ↶ depuis un autre écran, avec retour à l\'onglet Projets', async () => {
+  const page = await openApp(projet(), { hash: 'projets' });
+  await page.click('#main [data-pj="open-project"]');
+  const bar = page.locator('#main .pj-bar[data-sid="s1"]');
+  const b = await bar.boundingBox();
+  const ppd = +(await page.locator('#main .pj-gantt').getAttribute('data-ppd'));
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b.x + b.width / 2 + 7 * ppd, b.y + b.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(50);
+  const debut = (await page.db()).subjects.find(s => s.id === 's1').plan.start;
+  assert.notEqual(debut, day(0), 'barre déplacée');
+  await page.goto(page.url().replace(/#.*$/, '#dashboard'));
+  await page.waitForTimeout(50);
+  await page.click('#hist [data-act="hist-undo"]');
+  await page.waitForTimeout(80);
+  assert.match(page.url(), /#projets/);
+  assert.equal((await page.db()).subjects.find(s => s.id === 's1').plan.start, day(0));
+});
+
+test('récurrente faite arrivée d\'ailleurs : occurrence créée à l\'ouverture, hors du pas d\'une modification sans rapport', async () => {
+  const page = await openApp(base({ tasks: [
+    { id: 'a', subjectId: 'p', title: 'Hebdo', deadline: day(0), status: 'done', recur: { freq: 'week', interval: 1 } },
+    { id: 'c', subjectId: 'p', title: 'Tâche C', deadline: day(1) }] }));
+  await page.waitForTimeout(50);
+  assert.ok((await page.db()).tasks.find(t => t.recurFromId === 'a'), 'occurrence créée dès l\'ouverture');
+  await ligne(page, 'c').locator('[data-act="archive-task"]').click();
+  await ailleurs(page);
+  await ctrl(page, 'z');
+  const d = await page.db();
+  assert.equal(d.tasks.find(t => t.id === 'c').archived, false);
+  assert.ok(d.tasks.find(t => t.recurFromId === 'a'), 'Ctrl+Z d\'une autre modification garde l\'occurrence');
+});
+
+test('Récurrence rallumée : les occurrences en attente sont créées dans leur propre pas', async () => {
+  const page = await openApp(base({ settings: { modules: { recurrence: false } }, tasks: [
+    { id: 'a', subjectId: 'p', title: 'Hebdo', deadline: day(0), status: 'done', recur: { freq: 'week', interval: 1 } }] }), { hash: 'donnees' });
+  assert.equal((await page.db()).tasks.length, 1);
+  await page.locator('[data-mod="recurrence"]').check({ force: true });
+  await page.waitForTimeout(50);
+  assert.ok((await page.db()).tasks.find(t => t.recurFromId === 'a'), 'occurrence créée');
+  await ailleurs(page);
+  await ctrl(page, 'z');
+  const d = await page.db();
+  assert.equal(d.tasks.length, 1, 'Ctrl+Z retire l\'occurrence');
+  assert.equal(d.settings.modules.recurrence, true, 'sans couper le module');
 });

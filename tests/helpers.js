@@ -32,4 +32,18 @@ const ppd = page => page.locator('#main .pj-gantt').evaluate(g => +g.dataset.ppd
 // Raccourci clavier Ctrl+<touche>, et clic hors de tout champ (pour que Ctrl+Z vise l'historique)
 const ctrl = (page, k) => page.keyboard.press('Control+' + k);
 const ailleurs = page => page.locator('body').click({ position: { x: 5, y: 5 } });
-module.exports = { openApp, closeAll, day, ppd, TODAY, ctrl, ailleurs };
+// Glisse la poignée ⠿ d'une ligne (tâche ou en-tête de sujet) jusqu'au point { x, y }.
+// avantLacher(page) : appelé juste avant de lâcher (pour lire le trait d'insertion) ; lacher: false pour ne pas lâcher.
+async function glisserPoignee(page, ligne, vers, { avantLacher, lacher = true } = {}) {
+  await ligne.hover();
+  const g = await ligne.locator('.org-grip').boundingBox();
+  await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(g.x + 20, g.y + 10, { steps: 4 });
+  await page.mouse.move(vers.x, vers.y, { steps: 8 });
+  await page.mouse.move(vers.x, vers.y + 1);
+  const r = avantLacher ? await avantLacher(page) : undefined;
+  if (lacher) await page.mouse.up();
+  return r;
+}
+module.exports = { openApp, closeAll, day, ppd, TODAY, ctrl, ailleurs, glisserPoignee };

@@ -233,9 +233,8 @@
   // L'échéance passe par les règles des champs d'une tâche, comme la saisie ; Annuler passe par l'historique.
   function dropTask(t, tg) {
     if (!t) return;
-    const o = { annuler: true };
-    A.modifier(`Tâche déplacée : « ${t.title || 'Sans titre'} »`, () => {
-      let msg;
+    let msg;
+    A.modifier(`Tâche déplacée : « ${A.titre(t)} »`, () => {
       if (tg.type === 'subject') {
         const s = A.subj(tg.el.closest('[data-sid]').dataset.sid);
         if (!s || s.id === t.subjectId) return false;
@@ -263,9 +262,7 @@
         sib.splice(sib.indexOf(target), 0, t);
         sib.forEach((x, i) => { x.order = (i + 1) * 10; });
       }
-      // Sans message (simple changement d'ordre), pas de bandeau : Ctrl+Z suffit
-      if (msg) o.toast = msg; else o.annuler = false;
-    }, o);
+    }, { toast: () => msg, annuler: () => !!msg });   // simple changement d'ordre : pas de bandeau, Ctrl+Z suffit
   }
   // Sujet ou sous-sujet posé à une place (trait d'insertion) ou sur l'en-tête d'un autre sujet
   function dropSubject(s, tg) {
@@ -287,16 +284,13 @@
       sibs.splice(tg.i, 0, s);
       if (!moving && p === s.priority && sibs.map(x => x.id).join() === was) return;
     }
-    const prev = s.priority;
-    const o = { annuler: true };
-    A.modifier(`Sujet déplacé : « ${s.title || 'Sans titre'} »`, () => {
+    const msg = [moving ? `« ${A.titre(s)} » rangé dans « ${A.titre(parent)} »` : '',
+      s.priority !== p ? `${moving ? 'passe' : `« ${A.titre(s)} » passe`} en P${p}` : ''].filter(Boolean).join(', ');
+    A.modifier(`Sujet déplacé : « ${A.titre(s)} »`, () => {
       if (moving && !A.setParent(s, parent.id)) { A.toast('Ce sujet ne peut pas être rangé là (un seul niveau de sous-sujets)'); return false; }
       s.priority = p;
       sibs.forEach((x, i) => { x.order = (i + 1) * 10; });
-      const msg = [moving ? `« ${s.title || 'Sans titre'} » rangé dans « ${parent.title || 'Sans titre'} »` : '',
-        prev !== p ? `${moving ? 'passe' : `« ${s.title || 'Sans titre'} » passe`} en P${p}` : ''].filter(Boolean).join(', ');
-      if (msg) o.toast = msg; else o.annuler = false;
-    }, o);
+    }, { toast: msg, annuler: !!msg });
   }
 
   /* ================= Tâches récurrentes ================= */
@@ -349,17 +343,23 @@
     const t = A.task(e.target.closest('[data-tid]').dataset.tid);
     if (!t) return;
     const v = e.target.value;
-    A.modifier(`Récurrence : « ${t.title || 'Sans titre'} »`, () => {
+    A.modifier(() => `Récurrence : « ${A.titre(t)} »`, () => {
       t.recur = v ? { freq: v.split(':')[0], interval: +v.split(':')[1] } : null;
     }, { differe: true });
   });
 
-  // Appelé par le point unique de modification, dans la même modification que « Fait » :
-  // Ctrl+Z sur « Fait » retire donc aussi l'occurrence suivante.
-  let creee = null;
-  function checkRecurring(d) {
-    if (!recurOn()) return;
-    for (const t of [...d.tasks]) {
+  // Occurrence suivante d'une tâche récurrente faite (ou annulée), rangée si la tâche est rouverte.
+  // Accroche du point unique de modification : seules les tâches que la modification a changées sont vues,
+  // dans le même pas (Ctrl+Z sur « Fait » retire aussi l'occurrence). Sans photo d'avant : toutes les tâches.
+  function checkRecurring(d, avant) {
+    if (!recurOn()) return '';
+    let vues = d.tasks;
+    if (avant) {
+      const prev = new Map((JSON.parse(avant).tasks || []).map(x => [x.id, JSON.stringify(x)]));
+      vues = d.tasks.filter(x => prev.get(x.id) !== JSON.stringify(x));
+    }
+    const creees = [];
+    for (const t of vues) {
       if (!t.recur || t.archived) continue;
       if (!isOpen(t) && !t.recurNextId) {
         const nd = nextDate(t);
@@ -373,7 +373,7 @@
         }));
         d.tasks.push(n);
         t.recurNextId = n.id;
-        creee = n;
+        creees.push(n);
       } else if (isOpen(t) && t.recurNextId) {
         // La tâche a été rouverte : on range l'occurrence suivante si elle n'a pas été touchée
         const n = d.tasks.find(x => x.id === t.recurNextId);
@@ -383,17 +383,24 @@
         t.recurNextId = null;
       }
     }
+    // Texte ajouté au bandeau de la modification
+    if (!creees.length) return '';
+    return creees.length === 1 ? '↻ Prochaine occurrence créée pour le ' + A.longDate(creees[0].deadline) : `↻ ${creees.length} prochaines occurrences créées`;
   }
   A.hooks.apresModif.push(checkRecurring);
-  // Message ajouté à celui de la modification, sans retirer son bouton « Annuler »
+  // Tâches récurrentes faites sans occurrence : données arrivées d'ailleurs (ouverture, synchro, import) ou Récurrence rallumée
+  const enAttente = () => recurOn() && db().tasks.some(t => t.recur && !t.archived && (!isOpen(t) ? !t.recurNextId : !!t.recurNextId));
+  window.addEventListener('todo:modules', e => {
+    if (e.detail.id === 'recurrence' && e.detail.on && enAttente()) A.modifier('Occurrences des tâches récurrentes', d => { checkRecurring(d); });
+  });
+  // À l'ouverture et après des données venues d'ailleurs (historique vidé), au prochain affichage, hors historique.
+  // Pas après un Ctrl+Z : « Fait » annulé sans son occurrence doit le rester.
+  let aRattraper = true;
+  window.addEventListener('todo:historique-vide', () => { aRattraper = true; });
   window.addEventListener('todo:rendered', () => {
-    if (!creee) return;
-    const n = creee; creee = null;
-    setTimeout(() => {
-      const txt = '↻ Prochaine occurrence créée pour le ' + A.longDate(n.deadline);
-      const span = document.querySelector('#toast [data-act="undo"]') && document.querySelector('#toast .toast span');
-      if (span) span.textContent += ' · ' + txt; else A.toast(txt);
-    }, 10);
+    if (!aRattraper) return;
+    aRattraper = false;
+    if (enAttente()) setTimeout(() => { if (enAttente()) A.modifier('Occurrences des tâches récurrentes', d => { checkRecurring(d); }, { historique: false }); aRattraper = false; }, 0);
   });
 
   /* ================= Aller au sujet depuis le tableau de bord ================= */

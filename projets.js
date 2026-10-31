@@ -383,18 +383,18 @@ A.hooks.subjectBody.push(s => {
 });
 
 // En-tête du projet : nom, chef de projet, couleur
+const CHAMPS_PROJET = {
+  name: { nom: 'nom', poser: (p, v) => { if (v) p.title = v; } },
+  owner: { nom: 'chef de projet', poser: (p, v) => { pjOf(p).owner = v; } },
+  color: { nom: 'couleur', poser: (p, v) => { pjOf(p).color = safeColor(v); } }
+};
 document.addEventListener('change', e => {
   const el = e.target.closest('[data-pjh]');
   if (!el || !on()) return;
   const p = project(el.closest('[data-pid]')?.dataset.pid);
   if (!p) return;
-  const v = el.value.trim();
-  const champ = { name: 'nom', owner: 'chef de projet', color: 'couleur' }[el.dataset.pjh] || 'en-tête';
-  A.modifier(`Projet « ${p.title} » : ${champ}`, () => {
-    if (el.dataset.pjh === 'name') { if (v) p.title = v; }
-    else if (el.dataset.pjh === 'owner') pjOf(p).owner = v;
-    else if (el.dataset.pjh === 'color') pjOf(p).color = safeColor(v);
-  });
+  const v = el.value.trim(), c = CHAMPS_PROJET[el.dataset.pjh];
+  if (c) A.modifier(`Projet « ${A.titre(p)} » : ${c.nom}`, () => { c.poser(p, v); });
 });
 
 // Jalons : nom, date, étapes à finir avant
@@ -413,6 +413,16 @@ document.addEventListener('change', e => {
   });
 });
 
+// Champs d'une étape (et interrupteur « Mode projet » d'un sujet de premier niveau)
+const poserPlan = (s, x) => { s.plan = Object.assign({}, s.plan, x); };
+const CHAMPS_ETAPE = {
+  'is-project': { nom: 'mode projet', poser: (s, v, o) => setProject(s, o.coche) },
+  start: { nom: 'début', poser: (s, v) => poserPlan(s, { start: v || null }) },
+  dur: { nom: 'durée', poser: (s, v) => poserPlan(s, { durDays: v ? Math.max(1, Math.round(+v) || 1) : null }) },
+  end: { nom: 'fin prévue', poser: (s, v, o) => poserPlan(s, { durDays: Math.max(1, workdaysBetween(o.debut, v)) }) },
+  lag: { nom: 'décalage', poser: (s, v) => { s.lagDays = Math.max(0, Math.round(+v) || 0); } },
+  who: { nom: 'qui', poser: (s, v) => { s.who = v.trim(); } }
+};
 document.addEventListener('change', e => {
   const el = e.target.closest('[data-pjf], [data-pj-after]');
   if (!el || !on()) return;
@@ -422,31 +432,23 @@ document.addEventListener('change', e => {
   if (el.dataset.pjAfter) {
     const id = el.dataset.pjAfter;
     if (el.checked && PL.wouldCycle(A.childrenOf(A.parentOf(s), true), id, s.id)) { el.checked = false; toast('Ce lien créerait une boucle entre étapes'); return; }
-    A.modifier(`Étape « ${s.title} » : commence après`, () => {
+    A.modifier(`Étape « ${A.titre(s)} » : commence après`, () => {
       s.after = (s.after || []).filter(x => x !== id);
       if (el.checked) s.after.push(id);
     });
     return;
   }
-  const champ = { 'is-project': 'mode projet', start: 'début', dur: 'durée', end: 'fin prévue', lag: 'décalage', who: 'qui' }[el.dataset.pjf];
-  if (!champ || (el.dataset.pjf === 'is-project' && A.parentOf(s))) return;
+  const f = el.dataset.pjf, c = CHAMPS_ETAPE[f];
+  if (!c || (f === 'is-project' && A.parentOf(s))) return;
   let debut = null;
-  if (el.dataset.pjf === 'end') {   // fin choisie : la durée devient le nombre de jours ouvrés depuis le début (choisi ou calculé)
-    const c = projectSchedule(projectOfStep(s)).byId[s.id];
-    if (!c || !v) { A.render(); return; }
-    debut = c.start;
-    if (v < c.start) { toast('La fin ne peut pas être avant le début de l\'étape'); A.render(); return; }
+  if (f === 'end') {   // fin choisie : la durée devient le nombre de jours ouvrés depuis le début (choisi ou calculé)
+    const x = projectSchedule(projectOfStep(s)).byId[s.id];
+    if (!x || !v) { A.render(); return; }
+    if (v < x.start) { toast('La fin ne peut pas être avant le début de l\'étape'); A.render(); return; }
+    debut = x.start;
   }
-  A.modifier(el.dataset.pjf === 'is-project' ? `Mode projet ${el.checked ? 'activé' : 'retiré'} : « ${s.title} »` : `Étape « ${s.title} » : ${champ}`, () => {
-    switch (el.dataset.pjf) {
-      case 'is-project': setProject(s, el.checked); break;
-      case 'start': s.plan = Object.assign({}, s.plan, { start: v || null }); break;
-      case 'dur': s.plan = Object.assign({}, s.plan, { durDays: v ? Math.max(1, Math.round(+v) || 1) : null }); break;
-      case 'end': s.plan = Object.assign({}, s.plan, { durDays: Math.max(1, workdaysBetween(debut, v)) }); break;
-      case 'lag': s.lagDays = Math.max(0, Math.round(+v) || 0); break;
-      case 'who': s.who = v.trim(); break;
-    }
-  });
+  A.modifier(f === 'is-project' ? `Mode projet ${el.checked ? 'activé' : 'retiré'} : « ${A.titre(s)} »` : `Étape « ${A.titre(s)} » : ${c.nom}`,
+    () => { c.poser(s, v, { coche: el.checked, debut }); });
 });
 
 // Nouvelle étape depuis un projet : un sujet rattaché, ouvert dans l'onglet Sujets
@@ -498,7 +500,7 @@ document.addEventListener('change', e => {
   const t = A.task(e.target.closest('[data-tid]')?.dataset.tid);
   if (!t) return;
   const v = e.target.checked;
-  A.modifier(`Échéance ${v ? 'ferme' : 'non ferme'} : « ${t.title || 'Sans titre'} »`, () => { t.hardDue = v; });
+  A.modifier(`Échéance ${v ? 'ferme' : 'non ferme'} : « ${A.titre(t)} »`, () => { t.hardDue = v; });
 });
 
 /* ---------- Export PDF : une page d'impression dédiée, puis la fenêtre d'impression du navigateur ---------- */
@@ -592,7 +594,7 @@ document.addEventListener('pointerup', () => {
   const s = A.subj(bar.dataset.sid);
   if (!s || !days) { A.render(); return; }
   const start = bar.dataset.start, end = bar.dataset.end;
-  A.modifier(`Étape « ${s.title} » ${resize ? 'allongée ou raccourcie' : 'déplacée'} sur le planning`, () => {
+  A.modifier(`Étape « ${A.titre(s)} » ${resize ? 'allongée ou raccourcie' : 'déplacée'} sur le planning`, () => {
     if (resize) {
       const newEnd = shift(end, days);
       s.plan = Object.assign({}, s.plan, { durDays: Math.max(1, newEnd < start ? 1 : workdaysBetween(start, newEnd)) });
