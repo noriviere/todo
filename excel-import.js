@@ -172,7 +172,7 @@
     }
     const already = A.getData().subjects.some(s => s.source && s.source.type === 'excel');
     return `<div class="card"><h3>Import depuis Excel</h3>
-      <p>Reprend ton fichier ToDoList.xlsm : chaque ligne A, P ou I devient un sujet (P → P1, I → P2, A → P3), les lignes S en dessous deviennent ses tâches, avec deadline, temps estimé, état et commentaires. Les colonnes Projet (appelée Code dans l'appli), Secteur et Produit fini deviennent des paramètres du sujet pour filtrer. La feuille Archive est importée dans les archives. Tu verras un résumé avant de confirmer.</p>
+      <p>Reprend ton fichier ToDoList.xlsm : chaque ligne A, P ou I devient un sujet (P → P1, I → P2, A → P3), les lignes S en dessous deviennent ses tâches, avec échéance, temps estimé, état et commentaires. Les colonnes Projet (appelée Code dans l'appli), Secteur et Produit fini deviennent des paramètres du sujet pour filtrer. La feuille Archive est importée dans les archives. Tu verras un résumé avant de confirmer.</p>
       ${already ? '<p class="hint">Ton Excel a déjà été importé. Réimporter avec « Ajouter » créerait des doublons : utilise plutôt « Remplacer ».</p>' : ''}
       <button class="btn" data-xl="pick">Importer un fichier Excel…</button></div>`;
   }
