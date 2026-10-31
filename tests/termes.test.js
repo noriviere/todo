@@ -59,3 +59,15 @@ test('aucun écran, ni le panneau d\'une tâche, ni le guide n\'affiche deadline
   for (const id of sections) verifier(await textes(page, '#' + id), 'guide, section ' + id.replace(/^gd-/, ''));
   assert.deepEqual(page.errors, []);
 });
+
+// Chaque module ajoute ses blocs au panneau sans connaître ceux des autres : deux libellés ne doivent jamais se confondre
+test('le panneau d\'une tâche n\'a jamais deux libellés de champ identiques, tous modules actifs', async () => {
+  const page = await openApp(null, { query: '?demo' });
+  await aller(page, 'sujets');
+  await page.locator('#main [data-act="details"]').first().click();
+  const libelles = await page.$$eval('#drawer .f > label', ls => ls.map(l => l.textContent.replace(/\s+/g, ' ').trim()));
+  assert.ok(await page.locator('#drawer [data-pj-hard]').count() && libelles.includes('Répartition du travail'), 'blocs des modules présents : ' + libelles);
+  const doublons = libelles.filter((l, i) => libelles.indexOf(l) !== i);
+  assert.deepEqual(doublons, [], 'libellés en double dans le panneau : ' + doublons.join(', '));
+  assert.deepEqual(page.errors, []);
+});
