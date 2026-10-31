@@ -29,4 +29,7 @@ const day = (n, from = noon(TODAY)) => { const d = new Date(from); d.setDate(d.g
 // Échelle dessinée du Gantt de l'écran, en pixels par jour
 const ppd = page => page.locator('#main .pj-gantt').evaluate(g => +g.dataset.ppd);
 
-module.exports = { openApp, closeAll, day, ppd, TODAY };
+// Raccourci clavier Ctrl+<touche>, et clic hors de tout champ (pour que Ctrl+Z vise l'historique)
+const ctrl = (page, k) => page.keyboard.press('Control+' + k);
+const ailleurs = page => page.locator('body').click({ position: { x: 5, y: 5 } });
+module.exports = { openApp, closeAll, day, ppd, TODAY, ctrl, ailleurs };

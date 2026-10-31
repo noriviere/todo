@@ -3,7 +3,7 @@ const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { openApp, closeAll, day } = require('./helpers');
+const { openApp, closeAll, day, ctrl, ailleurs } = require('./helpers');
 after(closeAll);
 
 const base = (extra = {}) => Object.assign({
@@ -15,8 +15,6 @@ const base = (extra = {}) => Object.assign({
 }, extra);
 const tache = async (page, id) => (await page.db()).tasks.find(t => t.id === id);
 const ligne = (page, id) => page.locator(`#main .task[data-tid="${id}"]`).first();
-const ctrl = (page, k) => page.keyboard.press('Control+' + k);
-const ailleurs = page => page.locator('body').click({ position: { x: 5, y: 5 } });
 
 async function glisserTache(page, id, versId) {
   const row = ligne(page, id);
@@ -56,6 +54,8 @@ test('récurrente : l\'occurrence suivante est une tâche complète, et Ctrl+Z s
   assert.equal(n.createdAt, n.updatedAt, 'non touchée');
   assert.match(await page.locator('#toast').innerText(), /Bravo|Annuler/);
   assert.equal(await page.locator('#toast [data-act="undo"]').count(), 1, 'le bandeau garde « Annuler »');
+  await page.waitForTimeout(30);
+  assert.match(await page.locator('#toast').innerText(), /Prochaine occurrence créée/, 'le message ↻ reste visible');
   await ailleurs(page);
   await ctrl(page, 'z');
   const u = await page.db();

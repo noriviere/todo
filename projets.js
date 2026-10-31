@@ -430,9 +430,11 @@ document.addEventListener('change', e => {
   }
   const champ = { 'is-project': 'mode projet', start: 'début', dur: 'durée', end: 'fin prévue', lag: 'décalage', who: 'qui' }[el.dataset.pjf];
   if (!champ || (el.dataset.pjf === 'is-project' && A.parentOf(s))) return;
+  let debut = null;
   if (el.dataset.pjf === 'end') {   // fin choisie : la durée devient le nombre de jours ouvrés depuis le début (choisi ou calculé)
     const c = projectSchedule(projectOfStep(s)).byId[s.id];
     if (!c || !v) { A.render(); return; }
+    debut = c.start;
     if (v < c.start) { toast('La fin ne peut pas être avant le début de l\'étape'); A.render(); return; }
   }
   A.modifier(el.dataset.pjf === 'is-project' ? `Mode projet ${el.checked ? 'activé' : 'retiré'} : « ${s.title} »` : `Étape « ${s.title} » : ${champ}`, () => {
@@ -440,7 +442,7 @@ document.addEventListener('change', e => {
       case 'is-project': setProject(s, el.checked); break;
       case 'start': s.plan = Object.assign({}, s.plan, { start: v || null }); break;
       case 'dur': s.plan = Object.assign({}, s.plan, { durDays: v ? Math.max(1, Math.round(+v) || 1) : null }); break;
-      case 'end': s.plan = Object.assign({}, s.plan, { durDays: Math.max(1, workdaysBetween(projectSchedule(projectOfStep(s)).byId[s.id].start, v)) }); break;
+      case 'end': s.plan = Object.assign({}, s.plan, { durDays: Math.max(1, workdaysBetween(debut, v)) }); break;
       case 'lag': s.lagDays = Math.max(0, Math.round(+v) || 0); break;
       case 'who': s.who = v.trim(); break;
     }

@@ -246,7 +246,7 @@
         const nd = k === 'today' ? today() : k === 'tomorrow' ? addDays(today(), 1) : k === 'week' ? addDays(today(), 2) : null;
         if (k === 'week' && t.deadline > addDays(today(), 1) && t.deadline <= addDays(today(), 7)) return false;
         A.setTaskField(t, 'deadline', nd || '');
-        msg = nd ? 'Deadline : ' + A.longDate(nd) : 'Deadline retirée';
+        msg = nd ? 'Échéance : ' + A.longDate(nd) : 'Échéance retirée';
       } else {
         const target = A.task(tg.el.dataset.tid);
         if (!target) return false;
@@ -256,7 +256,7 @@
         }
         if (target.deadline !== t.deadline) {
           A.setTaskField(t, 'deadline', target.deadline || '');
-          msg = (msg ? msg + ', ' : '') + (target.deadline ? 'deadline : ' + A.longDate(target.deadline) : 'sans deadline');
+          msg = (msg ? msg + ', ' : '') + (target.deadline ? 'échéance : ' + A.longDate(target.deadline) : 'sans échéance');
         }
         // Nouvel ordre parmi les tâches qui ont la même deadline
         const sib = db().tasks.filter(x => x !== t && !x.archived && isOpen(x) && x.deadline === t.deadline).sort(cmp);
@@ -349,7 +349,7 @@
     const t = A.task(e.target.closest('[data-tid]').dataset.tid);
     if (!t) return;
     const v = e.target.value;
-    A.modifier(`Répétition : « ${t.title || 'Sans titre'} »`, () => {
+    A.modifier(`Récurrence : « ${t.title || 'Sans titre'} »`, () => {
       t.recur = v ? { freq: v.split(':')[0], interval: +v.split(':')[1] } : null;
     }, { differe: true });
   });
@@ -363,16 +363,14 @@
       if (!t.recur || t.archived) continue;
       if (!isOpen(t) && !t.recurNextId) {
         const nd = nextDate(t);
-        const n = window.todoMetier.normTask(Object.assign(JSON.parse(JSON.stringify(t)), {
+        // Tâche complète (règles d'une nouvelle tâche) ; createdAt === updatedAt : l'occurrence est « non touchée »
+        const now = A.nowIso();
+        const n = A.normTask(Object.assign(JSON.parse(JSON.stringify(t)), {
           id: A.uid(), status: 'todo', progress: 0, deadline: nd,
           startDate: t.startDate && t.deadline ? addDays(nd, A.diffDays(t.startDate, t.deadline)) : null,
-          createdAt: undefined, updatedAt: undefined, doneAt: null, archived: false, archivedAt: null,
+          createdAt: now, updatedAt: now, doneAt: null, archived: false, archivedAt: null,
           realMin: 0, timeLogs: [], timerStart: null, order: 0, recurNextId: null, recurFromId: t.id
         }));
-        // normTask pose createdAt === updatedAt : l'occurrence est « non touchée »
-        delete n.createdAt; delete n.updatedAt;
-        const now = A.nowIso();
-        n.createdAt = now; n.updatedAt = now;
         d.tasks.push(n);
         t.recurNextId = n.id;
         creee = n;
@@ -387,11 +385,15 @@
     }
   }
   A.hooks.apresModif.push(checkRecurring);
-  // Message après celui de la modification, sans retirer son bouton « Annuler »
+  // Message ajouté à celui de la modification, sans retirer son bouton « Annuler »
   window.addEventListener('todo:rendered', () => {
     if (!creee) return;
     const n = creee; creee = null;
-    setTimeout(() => { if (!document.querySelector('#toast [data-act="undo"]')) A.toast('↻ Prochaine occurrence créée pour le ' + A.longDate(n.deadline)); }, 10);
+    setTimeout(() => {
+      const txt = '↻ Prochaine occurrence créée pour le ' + A.longDate(n.deadline);
+      const span = document.querySelector('#toast [data-act="undo"]') && document.querySelector('#toast .toast span');
+      if (span) span.textContent += ' · ' + txt; else A.toast(txt);
+    }, 10);
   });
 
   /* ================= Aller au sujet depuis le tableau de bord ================= */
