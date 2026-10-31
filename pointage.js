@@ -1,6 +1,6 @@
 /* Pointage (heures d'arrivée, repas, départ), absences et compteurs de congés.
    Module séparé de index.html : il s'appuie sur window.todoApp et sur les points d'accroche (hooks).
-   Les absences et les jours fériés bloquent la capacité dans la vue Charge (hook dayOff). */
+   Les absences sont données au calendrier commun (hooks.absence) : elles bloquent la capacité dans la vue Charge. */
 (function () {
 'use strict';
 const A = window.todoApp;
@@ -127,7 +127,7 @@ function counter(typeId, y) {
   return res;
 }
 
-/* ---------- Calendrier commun : les absences font d'un jour ouvré un jour non travaillé (Charge, Récurrence) ---------- */
+/* ---------- Calendrier commun : les absences font d'un jour ouvré un jour non travaillé ---------- */
 if (A.hooks.absence) A.hooks.absence.push(ds => {
   const d = on() ? day(ds) : null;
   if (!d || !d.abs) return null;
@@ -361,7 +361,7 @@ function viewStats() {
     <div class="card"><h3>Réglages</h3>
       <div class="cc-settings">
         <span>Objectif par jour ${WD_ORDER.map(wd => `<label class="pt-dmin">${WD_SHORT[wd]} <input class="inline est" data-pt-set="day" data-wd="${wd}" value="${esc(fmtDur(dayTarget(wd)) || '0')}" title="Ex. 7h45, 4h, 0"></label>`).join('')} <span class="hint">soit ${fmtH(weekTarget())} par semaine</span></span>
-        <span class="hint">Jours ouvrés et jours fériés : <a href="#donnees">Données › Calendrier</a></span>
+        <span class="hint">Semaine type et jours fériés : <a href="#donnees" data-act="cal-voir">Données › Calendrier</a></span>
       </div>
     </div>
     <div id="pt-import"></div>`;

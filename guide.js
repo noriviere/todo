@@ -61,7 +61,7 @@ const SECTIONS = [
   { id: 'calendrier', g: 'start', title: 'Calendrier : jours ouvrés et fériés', html: () => `
     <p>Onglet Données, carte <b>Calendrier</b> : une seule semaine type pour toute l'appli, quels que soient les modules actifs.</p>
     <ul>
-      <li><b>Jours ouvrés</b> : les jours où l'on travaille normalement (du lundi au vendredi au départ). Clique un jour pour l'ajouter ou le retirer.</li>
+      <li><b>Semaine type</b> : les jours où l'on travaille normalement (du lundi au vendredi au départ). Clique un jour pour l'ajouter ou le retirer.</li>
       <li><b>Jours fériés français automatiques</b> : Pâques, Ascension et Pentecôte compris. Le prochain férié est rappelé à côté.</li>
       <li>Un <b>jour ouvré</b> est un jour de la semaine type qui n'est pas férié. ${when('projet', 'Le Gantt des projets compte en jours ouvrés : tes congés ne le décalent pas, puisque les étapes sont souvent faites par d\'autres.')}</li>
       ${when('pointage', '<li>Un <b>jour travaillé</b> est un jour ouvré où tu es là : sans congé ni absence d\'une journée entière posés dans Pointage. La Charge et l\'objectif du Pointage comptent en jours travaillés.</li>')}
@@ -251,7 +251,7 @@ const SECTIONS = [
       <li>Un créneau s'archive et se restaure comme le reste.</li>
       <li>Les jours fériés${when('pointage', ' et les congés posés dans Pointage')} sont retirés automatiquement : pas besoin de créneau pour eux.</li>
     </ul>
-    <p><b>Ma semaine type</b> : la capacité d'une journée (sert aussi pour écrire <code>1j</code>) ; les jours ouvrés se règlent dans Données › Calendrier.</p>`, tab: 'charge' },
+    <p><b>Ma semaine type</b> : la capacité d'une journée (sert aussi pour écrire <code>1j</code>) ; la semaine type se règle dans Données › Calendrier.</p>`, tab: 'charge' },
 
   { id: 'pointer', mod: 'pointage', g: 'pointage', title: 'Pointer sa journée', html: () => `
     <p>Onglet Pointage, sous-onglet <b>Semaine</b> (et bandeau du tableau de bord) :</p>

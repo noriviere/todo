@@ -1041,9 +1041,9 @@ function calendrierCard() {
   let proch = null;
   if (st.feries !== false) for (let d = today(), i = 0; i < 400 && !proch; i++, d = addDays(d, 1)) if (cal.ferie(d)) proch = d;
   return `<div class="card" id="calendrier"><h3>Calendrier</h3>
-    <p>Les jours où l'on travaille normalement, pour toute l'appli : la Charge, la Récurrence, le Pointage et le Gantt des projets. Un jour ouvré est un jour de cette semaine qui n'est pas férié.</p>
+    <p>Les jours où l'on travaille normalement, pour toute l'appli : la Charge, la Récurrence, le Pointage et le Gantt des projets. Un jour ouvré est un jour de la semaine type qui n'est pas férié.</p>
     <div class="cal-set">
-      <div class="cal-row"><b id="cal-jours-l">Jours ouvrés</b>
+      <div class="cal-row"><b id="cal-jours-l">Semaine type</b>
         <span class="cal-days" role="group" aria-labelledby="cal-jours-l">${JOURS_SEMAINE.map(([n, c, l]) =>
           `<button type="button" data-act="cal-jour" data-wd="${n}" data-k="cal-jour-${n}" aria-pressed="${sem.includes(n)}" title="${l}" aria-label="${l}">${c}</button>`).join('')}</span></div>
       <div class="cal-row"><label class="cal-tog"><input type="checkbox" data-cal-feries data-k="cal-feries" ${st.feries !== false ? 'checked' : ''}> Jours fériés français automatiques</label>
@@ -1419,9 +1419,15 @@ document.addEventListener('click', e => {
     case 'cal-jour': {
       const wd = +b.dataset.wd, nom = JOURS_SEMAINE.find(j => j[0] === wd)[2], sem = calendrier().semaine;
       const oui = !sem.includes(wd);
-      if (!oui && sem.length === 1) { toast('Garde au moins un jour ouvré'); break; }
-      modifier(`Jours ouvrés : ${nom} ${oui ? 'ajouté' : 'retiré'}`, () => { db.settings.workDays = oui ? [...sem, wd].sort() : sem.filter(x => x !== wd); });
+      if (!oui && sem.length === 1) { toast('Garde au moins un jour dans la semaine type'); break; }
+      modifier(`Semaine type : ${nom} ${oui ? 'ajouté' : 'retiré'}`, () => { db.settings.workDays = oui ? [...sem, wd].sort((a, b) => a - b) : sem.filter(x => x !== wd); });
       focusKey('cal-jour-' + wd);
+      break;
+    }
+    case 'cal-voir': {   // lien vers la carte Calendrier de l'onglet Données
+      e.preventDefault();
+      if (currentView() !== 'donnees') location.hash = 'donnees';
+      setTimeout(() => { const c = $('#calendrier'); if (c) c.scrollIntoView({ block: 'start' }); }, 60);
       break;
     }
     case 'demo-start': startDemo(); break;
@@ -1491,7 +1497,7 @@ window.todoApp = {
   replaceData: d => { keepBackup(); db = migrate(d); viderHistorique(); save(); render(); }
 };
 // Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
-const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [], subjectBody: [], apresModif: [], absence: [] };
+const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], subjectBody: [], apresModif: [], absence: [] };
 const titre = x => (x && x.title) || 'Sans titre';
 // Enregistre l'affichage (filtres, onglets, sujets dépliés, modules actifs), hors historique.
 // Une donnée changée en route (oubli de modifier()) n'est ni perdue ni effaçable : elle devient un pas annulable.

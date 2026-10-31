@@ -9,7 +9,7 @@ const M = require('../metier.js');
 const ouvre = d => M.calendrier(M.migrate(JSON.parse(JSON.stringify(d))).settings).ouvre;
 
 // demo.js est un script navigateur : on le charge avec un window factice pour appeler todoDemo.data(today)
-const ctx = { window: {} };
+const ctx = { window: { todoMetier: require('../metier.js') } };
 vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../demo.js'), 'utf8'), ctx);
 const demo = ctx.window.todoDemo;
 const ymd = d => d.toISOString().slice(0, 10);

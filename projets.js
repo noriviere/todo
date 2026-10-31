@@ -145,7 +145,7 @@ const clampPpd = v => Math.min(ZMAX, Math.max(ZMIN, v));
 const tickMode = ppd => ppd >= 10 ? 'week' : ppd >= 1.4 ? 'month' : 'quarter';
 // Début de frise calé sur le premier repère : lundi, 1er du mois ou 1er du trimestre
 const alignLo = (d, mode) => mode === 'quarter' ? d.slice(0, 5) + String(Math.floor((+d.slice(5, 7) - 1) / 3) * 3 + 1).padStart(2, '0') + '-01'
-  : mode === 'month' ? d.slice(0, 8) + '01' : shift(d, -((new Date(T(d)).getUTCDay() + 6) % 7));
+  : mode === 'month' ? d.slice(0, 8) + '01' : A.lundi(d);
 const ROW = 40, HEAD = 34;
 
 // Une couleur par responsable (ordre alphabétique), gris sans responsable ; le nom est toujours écrit à côté

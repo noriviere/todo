@@ -39,15 +39,15 @@ test('carte Calendrier : l\'ancien choix des fériés du Pointage est repris, et
 
 test('Charge : le 11 novembre reste férié avec le Pointage désactivé', async () => {
   const page = await openApp(base({ settings: { modules: { pointage: false } }, ui: { ccRange: 30 } }), { hash: 'charge' });
-  await page.click('[data-act="cc-day"][data-d="2026-11-11"]');
+  await page.click('#main [data-act="cc-day"][data-d="2026-11-11"]');
   assert.match(await page.locator('#main').innerText(), /Férié : Armistice/);
-  assert.match(await page.locator('#main').innerText(), /Jours ouvrés : lun\. mar\. mer\. jeu\. ven\./);
+  assert.match(await page.locator('#main').innerText(), /Semaine type : lun\. mar\. mer\. jeu\. ven\./);
   assert.deepEqual(page.errors, []);
 });
 
 test('Charge : un congé posé dans le Pointage bloque le jour', async () => {
   const page = await openApp(base({ ui: { ccRange: 30 }, pointage: { days: { '2026-11-12': { abs: { type: 'cp', part: 'full' } } } } }), { hash: 'charge' });
-  await page.click('[data-act="cc-day"][data-d="2026-11-12"]');
+  await page.click('#main [data-act="cc-day"][data-d="2026-11-12"]');
   assert.match(await page.locator('#main').innerText(), /Congés payés/);
   assert.deepEqual(page.errors, []);
 });
@@ -60,6 +60,28 @@ test('Gantt : saute le 11 novembre, mais pas un congé de Noel', async () => {
     pointage: { days: { '2026-11-13': { abs: { type: 'cp', part: 'full' } } } }
   });
   const page = await openApp(d, { hash: 'projets' });
-  assert.equal(await page.locator('.pj-bar[data-sid="s1"]').getAttribute('data-end'), '2026-11-16');
+  assert.equal(await page.locator('#main .pj-bar[data-sid="s1"]').getAttribute('data-end'), '2026-11-16');
+  assert.deepEqual(page.errors, []);
+});
+
+test('Charge : le lien de la semaine type mène à la carte Calendrier', async () => {
+  const page = await openApp(base(), { hash: 'charge' });
+  await page.click('#main [data-act="cal-voir"]');
+  await page.waitForFunction(() => location.hash === '#donnees');
+  await carte(page).waitFor();
+  assert.ok(await carte(page).isVisible());
+  assert.deepEqual(page.errors, []);
+});
+
+test('Pointage : l\'objectif de la semaine du 11 novembre retire le férié et un congé', async () => {
+  // Objectif par défaut : 7h45 du lundi au jeudi, 4h le vendredi (35h). Le mercredi 11 est férié, le jeudi 12 en congé.
+  const page = await openApp(base({ pointage: { days: { '2026-11-12': { abs: { type: 'cp', part: 'full' } } } } }), { hash: 'pointage' });
+  await page.click('#main [data-act="pt-week"][data-n="7"]');
+  await page.click('#main [data-act="pt-week"][data-n="7"]');
+  assert.match(await page.locator('#main .pt-weeksum').innerText(), /objectif 19h30/);
+  await page.evaluate(() => { location.hash = 'donnees'; });
+  await carte(page).locator('[data-cal-feries]').uncheck();
+  await page.evaluate(() => { location.hash = 'pointage'; });
+  assert.match(await page.locator('#main .pt-weeksum').innerText(), /objectif 27h15/, 'fériés décochés : le 11 redevient ouvré');
   assert.deepEqual(page.errors, []);
 });

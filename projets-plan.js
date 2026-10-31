@@ -51,8 +51,7 @@ function topo(steps) {
   return { order, looped: steps.map(s => s.id).filter(id => !done.has(id)) };
 }
 
-function schedule(steps, milestones, workDays) {
-  const wd = workDays;
+function schedule(steps, milestones, wd) {
   const byStep = new Map(steps.map(s => [s.id, s]));
   const ids = new Set(byStep.keys());
   const { order, looped } = topo(steps);

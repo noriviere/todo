@@ -42,11 +42,11 @@ const mondayOf = A.lundi;
 // Fériés (calendrier commun) et absences (fournies par le Pointage) d'un jour de la semaine type, en créneaux virtuels
 function joursPris(ds) {
   if (!isWorkDay(ds)) return [];
-  const cal = A.calendrier(), f = cal.ferie(ds), cap = settings().workdayMin;
-  if (f) return [{ id: 'cal-fer-' + ds, title: 'Férié : ' + f, durMin: cap, freq: 'once', start: ds, days: [], virtual: true }];
+  const virtuel = (id, title, durMin) => [{ id: id + ds, title, durMin, freq: 'once', start: ds, days: [], virtual: true }];
+  const f = A.calendrier().ferie(ds), cap = settings().workdayMin;
+  if (f) return virtuel('cal-fer-', 'Férié : ' + f, cap);
   const a = A.absenceDu(ds);
-  if (!a) return [];
-  return [{ id: 'cal-abs-' + ds, title: a.label || 'Absence', durMin: Math.round(cap * (a.part === 'full' ? 1 : 0.5)), freq: 'once', start: ds, days: [], virtual: true }];
+  return a ? virtuel('cal-abs-', a.label || 'Absence', Math.round(cap * (a.part === 'full' ? 1 : 0.5))) : [];
 }
 function slotOn(sl, ds) {
   if (sl.archived || !sl.durMin) return false;
@@ -66,10 +66,10 @@ function slotOn(sl, ds) {
   }
   return false;
 }
-// Créneaux fixes du jour, plus les fériés et les absences (et ce qu'ajoutent d'autres modules par hooks.dayOff)
+// Créneaux fixes du jour, plus les fériés et les absences
 // Un jour entièrement pris (congé, férié) ne reçoit pas les créneaux fixes : la réunion n'a pas lieu sans toi
 function slotsOn(ds) {
-  const off = joursPris(ds).concat(...(A.hooks.dayOff || []).map(f => f(ds)));
+  const off = joursPris(ds);
   if (off.length && off.reduce((a, sl) => a + sl.durMin, 0) >= capacity(ds)) return off;
   return slots().filter(sl => slotOn(sl, ds)).concat(off);
 }
@@ -378,7 +378,7 @@ A.views.charge = () => {
     <div class="card"><h3>Ma semaine type</h3>
       <div class="cc-settings">
         <label>Capacité d'une journée <input class="inline est" data-cc-set="workday" data-k="cc-wd" value="${esc(fmtDur(st.workdayMin))}" title="Temps de travail disponible par jour (sert aussi pour « 1j »)"></label>
-        <span>Jours ouvrés : ${esc(WD_ORDER.filter(x => A.calendrier().semaine.includes(x)).map(x => WD_LONG[x].slice(0, 3) + '.').join(' '))} <a href="#donnees" class="cc-cal-lien">Régler dans Données › Calendrier</a></span>
+        <span>Semaine type : ${esc(WD_ORDER.filter(x => A.calendrier().semaine.includes(x)).map(x => WD_LONG[x].slice(0, 3) + '.').join(' '))} <a href="#donnees" class="cc-cal-lien" data-act="cal-voir">Régler dans Données › Calendrier</a></span>
       </div>
     </div>`;
 };

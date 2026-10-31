@@ -315,7 +315,7 @@
   }
   function step(ds, r) {
     if (r.freq === 'workday') {
-      return A.calendrier().ouvreSuivant(addDays(ds, 1));   // jour ouvré suivant (calendrier commun)
+      return A.calendrier().ouvreSuivant(addDays(ds, 1));   // jour ouvré suivant ; les congés seront sautés avec le ticket #37
     }
     if (r.freq === 'week') return addDays(ds, 7 * r.interval);
     if (r.freq === 'month') return addMonths(ds, r.interval);

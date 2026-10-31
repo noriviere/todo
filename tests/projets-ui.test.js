@@ -234,7 +234,7 @@ test('glisser une étape libre décale les suivantes, jalon fixe', async () => {
   const d = await page.db();
   assert.equal(d.subjects.find(s => s.id === 's1').plan.start, '2026-11-09');
   // s1 (5 jours) du 9 au 16 : le mercredi 11 novembre, férié, n'est pas ouvré
-  assert.equal(await page.locator('.pj-bar[data-sid="s2"]').getAttribute('data-start'), '2026-11-17');
+  assert.equal(await page.locator('#main .pj-bar[data-sid="s2"]').getAttribute('data-start'), '2026-11-17');
   assert.equal(pjOf(d).milestones[0].date, '2026-11-10');
   assert.equal(await page.evaluate(() => location.hash), '#projets');   // pas d'ouverture après un glisser
   assert.deepEqual(page.errors, []);
