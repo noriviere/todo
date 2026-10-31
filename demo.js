@@ -49,12 +49,13 @@ function data(td) {
     S('pj1', 'Achat presse 450T', 1, 'Presse 450T', 'Industrie', '', "Achat et mise en service de la nouvelle presse.", {
       createdAt: at(add(td, -40)), isProject: true,
       pj: { owner: 'Moi', color: '#4f63e8', milestones: [
-        { id: 'm1', name: 'Livraison machine', date: work(td, 6), before: ['s10'] },
+        // La FAT finit au 6e jour travaillé (CDC parti 17 jours travaillés plus tôt) : jalon au 4e, l'alerte s'affiche tous les jours
+        { id: 'm1', name: 'Livraison machine', date: work(td, 4), before: ['s10'] },
         { id: 'm2', name: 'Paiement 30 % à la commande', date: add(td, -20), before: [] },
         { id: 'm3', name: 'Mise en production', date: add(td, 40), before: ['s13'] }
       ] }
     }),
-    S('s8', 'CDC presse à injecter', 1, 'Presse 450T', 'Industrie', '', 'Cahier des charges de la nouvelle presse.', { parentId: 'pj1', plan: { start: add(td, -24), durDays: 10 }, who: 'Moi' }),
+    S('s8', 'CDC presse à injecter', 1, 'Presse 450T', 'Industrie', '', 'Cahier des charges de la nouvelle presse.', { parentId: 'pj1', plan: { start: work(td, -17), durDays: 10 }, who: 'Moi' }),
     S('s9', "Validation d'étude fournisseur", 1, 'Presse 450T', 'Industrie', '', '', { parentId: 'pj1', plan: { durDays: 5 }, after: ['s8'], who: "Bureau d'études" }),
     S('s10', 'FAT chez le fournisseur', 1, 'Presse 450T', 'Industrie', '', 'Essais de réception en usine.', { parentId: 'pj1', plan: { durDays: 4 }, after: ['s9'], lagDays: 5, who: 'Fournisseur' }),
     S('s11', 'Raccordement électrique', 2, 'Presse 450T', 'Industrie', '', '', { parentId: 'pj1', plan: { durDays: 6 }, after: ['s9'], who: 'Entreprise A' }),
