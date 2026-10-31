@@ -200,10 +200,10 @@ test('mode démo, modules coupés, téléphone : Ctrl+Z et boutons ↶ ↷ march
 });
 
 // Corrections issues de la revue de la PR #29 (chacune d'abord en échec)
-test('un enregistrement direct (module pas encore migré) vide l\'historique : Ctrl+Z ne l\'efface jamais', async () => {
+test('une donnée changée hors du point unique (filet de sécurité) vide l\'historique : Ctrl+Z ne l\'efface jamais', async () => {
   const page = await openApp(base());
   await ligne(page, 'a').locator('[data-act="archive-task"]').click();
-  await page.evaluate(() => { const A = window.todoApp; A.getData().tasks.find(t => t.id === 'b').title = 'Changée ailleurs'; A.save(); });
+  await page.evaluate(() => { const A = window.todoApp; A.getData().tasks.find(t => t.id === 'b').title = 'Changée ailleurs'; A.enregistrerAffichage(); });
   assert.equal(await page.locator('#toast [data-act="undo"]').count(), 0, 'le bandeau « Annuler » de l\'archivage est retiré');
   await page.locator('body').click({ position: { x: 5, y: 5 } });
   await ctrl(page, 'z');

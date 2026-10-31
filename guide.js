@@ -351,6 +351,7 @@ const SECTIONS = [
       <li>Après une annulation, un bandeau « Annulé : … » propose <b>Rétablir</b>, et l'appli te ramène là où tu avais fait la modification (la ligne clignote brièvement).</li>
       <li>Le chrono aussi : annuler un arrêt relance le chrono depuis son heure de départ, sans perdre le temps passé. Pointages, absences, créneaux de la Charge et réglages s'annulent de la même façon.</li>
       <li>Un import (ta liste Excel, ton historique de pointage) compte pour une seule modification : un Ctrl+Z le défait d'un coup.</li>
+      <li>Glisser-déposer, répétitions, planning des projets (étapes, jalons, barres du Gantt) s'annulent aussi. Annuler « Fait » sur une tâche récurrente retire en même temps l'occurrence suivante qu'elle avait créée.</li>
       <li>Seules tes données reviennent en arrière : les sujets dépliés, les filtres, la recherche, le thème et les modules actifs ne bougent pas.</li>
       <li>L'historique repart de zéro au rechargement de la page, et dès que des données arrivent d'ailleurs (synchro GitHub, autre onglet, restauration d'une sauvegarde) : un Ctrl+Z n'efface jamais ce qui vient de ton autre appareil.</li>
     </ul>` },

@@ -650,11 +650,15 @@ function modifier(libelle, fn, o = {}) {
   const lieu = Object.assign(lieuActuel(), o.lieu);
   let r;
   enModif = true;
-  try { r = fn(db); } finally { enModif = false; }
-  if (r && typeof r === 'object' && Array.isArray(r.tasks)) {
-    if (o.copie) keepBackup();
-    db = M.remettre(db, M.photo(migrate(r)));
-  }
+  try {
+    r = fn(db);
+    if (r && typeof r === 'object' && Array.isArray(r.tasks)) {
+      if (o.copie) keepBackup();
+      db = M.remettre(db, M.photo(migrate(r)));
+    }
+    // Ce qu'une modification entraîne (occurrence suivante d'une récurrence) fait partie du même pas
+    if (r !== false) hooks.apresModif.forEach(f => f(db));
+  } finally { enModif = false; }
   let entree = null;
   // Champ revalidé sans changement : on remet aussi les dates de modification, aucun pas n'est créé
   if (M.memesDonnees(avant, M.photo(db))) db = M.remettre(db, avant);
@@ -663,7 +667,6 @@ function modifier(libelle, fn, o = {}) {
     if (typeof libelle === 'function') libelle = libelle();
     entree = { libelle, avant, apres: null, lieu };
   }
-  // Ce que les écouteurs de l'enregistrement ajoutent (occurrence suivante d'une récurrence) fait partie du même pas
   enregistrerConnu();
   if (entree && o.historique === false) { viderHistorique(); entree = null; }
   if (entree) { entree.apres = photoConnue; hist.enregistrer(entree); }
@@ -1428,8 +1431,10 @@ window.todoApp = {
   replaceData: d => { keepBackup(); db = migrate(d); viderHistorique(); save(); render(); }
 };
 // Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
-const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [], subjectBody: [] };
-Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, save, modifier, annuler, retablir, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats, remaining: M.remaining, taskCmp,
+const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], dayOff: [], subjectBody: [], apresModif: [] };
+// Enregistre l'affichage (filtres, onglets, sujets dépliés, modules actifs) : jamais une donnée, donc hors historique
+function enregistrerAffichage() { save(); }
+Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, enregistrerAffichage, modifier, annuler, retablir, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats, remaining: M.remaining, taskCmp,
   parentOf, childrenOf, subjLabel, setParent, canNest, expandTo, archiveSubject, createSubject,
   esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur });
 

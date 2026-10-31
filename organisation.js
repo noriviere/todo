@@ -77,22 +77,22 @@
     if (p) {
       const f = F(), v = +p.dataset.orgPrio;
       f.prios = f.prios.includes(v) ? f.prios.filter(x => x !== v) : [...f.prios, v];
-      A.save(); A.render(); return;
+      A.enregistrerAffichage(); A.render(); return;
     }
     if (e.target.closest('[data-org-clear]')) {
       db().ui.dashFilter = { prios: [], subjectId: '', q: '' };
-      A.save(); A.render(); return;
+      A.enregistrerAffichage(); A.render(); return;
     }
     if (e.target.closest('[data-org-autoorder]')) {
-      db().subjects.forEach(s => { s.order = 0; });
-      A.save(); A.render(); A.toast('Sujets reclassés par urgence'); return;
+      A.modifier('Sujets reclassés par urgence', d => { d.subjects.forEach(s => { s.order = 0; }); }, { toast: 'Sujets reclassés par urgence' });
+      return;
     }
   });
   document.addEventListener('input', e => {
-    if (e.target.matches('[data-org-q]')) { F().q = e.target.value; A.save(); A.scheduleRender(); }
+    if (e.target.matches('[data-org-q]')) { F().q = e.target.value; A.enregistrerAffichage(); A.scheduleRender(); }
   });
   document.addEventListener('change', e => {
-    if (e.target.matches('[data-org-subj]')) { F().subjectId = e.target.value; A.save(); A.render(); }
+    if (e.target.matches('[data-org-subj]')) { F().subjectId = e.target.value; A.enregistrerAffichage(); A.render(); }
   });
 
   // Bouton pour revenir au tri automatique des sujets après un glisser-déposer
@@ -229,42 +229,43 @@
     else dropSubject(A.subj(d.id), tg);
   });
   const cmp = A.taskCmp;   // même ordre que le tableau de bord
-  function snapshot(t) { return { deadline: t.deadline, subjectId: t.subjectId, order: t.order }; }
+  // Tâche posée sur un sujet, une section du tableau de bord ou une autre tâche (même échéance, nouvel ordre).
+  // L'échéance passe par les règles des champs d'une tâche, comme la saisie ; Annuler passe par l'historique.
   function dropTask(t, tg) {
     if (!t) return;
-    const before = snapshot(t);
-    const undo = () => { Object.assign(t, before); A.save(); A.render(); };
-    let msg;
-    if (tg.type === 'subject') {
-      const s = A.subj(tg.el.closest('[data-sid]').dataset.sid);
-      if (!s || s.id === t.subjectId) return;
-      t.subjectId = s.id;
-      msg = `Rangée dans « ${s.title} »`;
-    } else if (tg.type === 'sec') {
-      const k = tg.el.dataset.sec;
-      const nd = k === 'today' ? today() : k === 'tomorrow' ? addDays(today(), 1) : k === 'week' ? addDays(today(), 2) : null;
-      if (k === 'week' && t.deadline > addDays(today(), 1) && t.deadline <= addDays(today(), 7)) return;
-      t.deadline = nd;
-      msg = nd ? 'Deadline : ' + A.longDate(nd) : 'Deadline retirée';
-    } else {
-      const target = A.task(tg.el.dataset.tid);
-      if (!target) return;
-      if (view() === 'sujets' && target.subjectId !== t.subjectId) {
-        t.subjectId = target.subjectId;
-        msg = `Rangée dans « ${A.subj(target.subjectId)?.title || 'Boîte de réception'} »`;
+    const o = { annuler: true };
+    A.modifier(`Tâche déplacée : « ${t.title || 'Sans titre'} »`, () => {
+      let msg;
+      if (tg.type === 'subject') {
+        const s = A.subj(tg.el.closest('[data-sid]').dataset.sid);
+        if (!s || s.id === t.subjectId) return false;
+        A.setTaskField(t, 'subjectId', s.id);
+        msg = `Rangée dans « ${s.title} »`;
+      } else if (tg.type === 'sec') {
+        const k = tg.el.dataset.sec;
+        const nd = k === 'today' ? today() : k === 'tomorrow' ? addDays(today(), 1) : k === 'week' ? addDays(today(), 2) : null;
+        if (k === 'week' && t.deadline > addDays(today(), 1) && t.deadline <= addDays(today(), 7)) return false;
+        A.setTaskField(t, 'deadline', nd || '');
+        msg = nd ? 'Deadline : ' + A.longDate(nd) : 'Deadline retirée';
+      } else {
+        const target = A.task(tg.el.dataset.tid);
+        if (!target) return false;
+        if (view() === 'sujets' && target.subjectId !== t.subjectId) {
+          A.setTaskField(t, 'subjectId', target.subjectId || '');
+          msg = `Rangée dans « ${A.subj(target.subjectId)?.title || 'Boîte de réception'} »`;
+        }
+        if (target.deadline !== t.deadline) {
+          A.setTaskField(t, 'deadline', target.deadline || '');
+          msg = (msg ? msg + ', ' : '') + (target.deadline ? 'deadline : ' + A.longDate(target.deadline) : 'sans deadline');
+        }
+        // Nouvel ordre parmi les tâches qui ont la même deadline
+        const sib = db().tasks.filter(x => x !== t && !x.archived && isOpen(x) && x.deadline === t.deadline).sort(cmp);
+        sib.splice(sib.indexOf(target), 0, t);
+        sib.forEach((x, i) => { x.order = (i + 1) * 10; });
       }
-      if (target.deadline !== t.deadline) {
-        t.deadline = target.deadline;
-        msg = (msg ? msg + ', ' : '') + (target.deadline ? 'deadline : ' + A.longDate(target.deadline) : 'sans deadline');
-      }
-      // Nouvel ordre parmi les tâches qui ont la même deadline
-      const sib = db().tasks.filter(x => x !== t && !x.archived && isOpen(x) && x.deadline === t.deadline).sort(cmp);
-      sib.splice(sib.indexOf(target), 0, t);
-      sib.forEach((x, i) => { x.order = (i + 1) * 10; });
-    }
-    t.updatedAt = A.nowIso();
-    A.save(); A.render();
-    if (msg) A.toast(msg, undo);
+      // Sans message (simple changement d'ordre), pas de bandeau : Ctrl+Z suffit
+      if (msg) o.toast = msg; else o.annuler = false;
+    }, o);
   }
   // Sujet ou sous-sujet posé à une place (trait d'insertion) ou sur l'en-tête d'un autre sujet
   function dropSubject(s, tg) {
@@ -286,26 +287,16 @@
       sibs.splice(tg.i, 0, s);
       if (!moving && p === s.priority && sibs.map(x => x.id).join() === was) return;
     }
-    // Annuler : on garde tout ce que le déplacement peut toucher
-    const before = sibs.map(x => [x, x.order]);
-    const prev = { priority: s.priority, parentId: s.parentId, after: s.after, lagDays: s.lagDays };
-    const old = moving && A.parentOf(s);
-    const links = old ? A.childrenOf(old, true).map(x => [x, x.after && x.after.slice()]) : [];
-    const ms = old && old.pj && old.pj.milestones ? old.pj.milestones.map(m => [m, m.before && m.before.slice()]) : [];
-    if (moving && !A.setParent(s, parent.id)) { A.toast('Ce sujet ne peut pas être rangé là (un seul niveau de sous-sujets)'); return; }
-    s.priority = p;
-    sibs.forEach((x, i) => { x.order = (i + 1) * 10; });
-    s.updatedAt = A.nowIso();
-    A.save(); A.render();
-    const msg = [moving ? `« ${s.title || 'Sans titre'} » rangé dans « ${parent.title || 'Sans titre'} »` : '',
-      prev.priority !== p ? `${moving ? 'passe' : `« ${s.title || 'Sans titre'} » passe`} en P${p}` : ''].filter(Boolean).join(', ');
-    if (msg) A.toast(msg, () => {
-      before.forEach(([x, o]) => { x.order = o; });
-      links.forEach(([x, a]) => { x.after = a; });
-      ms.forEach(([m, b]) => { m.before = b; });
-      Object.assign(s, prev);
-      A.save(); A.render();
-    });
+    const prev = s.priority;
+    const o = { annuler: true };
+    A.modifier(`Sujet déplacé : « ${s.title || 'Sans titre'} »`, () => {
+      if (moving && !A.setParent(s, parent.id)) { A.toast('Ce sujet ne peut pas être rangé là (un seul niveau de sous-sujets)'); return false; }
+      s.priority = p;
+      sibs.forEach((x, i) => { x.order = (i + 1) * 10; });
+      const msg = [moving ? `« ${s.title || 'Sans titre'} » rangé dans « ${parent.title || 'Sans titre'} »` : '',
+        prev !== p ? `${moving ? 'passe' : `« ${s.title || 'Sans titre'} » passe`} en P${p}` : ''].filter(Boolean).join(', ');
+      if (msg) o.toast = msg; else o.annuler = false;
+    }, o);
   }
 
   /* ================= Tâches récurrentes ================= */
@@ -358,50 +349,50 @@
     const t = A.task(e.target.closest('[data-tid]').dataset.tid);
     if (!t) return;
     const v = e.target.value;
-    t.recur = v ? { freq: v.split(':')[0], interval: +v.split(':')[1] } : null;
-    t.updatedAt = A.nowIso();
-    A.save(); A.scheduleRender();
+    A.modifier(`Répétition : « ${t.title || 'Sans titre'} »`, () => {
+      t.recur = v ? { freq: v.split(':')[0], interval: +v.split(':')[1] } : null;
+    }, { differe: true });
   });
 
-  let busy = false;
-  function checkRecurring() {
-    if (busy || !recurOn()) return;
-    busy = true;
-    try {
-      let changed = false, created = null;
-      const tasks = db().tasks;
-      for (const t of [...tasks]) {
-        if (!t.recur || t.archived) continue;
-        if (!isOpen(t) && !t.recurNextId) {
-          const nd = nextDate(t);
-          const n = JSON.parse(JSON.stringify(t));
-          const now = A.nowIso();
-          Object.assign(n, {
-            id: A.uid(), status: 'todo', progress: 0, deadline: nd,
-            startDate: t.startDate && t.deadline ? addDays(nd, A.diffDays(t.startDate, t.deadline)) : null,
-            createdAt: now, updatedAt: now, doneAt: null, archived: false, archivedAt: null,
-            realMin: 0, timeLogs: [], timerStart: null, order: 0, recurNextId: null, recurFromId: t.id
-          });
-          tasks.push(n);
-          t.recurNextId = n.id;
-          changed = true; created = n;
-        } else if (isOpen(t) && t.recurNextId) {
-          // La tâche a été rouverte : on range l'occurrence suivante si elle n'a pas été touchée
-          const n = A.task(t.recurNextId);
-          if (n && isOpen(n) && !n.archived && n.createdAt === n.updatedAt) {
-            n.archived = true; n.archivedAt = A.nowIso();
-          }
-          t.recurNextId = null;
-          changed = true;
+  // Appelé par le point unique de modification, dans la même modification que « Fait » :
+  // Ctrl+Z sur « Fait » retire donc aussi l'occurrence suivante.
+  let creee = null;
+  function checkRecurring(d) {
+    if (!recurOn()) return;
+    for (const t of [...d.tasks]) {
+      if (!t.recur || t.archived) continue;
+      if (!isOpen(t) && !t.recurNextId) {
+        const nd = nextDate(t);
+        const n = window.todoMetier.normTask(Object.assign(JSON.parse(JSON.stringify(t)), {
+          id: A.uid(), status: 'todo', progress: 0, deadline: nd,
+          startDate: t.startDate && t.deadline ? addDays(nd, A.diffDays(t.startDate, t.deadline)) : null,
+          createdAt: undefined, updatedAt: undefined, doneAt: null, archived: false, archivedAt: null,
+          realMin: 0, timeLogs: [], timerStart: null, order: 0, recurNextId: null, recurFromId: t.id
+        }));
+        // normTask pose createdAt === updatedAt : l'occurrence est « non touchée »
+        delete n.createdAt; delete n.updatedAt;
+        const now = A.nowIso();
+        n.createdAt = now; n.updatedAt = now;
+        d.tasks.push(n);
+        t.recurNextId = n.id;
+        creee = n;
+      } else if (isOpen(t) && t.recurNextId) {
+        // La tâche a été rouverte : on range l'occurrence suivante si elle n'a pas été touchée
+        const n = d.tasks.find(x => x.id === t.recurNextId);
+        if (n && isOpen(n) && !n.archived && n.createdAt === n.updatedAt) {
+          n.archived = true; n.archivedAt = A.nowIso();
         }
+        t.recurNextId = null;
       }
-      if (changed) {
-        A.save(); A.scheduleRender();
-        if (created) setTimeout(() => A.toast('↻ Prochaine occurrence créée pour le ' + A.longDate(created.deadline)), 10);
-      }
-    } finally { busy = false; }
+    }
   }
-  window.addEventListener('todo:saved', checkRecurring);
+  A.hooks.apresModif.push(checkRecurring);
+  // Message après celui de la modification, sans retirer son bouton « Annuler »
+  window.addEventListener('todo:rendered', () => {
+    if (!creee) return;
+    const n = creee; creee = null;
+    setTimeout(() => { if (!document.querySelector('#toast [data-act="undo"]')) A.toast('↻ Prochaine occurrence créée pour le ' + A.longDate(n.deadline)); }, 10);
+  });
 
   /* ================= Aller au sujet depuis le tableau de bord ================= */
   css.textContent += `
@@ -419,7 +410,7 @@
     if (!t || !t.subjectId) return;
     const ui = db().ui;
     A.expandTo(t.subjectId);
-    A.save();
+    A.enregistrerAffichage();
     goTo = { sid: t.subjectId, tid: t.id };
     location.hash = 'sujets';
   });
