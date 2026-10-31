@@ -9,7 +9,7 @@ const data = steps => ({
   subjects: [{ id: 'p1', title: 'Achat machine', priority: 1, isProject: true, pj: { milestones: [] } }, ...steps],
   tasks: [], settings: { modules: { projet: true } }, ui: { expanded: ['p1', 's1', 's2'] }
 });
-const box = (page, id) => page.locator(`.subject[data-sid="${id}"]`);
+const box = (page, id) => page.locator(`#main .subject[data-sid="${id}"]`);
 const setEnd = async (page, id, v) => {
   const el = box(page, id).locator('[data-pjf="end"]');
   await el.fill(v);
@@ -48,7 +48,7 @@ test('une fin avant le début est refusée', async () => {
   const page = await openApp(data([{ id: 's1', title: 'CDC', priority: 1, parentId: 'p1', plan: { start: '2026-11-04', durDays: 3 } }]), { hash: 'sujets' });
   await setEnd(page, 's1', '2026-11-02');
   assert.equal((await plan(page, 's1')).durDays, 3);
-  assert.match(await page.locator('#toast, .toast').first().innerText(), /avant le début/);
+  assert.match(await page.locator('#toast').first().innerText(), /avant le début/);
   assert.equal(await box(page, 's1').locator('[data-pjf="end"]').inputValue(), '2026-11-06');
 });
 

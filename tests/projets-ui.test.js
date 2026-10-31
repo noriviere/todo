@@ -40,11 +40,11 @@ test('module actif : onglet Projets, liste, création, quitter le mode projet', 
   assert.equal(await page.locator('#nav a[href="#projets"]').count(), 1);
   assert.match(await page.locator('#main').innerText(), /Achat machine/);
   page.__prompt = 'Ligne 2';
-  await page.click('[data-pj="new-project"]');
+  await page.click('#main [data-pj="new-project"]');
   let d = await page.db();
   assert.ok(d.subjects.some(p => p.title === 'Ligne 2' && p.isProject && !p.parentId && Array.isArray(p.pj.milestones)));
-  await page.click('.pj-card[data-pid="p1"] [data-pj="open-project"]');
-  await page.click('[data-pj="unproject"]');
+  await page.click('#main .pj-card[data-pid="p1"] [data-pj="open-project"]');
+  await page.click('#main [data-pj="unproject"]');
   d = await page.db();
   const p1 = d.subjects.find(p => p.id === 'p1');
   assert.equal(p1.isProject, false);
@@ -59,13 +59,13 @@ const sujets = (d) => Object.assign(d, { ui: { expanded: ['p1', 's1', 's2'] } })
 
 test('module désactivé : ni mode projet ni champs d\'étape dans le sujet', async () => {
   const page = await openApp(sujets(data(false, { subjects: [{ id: 's1', title: 'A', priority: 1, parentId: 'p1' }] })), { hash: 'sujets' });
-  assert.equal(await page.locator('[data-pjf]').count(), 0);
-  assert.equal(await page.locator('.subject[data-sid="p1"] .subject[data-sid="s1"]').count(), 1);   // les sous-sujets restent
+  assert.equal(await page.locator('#main [data-pjf]').count(), 0);
+  assert.equal(await page.locator('#main .subject[data-sid="p1"] .subject[data-sid="s1"]').count(), 1);   // les sous-sujets restent
 });
 
 test('rattacher un sujet, régler durée, début et lien « Après »', async () => {
   const page = await openApp(sujets(data(true)), { hash: 'sujets' });
-  const box = id => page.locator(`.subject[data-sid="${id}"]`);
+  const box = id => page.locator(`#main .subject[data-sid="${id}"]`);
   await box('s1').locator('[data-field="s-parent"]').selectOption('p1');
   await page.waitForTimeout(30);
   await box('s2').locator('[data-field="s-parent"]').selectOption('p1');
@@ -95,11 +95,11 @@ test('un lien en boucle est refusé', async () => {
     { id: 's1', title: 'A', priority: 1, parentId: 'p1', plan: { start: '2026-11-02', durDays: 2 } },
     { id: 's2', title: 'B', priority: 1, parentId: 'p1', plan: { durDays: 2 }, after: ['s1'] }] }));
   const page = await openApp(d0, { hash: 'sujets' });
-  await page.locator('.subject[data-sid="s1"] [data-pj-after="s2"]').click();
+  await page.locator('#main .subject[data-sid="s1"] [data-pj-after="s2"]').click();
   const d = await page.db();
   assert.deepEqual(d.subjects.find(s => s.id === 's1').after || [], []);
-  assert.match(await page.locator('#toast, .toast').first().innerText(), /boucle/);
-  assert.equal(await page.locator('.subject[data-sid="s1"] [data-pj-after="s2"]').isChecked(), false);
+  assert.match(await page.locator('#toast').first().innerText(), /boucle/);
+  assert.equal(await page.locator('#main .subject[data-sid="s1"] [data-pj-after="s2"]').isChecked(), false);
 });
 
 test('détacher une étape nettoie liens et jalons', async () => {
@@ -108,7 +108,7 @@ test('détacher une étape nettoie liens et jalons', async () => {
     { id: 's2', title: 'B', priority: 1, parentId: 'p1', plan: { durDays: 2 }, after: ['s1'] }] }));
   pjOf(d0).milestones = [{ id: 'm1', name: 'Livraison', date: '2026-12-01', before: ['s1', 's2'] }];
   const page = await openApp(d0, { hash: 'sujets' });
-  await page.locator('.subject[data-sid="s1"] [data-field="s-parent"]').selectOption('');
+  await page.locator('#main .subject[data-sid="s1"] [data-field="s-parent"]').selectOption('');
   await page.waitForTimeout(30);
   const d = await page.db();
   const s1 = d.subjects.find(s => s.id === 's1');
@@ -122,7 +122,7 @@ test('« Nouvelle étape » crée un sujet rattaché et l\'ouvre', async () => {
   const d0 = data(true); d0.ui = { pjOpen: 'p1' };
   const page = await openApp(d0, { hash: 'projets' });
   page.__prompt = 'Déchargement';
-  await page.click('[data-pj="new-step"]');
+  await page.click('#main [data-pj="new-step"]');
   await page.waitForFunction(() => location.hash === '#sujets');
   const d = await page.db();
   const s = d.subjects.find(x => x.title === 'Déchargement');
@@ -142,22 +142,22 @@ const planned = () => {
 
 test('créer un jalon, le relier à une étape, alerte de dépassement', async () => {
   const page = await openApp(planned(), { hash: 'projets' });
-  await page.fill('[data-pjm="new-name"]', 'Livraison machine');
-  await page.fill('[data-pjm="new-date"]', '2026-11-10');
-  await page.click('[data-pj="add-milestone"]');
+  await page.fill('#main [data-pjm="new-name"]', 'Livraison machine');
+  await page.fill('#main [data-pjm="new-date"]', '2026-11-10');
+  await page.click('#main [data-pj="add-milestone"]');
   let d = await page.db();
   const m = pjOf(d).milestones[0];
   assert.equal(m.name, 'Livraison machine');
   assert.equal(m.date, '2026-11-10');
-  await page.locator(`[data-mid="${m.id}"] [data-pj-before="s2"]`).check();
-  assert.match(await page.locator('.pj-alert').innerText(), /Livraison machine/);
-  assert.match(await page.locator('.pj-alert').innerText(), /SAT/);
+  await page.locator(`#main [data-mid="${m.id}"] [data-pj-before="s2"]`).check();
+  assert.match(await page.locator('#main .pj-alert').innerText(), /Livraison machine/);
+  assert.match(await page.locator('#main .pj-alert').innerText(), /SAT/);
   d = await page.db();
   assert.equal(pjOf(d).milestones[0].date, '2026-11-10');   // le jalon ne bouge pas
   assert.deepEqual(pjOf(d).milestones[0].before, ['s2']);
   // Raccourcir la FAT supprime le dépassement
   await page.evaluate(() => { window.todoApp.modifier('Durée', () => { window.todoApp.subj('s1').plan.durDays = 2; }); });
-  assert.equal(await page.locator('.pj-alert').count(), 0);
+  assert.equal(await page.locator('#main .pj-alert').count(), 0);
   assert.deepEqual(page.errors, []);
 });
 
@@ -166,12 +166,12 @@ test('alerte visible sur la carte du projet, jalon archivable', async () => {
   pjOf(d0).milestones = [{ id: 'm1', name: 'Paiement 30 %', date: '2026-11-05', before: ['s1'] }];
   d0.ui = {};
   const page = await openApp(d0, { hash: 'projets' });
-  assert.match(await page.locator('.pj-card[data-pid="p1"]').innerText(), /alerte/);
-  await page.click('[data-pj="open-project"]');
-  await page.click('[data-mid="m1"] [data-pj="archive-milestone"]');
+  assert.match(await page.locator('#main .pj-card[data-pid="p1"]').innerText(), /alerte/);
+  await page.click('#main [data-pj="open-project"]');
+  await page.click('#main [data-mid="m1"] [data-pj="archive-milestone"]');
   const d = await page.db();
   assert.equal(pjOf(d).milestones[0].archived, true);
-  assert.equal(await page.locator('.pj-alert').count(), 0);
+  assert.equal(await page.locator('#main .pj-alert').count(), 0);
 });
 
 /* ---------- Task 5 : Gantt bureau ---------- */
@@ -185,19 +185,19 @@ const gantt = () => {
 
 test('Gantt : barres aux dates calculées, jalon, flèche, étape à planifier', async () => {
   const page = await openApp(gantt(), { hash: 'projets' });
-  const b1 = page.locator('.pj-bar[data-sid="s1"]'), b2 = page.locator('.pj-bar[data-sid="s2"]');
+  const b1 = page.locator('#main .pj-bar[data-sid="s1"]'), b2 = page.locator('#main .pj-bar[data-sid="s2"]');
   assert.equal(await b1.getAttribute('data-start'), '2026-11-02');
   assert.equal(await b1.getAttribute('data-end'), '2026-11-06');
   assert.equal(await b2.getAttribute('data-start'), '2026-11-09');
   const r1 = await b1.boundingBox(), r2 = await b2.boundingBox();
   assert.ok(r2.x > r1.x + r1.width - 1, 'la SAT commence après la FAT');
   assert.ok(r2.y > r1.y, 'une ligne par étape');
-  assert.equal(await page.locator('.pj-g-ms[data-mid="m1"]').count(), 1);
-  assert.match(await page.locator('.pj-g-ms[data-mid="m1"]').getAttribute('class'), /late/);
-  assert.equal(await page.locator('.pj-arrows > path').count(), 1);
-  assert.match(await page.locator('.pj-unplanned').innerText(), /Raccordement/);
-  assert.match(await page.locator('.pj-legend').innerText(), /Production/);
-  assert.match(await page.locator('.pj-g-names').innerText(), /Production/);
+  assert.equal(await page.locator('#main .pj-g-ms[data-mid="m1"]').count(), 1);
+  assert.match(await page.locator('#main .pj-g-ms[data-mid="m1"]').getAttribute('class'), /late/);
+  assert.equal(await page.locator('#main .pj-arrows > path').count(), 1);
+  assert.match(await page.locator('#main .pj-unplanned').innerText(), /Raccordement/);
+  assert.match(await page.locator('#main .pj-legend').innerText(), /Production/);
+  assert.match(await page.locator('#main .pj-g-names').innerText(), /Production/);
   assert.deepEqual(page.errors, []);
 });
 
@@ -205,7 +205,7 @@ test('Gantt : échelle semaine / mois mémorisée', async () => {
   const page = await openApp(gantt(), { hash: 'projets' });
   // On lit l'échelle dessinée (px/jour) : la boîte de la frise, elle, remplit toujours au moins l'écran (min-width:100%)
   const p1 = await ppd(page);
-  await page.click('[data-pj="scale"][data-v="month"]');
+  await page.click('#main [data-pj="scale"][data-v="month"]');
   assert.equal((await page.db()).ui.pjScale, 'month');
   assert.equal(await page.locator('#main .pj-gantt').getAttribute('data-mode'), 'month');
   assert.ok(await ppd(page) < p1, 'le mois est plus compact');
@@ -213,10 +213,10 @@ test('Gantt : échelle semaine / mois mémorisée', async () => {
 
 test('Gantt : clic sur une barre ouvre l\'étape dans Sujets', async () => {
   const page = await openApp(gantt(), { hash: 'projets' });
-  await page.click('.pj-bar[data-sid="s2"]');
+  await page.click('#main .pj-bar[data-sid="s2"]');
   await page.waitForFunction(() => location.hash === '#sujets');
   assert.ok((await page.db()).ui.expanded.includes('s2'));
-  assert.equal(await page.locator('.subject.open[data-sid="s2"]').count(), 1);
+  assert.equal(await page.locator('#main .subject.open[data-sid="s2"]').count(), 1);
 });
 
 /* ---------- Task 6 : édition directe dans le Gantt ---------- */
@@ -253,7 +253,7 @@ test('une étape placée par ses dépendances ne se déplace pas', async () => {
   await drag(page, '.pj-bar[data-sid="s2"]', 'mid', 7 * 22);
   const d = await page.db();
   assert.equal(d.subjects.find(s => s.id === 's2').plan.start, undefined);
-  assert.equal(await page.locator('.pj-bar[data-sid="s2"]').getAttribute('data-start'), '2026-11-09');
+  assert.equal(await page.locator('#main .pj-bar[data-sid="s2"]').getAttribute('data-start'), '2026-11-09');
   assert.equal(await page.evaluate(() => location.hash), '#projets');
 });
 
@@ -262,23 +262,23 @@ const phone = { viewport: { width: 390, height: 844 }, touch: true, hash: 'proje
 
 test('mobile : Gantt compact sans débordement de page, appui sur une barre', async () => {
   const page = await openApp(gantt(), phone);
-  assert.equal(await page.locator('.pj-gantt.compact').count(), 1);
+  assert.equal(await page.locator('#main .pj-gantt.compact').count(), 1);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= 390), 'pas de défilement horizontal de la page');
-  assert.equal(await page.locator('.pj-grip').count(), 0);
-  const h = (await page.locator('.pj-g-name[data-sid="s1"]').boundingBox()).height;
+  assert.equal(await page.locator('#main .pj-grip').count(), 0);
+  const h = (await page.locator('#main .pj-g-name[data-sid="s1"]').boundingBox()).height;
   assert.ok(h >= 44, 'lignes assez hautes pour le doigt');
-  await page.locator('.pj-bar[data-sid="s1"]').scrollIntoViewIfNeeded();
-  await page.locator('.pj-bar[data-sid="s1"]').tap();
+  await page.locator('#main .pj-bar[data-sid="s1"]').scrollIntoViewIfNeeded();
+  await page.locator('#main .pj-bar[data-sid="s1"]').tap();
   await page.waitForFunction(() => location.hash === '#sujets');
   assert.deepEqual(page.errors, []);
 });
 
 test('bascule Gantt / Liste mémorisée', async () => {
   const page = await openApp(gantt(), phone);
-  await page.click('[data-pj="pview"][data-v="list"]');
+  await page.click('#main [data-pj="pview"][data-v="list"]');
   assert.equal((await page.db()).ui.pjView, 'list');
-  assert.equal(await page.locator('.pj-gantt').count(), 0);
-  const txt = await page.locator('.pj-mlist').innerText();
+  assert.equal(await page.locator('#main .pj-gantt').count(), 0);
+  const txt = await page.locator('#main .pj-mlist').innerText();
   assert.match(txt, /FAT/); assert.match(txt, /Production/); assert.match(txt, /Livraison/);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= 390));
 });
@@ -287,7 +287,7 @@ test('bascule Gantt / Liste mémorisée', async () => {
 test('export PDF : page d\'impression avec Gantt, étapes et jalons', async () => {
   const page = await openApp(gantt(), { hash: 'projets' });
   await page.evaluate(() => { window.__printed = 0; window.print = () => { window.__printed++; }; });
-  await page.click('[data-pj="export-pdf"]');
+  await page.click('#main [data-pj="export-pdf"]');
   assert.equal(await page.evaluate(() => window.__printed), 1);
   const sheet = page.locator('#pj-print');
   const txt = await sheet.innerText();
@@ -313,25 +313,25 @@ test('export PDF : page d\'impression avec Gantt, étapes et jalons', async () =
 test('cadenas : échéance ferme depuis les détails, icône dans la ligne', async () => {
   const d0 = gantt(); d0.ui.expanded = ['p1', 's1']; d0.tasks[0].deadline = '2026-11-04';
   const page = await openApp(d0, { hash: 'sujets' });
-  await page.click('.task[data-tid="t1"] [data-act="details"]');
-  await page.locator('[data-pj-hard]').check();
+  await page.click('#main .task[data-tid="t1"] [data-act="details"]');
+  await page.locator('#drawer [data-pj-hard]').check();
   assert.equal((await page.db()).tasks[0].hardDue, true);
-  assert.equal(await page.locator('.task[data-tid="t1"] .pj-lock').count(), 1);
+  assert.equal(await page.locator('#main .task[data-tid="t1"] .pj-lock').count(), 1);
   assert.deepEqual(page.errors, []);
 });
 
 test('cadenas masqué quand le module est désactivé', async () => {
   const d0 = data(false); d0.ui = { expanded: ['s1'] }; d0.tasks[0].hardDue = true;
   const page = await openApp(d0, { hash: 'sujets' });
-  assert.equal(await page.locator('.pj-lock').count(), 0);
-  await page.click('.task[data-tid="t1"] [data-act="details"]');
-  assert.equal(await page.locator('[data-pj-hard]').count(), 0);
+  assert.equal(await page.locator('#main .pj-lock').count(), 0);
+  await page.click('#main .task[data-tid="t1"] [data-act="details"]');
+  assert.equal(await page.locator('#main [data-pj-hard]').count(), 0);
 });
 
 test('garde-fou : tâche datée après la fin prévue de son étape', async () => {
   const d0 = gantt(); d0.ui.expanded = ['p1', 's1']; d0.tasks[0].deadline = '2026-11-20';   // FAT finit le 06/11
   const page = await openApp(d0, { hash: 'sujets' });
-  assert.equal(await page.locator('.task[data-tid="t1"] .pj-warn').count(), 1);
+  assert.equal(await page.locator('#main .task[data-tid="t1"] .pj-warn').count(), 1);
 });
 
 test('démo : projet d\'exemple avec Gantt et alerte, aide sur l\'onglet', async () => {
@@ -339,10 +339,10 @@ test('démo : projet d\'exemple avec Gantt et alerte, aide sur l\'onglet', async
   const d = await page.db();
   assert.ok(d.settings.modules.projet);
   assert.ok(d.subjects.some(s => s.isProject && d.subjects.some(x => x.parentId === s.id)));
-  assert.match(await page.locator('.pj-card').first().innerText(), /Achat presse/);
-  assert.match(await page.locator('.pj-card').first().innerText(), /alerte/);
+  assert.match(await page.locator('#main .pj-card').first().innerText(), /Achat presse/);
+  assert.match(await page.locator('#main .pj-card').first().innerText(), /alerte/);
   await page.waitForSelector('#main h1 + .gd-i[data-help="projets"], #main .gd-i[data-help="projets"]');
-  await page.click('[data-pj="open-project"]');
-  assert.ok(await page.locator('.pj-bar').count() >= 5);
+  await page.click('#main [data-pj="open-project"]');
+  assert.ok(await page.locator('#main .pj-bar').count() >= 5);
   assert.deepEqual(page.errors, []);
 });

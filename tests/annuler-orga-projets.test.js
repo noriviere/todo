@@ -74,7 +74,7 @@ test('rouvrir la tâche d\'origine range toujours l\'occurrence non touchée', a
 test('choisir une récurrence s\'annule', async () => {
   const page = await openApp(base());
   await ligne(page, 'a').locator('[data-act="details"]').click();
-  await page.selectOption('[data-org-recur]', 'week:1');
+  await page.selectOption('#drawer [data-org-recur]', 'week:1');
   await page.waitForTimeout(50);
   assert.deepEqual((await tache(page, 'a')).recur, { freq: 'week', interval: 1 });
   await ailleurs(page);
@@ -90,7 +90,7 @@ const projet = () => base({
 
 test('Gantt : durée d\'une étape puis ↶, avec retour à l\'onglet Sujets', async () => {
   const page = await openApp(projet(), { hash: 'sujets' });
-  const dur = page.locator('.subject[data-sid="s1"] [data-pjf="dur"]').first();
+  const dur = page.locator('#main .subject[data-sid="s1"] [data-pjf="dur"]').first();
   await dur.fill('7');
   await dur.press('Enter');
   await page.waitForTimeout(50);
@@ -179,7 +179,7 @@ test('Récurrence rallumée : les occurrences en attente sont créées dans leur
   const page = await openApp(base({ settings: { modules: { recurrence: false } }, tasks: [
     { id: 'a', subjectId: 'p', title: 'Hebdo', deadline: day(0), status: 'done', recur: { freq: 'week', interval: 1 } }] }), { hash: 'donnees' });
   assert.equal((await page.db()).tasks.length, 1);
-  await page.locator('[data-mod="recurrence"]').check({ force: true });
+  await page.locator('#main [data-mod="recurrence"]').check({ force: true });
   await page.waitForTimeout(50);
   assert.ok((await page.db()).tasks.find(t => t.recurFromId === 'a'), 'occurrence créée');
   await ailleurs(page);

@@ -58,8 +58,8 @@ test('plusieurs Ctrl+Z remontent l\'historique ; une nouvelle modification vide 
 test('Ctrl+Z pendant la frappe dans un champ ne défait que la frappe', async () => {
   const page = await openApp(base());
   await ligne(page, 'a').locator('[data-act="archive-task"]').click();
-  await page.fill('#qa-title', 'abc');
-  await page.focus('#qa-title');
+  await page.fill('#main #qa-title', 'abc');
+  await page.focus('#main #qa-title');
   await ctrl(page, 'z');
   assert.equal((await tache(page, 'a')).archived, true, 'la modification de l\'appli n\'est pas annulée');
 });
@@ -99,8 +99,8 @@ test('date « modifiée le » posée seulement sur ce qui a changé, et remise p
 test('annuler ne touche pas l\'affichage ni le thème', async () => {
   const page = await openApp(base(), { hash: 'sujets' });
   await ligne(page, 'a').locator('[data-act="archive-task"]').click();
-  await page.click('.subject[data-sid="q"] [data-act="toggle-subject"]');
-  await page.click('[data-act="theme"][data-v="dark"]');
+  await page.click('#main .subject[data-sid="q"] [data-act="toggle-subject"]');
+  await page.click('#theme [data-act="theme"][data-v="dark"]');
   await ctrl(page, 'z');
   const d = await page.db();
   assert.equal(d.tasks.find(t => t.id === 'a').archived, false);
@@ -110,8 +110,8 @@ test('annuler ne touche pas l\'affichage ni le thème', async () => {
 
 test('après Ctrl+Z, retour à l\'écran de la modification, sujet déplié et ligne en surbrillance', async () => {
   const page = await openApp(base(), { hash: 'sujets' });
-  await page.locator('.subject[data-sid="q"] .task[data-tid="c"] [data-act="postpone"]').click();
-  await page.click('.subject[data-sid="q"] [data-act="toggle-subject"]');   // on replie le sujet
+  await page.locator('#main .subject[data-sid="q"] .task[data-tid="c"] [data-act="postpone"]').click();
+  await page.click('#main .subject[data-sid="q"] [data-act="toggle-subject"]');   // on replie le sujet
   await page.goto(page.url().replace(/#.*$/, '#dashboard'));
   await page.waitForTimeout(50);
   assert.match(page.url(), /#dashboard/);
@@ -119,7 +119,7 @@ test('après Ctrl+Z, retour à l\'écran de la modification, sujet déplié et l
   await page.waitForTimeout(80);
   assert.match(page.url(), /#sujets/);
   assert.equal((await tache(page, 'c')).deadline, day(1));
-  assert.equal(await page.locator('.subject[data-sid="q"] .task[data-tid="c"].flash').count(), 1);
+  assert.equal(await page.locator('#main .subject[data-sid="q"] .task[data-tid="c"].flash').count(), 1);
 });
 
 test('le bandeau « Annuler » d\'une modification utilise l\'historique ; il disparaît après une autre modification', async () => {
@@ -168,7 +168,7 @@ test('50 pas au plus ; un import (données complètes) compte pour un seul pas',
 test('annuler la transformation d\'une tâche en sujet retire le sujet créé et revient à la tâche', async () => {
   const page = await openApp(base());
   await ligne(page, 'a').locator('[data-act="details"]').click();
-  await page.click('.drawer [data-act="to-subject"]');
+  await page.click('#drawer [data-act="to-subject"]');
   await page.waitForTimeout(50);
   assert.equal((await page.db()).subjects.length, 3);
   await ctrl(page, 'z');
@@ -225,7 +225,7 @@ test('une validation sans changement ne crée pas de pas dans l\'historique', as
 test('Ctrl+Z dans un champ date n\'annule pas la modification de l\'appli', async () => {
   const page = await openApp(base());
   await ligne(page, 'a').locator('[data-act="archive-task"]').click();
-  await page.focus('#qa-date');
+  await page.focus('#main #qa-date');
   await ctrl(page, 'z');
   assert.equal((await tache(page, 'a')).archived, true);
 });
@@ -253,7 +253,7 @@ test('import JSON, retour à l\'état d\'avant et démo remise à zéro vident l
   await page.waitForTimeout(100);
   await vide();
   await archiver();
-  await page.click('[data-act="undo-import"]');
+  await page.click('#main [data-act="undo-import"]');
   await page.waitForTimeout(50);
   await vide();
   const demo = await openApp(null, { query: '?demo', hash: 'donnees' });
@@ -265,12 +265,12 @@ test('import JSON, retour à l\'état d\'avant et démo remise à zéro vident l
 
 test('après Rétablir, retour à l\'endroit de la modification avec surbrillance', async () => {
   const page = await openApp(base(), { hash: 'sujets' });
-  await page.locator('.subject[data-sid="q"] .task[data-tid="c"] [data-act="postpone"]').click();
+  await page.locator('#main .subject[data-sid="q"] .task[data-tid="c"] [data-act="postpone"]').click();
   await ctrl(page, 'z');
   await page.goto(page.url().replace(/#.*$/, '#dashboard'));
   await page.waitForTimeout(50);
   await ctrl(page, 'y');
   await page.waitForTimeout(80);
   assert.match(page.url(), /#sujets/);
-  assert.equal(await page.locator('.subject[data-sid="q"] .task[data-tid="c"].flash').count(), 1);
+  assert.equal(await page.locator('#main .subject[data-sid="q"] .task[data-tid="c"].flash').count(), 1);
 });

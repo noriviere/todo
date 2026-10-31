@@ -33,6 +33,8 @@ const UN_AN = 366;   // borne des recherches de jour : on ne cherche jamais plus
 const JOURS_LONGS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 const semaineType = settings => settings && Array.isArray(settings.workDays) && settings.workDays.length ? settings.workDays : SEMAINE_TYPE;
 const lundi = ds => addDays(ds, -((parseYmd(ds).getDay() + 6) % 7));
+// Numéro de semaine ISO 8601 : la semaine 1 contient le premier jeudi de l'année
+const semaineIso = ds => { const jeudi = addDays(lundi(ds), 3); return 1 + Math.floor(Math.round((parseYmd(jeudi) - parseYmd(jeudi.slice(0, 4) + '-01-01')) / 864e5) / 7); };
 // Jours fériés de France métropolitaine d'une année : { 'AAAA-MM-JJ': nom }
 const feriesCache = {};
 function paques(y) {
@@ -387,7 +389,7 @@ function historique(max = 50) {
   };
 }
 
-const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, SEMAINE_TYPE, lundi, feries, calendrier, decaler, prochaineEcheance, DECALAGES, echeancesLes, blank, normSubject, normTask, migrate,
+const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, SEMAINE_TYPE, lundi, semaineIso, feries, calendrier, decaler, prochaineEcheance, DECALAGES, echeancesLes, blank, normSubject, normTask, migrate,
   isOpen, remaining, bucket, taskCmp, setTaskField, parentOf, childrenOf, subjectStats,
   photo, remettre, horodater, memesDonnees, historique };
 if (typeof module === 'object' && module.exports) module.exports = api;
