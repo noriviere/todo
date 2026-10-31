@@ -355,8 +355,7 @@ const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const M = window.todoMetier;
 const { uid, nowIso } = M;
-const pad = n => String(n).padStart(2, '0');
-const { ymd, parseYmd, addDays, isDate } = M;
+const { pad, ymd, parseYmd, addDays, isDate } = M;
 const today = () => ymd(new Date());
 const diffDays = (a, b) => Math.round((parseYmd(a) - parseYmd(b)) / 86400000);
 
@@ -544,7 +543,9 @@ function dimsBar() {
 }
 
 const bucket = t => M.bucket(t, today());
-const taskCmp = (a, b) => M.taskCmp(db)(a, b);
+// Comparateur reconstruit seulement quand les données sont remplacées (db réaffecté), pas à chaque comparaison
+let cmpFor = null, cmpFn = null;
+const taskCmp = (a, b) => { if (cmpFor !== db) { cmpFor = db; cmpFn = M.taskCmp(db); } return cmpFn(a, b); };
 
 // État d'un sujet déduit de ses tâches (règle dans metier.js)
 const subjectStats = s => M.subjectStats(s, db, today());
@@ -792,7 +793,7 @@ function subjectBlock(s, st, open) {
         ${Object.keys(DIMS).some(k => dimVal(s, k)) ? `<span class="s-tags" title="Code · Secteur · Produit fini">${Object.keys(DIMS).map(k => esc(dimVal(s, k))).filter(Boolean).join(' · ')}</span>` : ''}
         ${st.late ? `<span class="late">⚠ ${st.late} en retard</span>` : ''}
         ${st.next ? `<span title="Prochaine deadline">⏱ ${relDate(st.next)}</span>` : ''}
-        ${st.remainMin ? `<span title="Temps estimé restant">${fmtDur(st.remainMin)}</span>` : ''}
+        ${st.remainMin ? `<span title="Temps restant">${fmtDur(st.remainMin)}</span>` : ''}
         ${st.children ? `<span class="s-kidn" title="Sous-sujets (comptés dans l'avancement)">${ICON.list.replace('<svg', '<svg width="13" height="13"')} ${st.children}</span>` : ''}
         <span title="${st.children ? 'Tâches faites, sous-sujets compris' : 'Tâches faites'}">${st.done}/${st.live}</span>
       </span>

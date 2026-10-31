@@ -152,6 +152,9 @@ test('modification d\'un champ : durées, dates, champ inconnu', () => {
   assert.equal(typeof err, 'string');
   assert.match(err, /Durée non comprise/);
   assert.equal(t.estimateMin, 420, 'durée invalide : rien ne change');
+  const maj = t.updatedAt = '2000-01-01T00:00:00.000Z';
+  M.setTaskField(t, 'estimate', 'toujours pas', d);
+  assert.equal(t.updatedAt, maj, 'durée invalide : date de modification inchangée');
   assert.match(M.setTaskField(t, 'real', 'n/a', d), /Durée non comprise/);
   assert.match(M.setTaskField(t, 'planDaily', '??', d), /Durée non comprise/);
   M.setTaskField(t, 'real', '', d);

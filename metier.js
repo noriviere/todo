@@ -222,7 +222,7 @@ function setTaskField(t, f, v, d) {
   return true;
 }
 
-const api = { uid, nowIso, ymd, parseYmd, addDays, isDate, parseDur, blank, normSubject, normTask, migrate,
+const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, blank, normSubject, normTask, migrate,
   isOpen, remaining, bucket, taskCmp, setTaskField, parentOf, childrenOf, subjectStats };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.todoMetier = api;
