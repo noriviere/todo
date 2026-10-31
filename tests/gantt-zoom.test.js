@@ -1,7 +1,7 @@
 // Gantt : zoom libre (− / + / Tout voir, Ctrl + molette) et avancement sous le nom des étapes
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { openApp, closeAll, day } = require('./helpers');
+const { openApp, closeAll, day, ppd } = require('./helpers');
 after(closeAll);
 
 const data = () => ({
@@ -12,7 +12,6 @@ const data = () => ({
     { id: 's3', title: 'Fabrication', priority: 2, parentId: 'p1', plan: { start: day(30), durDays: 120 } }],
   tasks: [{ id: 't1', subjectId: 's2', title: 'a', status: 'done', estimateMin: 60 }, { id: 't2', subjectId: 's2', title: 'b', status: 'todo', estimateMin: 60 }]
 });
-const ppd = page => page.locator('#main .pj-gantt').evaluate(g => +g.dataset.ppd);
 const trackW = page => page.locator('#main .pj-g-track').evaluate(t => t.offsetWidth);
 
 test('boutons − et + : zoom mémorisé, Semaines remet l\'échelle prête à l\'emploi', async () => {

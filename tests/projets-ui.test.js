@@ -1,6 +1,6 @@
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { openApp, closeAll } = require('./helpers');
+const { openApp, closeAll, ppd } = require('./helpers');
 after(closeAll);
 
 // Le projet p1 est un sujet en mode projet ; les étapes sont ses sous-sujets (parentId)
@@ -203,11 +203,12 @@ test('Gantt : barres aux dates calculées, jalon, flèche, étape à planifier',
 
 test('Gantt : échelle semaine / mois mémorisée', async () => {
   const page = await openApp(gantt(), { hash: 'projets' });
-  const w1 = (await page.locator('.pj-g-track').boundingBox()).width;
+  // On lit l'échelle dessinée (px/jour) : la boîte de la frise, elle, remplit toujours au moins l'écran (min-width:100%)
+  const p1 = await ppd(page);
   await page.click('[data-pj="scale"][data-v="month"]');
   assert.equal((await page.db()).ui.pjScale, 'month');
-  const w2 = (await page.locator('.pj-g-track').boundingBox()).width;
-  assert.ok(w2 < w1, 'le mois est plus compact');
+  assert.equal(await page.locator('#main .pj-gantt').getAttribute('data-mode'), 'month');
+  assert.ok(await ppd(page) < p1, 'le mois est plus compact');
 });
 
 test('Gantt : clic sur une barre ouvre l\'étape dans Sujets', async () => {
