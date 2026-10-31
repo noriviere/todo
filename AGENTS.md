@@ -20,9 +20,9 @@ Adding or changing an application function: one thread per change, running these
 
 1. `/mattpocock-skills:grill-with-docs`
 2. `/mattpocock-skills:to-spec`
-3. `/mattpocock-skills:to-tickets`
+3. `/mattpocock-skills:to-tickets`: size each ticket to what one fresh session handles comfortably and publish; Noel leaves the split to you.
 4. `/mattpocock-skills:implement`
-5. `/mattpocock-skills:code-review`
+5. `/mattpocock-skills:code-review`: give the reviewers the PR body (evidence, screenshots) along with the diff and the issue.
 6. `/retro`
 
 Noel launches each skill. Your part is the reminder: when a step finishes (or when a request arrives with no step started), name the next step and give its command exactly as listed above, alone in its own fenced code block (the block's copy button lets Noel paste it in one tap):
@@ -31,7 +31,7 @@ Noel launches each skill. Your part is the reminder: when a step finishes (or wh
 /mattpocock-skills:code-review
 ```
 
-Keep the `/mattpocock-skills:` prefix on steps 1 to 5: the bare `/code-review` launches a different, built-in skill. `/retro` is a repo skill and takes no prefix; where the session does not offer it, read `.claude/skills/retro/SKILL.md` and follow it. Leave the step's own work to the skill. Agent context and tooling changes (this file, CI checks, hooks) need no thread of their own.
+Keep the `/mattpocock-skills:` prefix on steps 1 to 5: the bare `/code-review` launches a different, built-in skill. `/retro` is a repo skill and takes no prefix; where the session does not offer it, read `.claude/skills/retro/SKILL.md` and follow it. Leave the step's own work to the skill. Agent context and tooling changes (this file, CI checks, hooks) skip the six steps and get a thread and a PR of their own: when one comes up in an application thread, ask the coordinator for a separate thread.
 
 PR bodies follow the `pr` skill (`.claude/skills/pr`).
 
