@@ -16,7 +16,7 @@ for (const n of [3, 25, 60]) {
   test(`${n} étapes : Gantt sur la première page, tableaux à la suivante`, async () => {
     const page = await openApp(projet(n), { hash: 'projets' });
     await page.evaluate(() => { window.print = () => {}; });
-    await page.click('[data-pj="export-pdf"]');
+    await page.click('#main [data-pj="export-pdf"]');
     await page.emulateMedia({ media: 'print' });
     // Hauteur utile d'une page A4 à 12 mm de marge : 186 mm ≈ 703 px en paysage, 273 mm ≈ 1032 px en portrait
     const port = n > 26;
@@ -35,7 +35,7 @@ for (const n of [3, 25, 60]) {
 test('export depuis un téléphone : même mise en page que sur ordinateur, pas l\'affichage mobile', async () => {
   const page = await openApp(projet(12), { hash: 'projets', viewport: { width: 390, height: 800 }, touch: true });
   await page.evaluate(() => { window.print = () => {}; });
-  await page.click('[data-pj="export-pdf"]');
+  await page.click('#main [data-pj="export-pdf"]');
   await page.emulateMedia({ media: 'print' });
   assert.equal(await page.locator('#pj-print .pj-g-names').evaluate(e => Math.round(parseFloat(getComputedStyle(e).width))), 270);
   assert.notEqual(await page.locator('#pj-print .pj-g-ms span').evaluate(e => getComputedStyle(e).display), 'none', 'date des jalons visible');
@@ -50,7 +50,7 @@ test('Android : la fenêtre d\'impression ne bloque pas, la page PDF reste en pl
   const page = await openApp(projet(19), { hash: 'projets', viewport: { width: 390, height: 800 }, touch: true });
   // Chrome Android : window.print() rend la main tout de suite et « afterprint » arrive avant la capture de la page
   await page.evaluate(() => { window.print = () => window.dispatchEvent(new Event('afterprint')); });
-  await page.click('[data-pj="export-pdf"]');
+  await page.click('#main [data-pj="export-pdf"]');
   await page.emulateMedia({ media: 'print' });
   assert.equal(await page.locator('#pj-print').count(), 1, 'page PDF toujours là');
   assert.equal(await page.locator('#pj-page').count(), 1, 'format de page toujours là');

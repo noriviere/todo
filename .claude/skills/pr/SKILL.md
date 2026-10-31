@@ -18,6 +18,9 @@ Use this template for writing the PR body:
 
 ## Evidence
 
+- [x] <acceptance criterion, copied from the ticket> : `<test that proves it>`
+- [ ] <criterion with no test yet> : <why, or the manual check done>
+
 - **Before:** <screenshot/output/failing test run>
   **After:** <screenshot/output/passing test run>
 
@@ -156,6 +159,8 @@ You may use one of these, you may use several, it is unlikely you will use all o
 ### Evidence
 
 Concrete evidence that the change works. Show a before and after.
+
+When the PR implements a ticket, open with its acceptance criteria: copy each one and tick it with the name of the test that proves it. A criterion with no test stays unticked, with the reason or the manual check, so the reviewer sees the gap.
 
 Screenshots are S-tier - when the environment is set up for it and the change is visual.
 

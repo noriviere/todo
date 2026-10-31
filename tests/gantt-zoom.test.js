@@ -17,15 +17,15 @@ const trackW = page => page.locator('#main .pj-g-track').evaluate(t => t.offsetW
 test('boutons − et + : zoom mémorisé, Semaines remet l\'échelle prête à l\'emploi', async () => {
   const page = await openApp(data(), { hash: 'projets' });
   const w0 = await trackW(page);
-  await page.click('[data-pj="zoom"][data-v="out"]');
+  await page.click('#main [data-pj="zoom"][data-v="out"]');
   assert.ok(await ppd(page) < 22);
   assert.ok(await trackW(page) < w0, 'les mois sont plus étroits');
   assert.equal((await page.db()).ui.pjPpd, await ppd(page));
-  assert.equal(await page.locator('[data-pj="scale"].on').count(), 0, 'aucune échelle prête cochée');
-  await page.click('[data-pj="zoom"][data-v="in"]');
-  await page.click('[data-pj="zoom"][data-v="in"]');
+  assert.equal(await page.locator('#main [data-pj="scale"].on').count(), 0, 'aucune échelle prête cochée');
+  await page.click('#main [data-pj="zoom"][data-v="in"]');
+  await page.click('#main [data-pj="zoom"][data-v="in"]');
   assert.ok(await ppd(page) > 22);
-  await page.click('[data-pj="scale"][data-v="week"]');
+  await page.click('#main [data-pj="scale"][data-v="week"]');
   assert.equal(await ppd(page), 22);
   assert.equal((await page.db()).ui.pjPpd, null);
   assert.deepEqual(page.errors, []);
@@ -34,7 +34,7 @@ test('boutons − et + : zoom mémorisé, Semaines remet l\'échelle prête à l
 test('Tout voir : tout le projet tient dans la largeur, repères adaptés', async () => {
   for (const width of [1280, 390]) {
     const page = await openApp(data(), { hash: 'projets', viewport: { width, height: 900 } });
-    await page.click('[data-pj="zoom"][data-v="all"]');
+    await page.click('#main [data-pj="zoom"][data-v="all"]');
     const [cw, sw] = await page.locator('#main .pj-g-scroll').evaluate(s => [s.clientWidth, s.scrollWidth]);
     assert.ok(sw <= cw + 1, `${width} px : pas de défilement (${sw} > ${cw})`);
     assert.ok(await page.locator('#main .pj-tick').count() >= 2);

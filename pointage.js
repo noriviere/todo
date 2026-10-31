@@ -81,11 +81,6 @@ function worked(ds) {
 const absFrac = d => d && d.abs ? (d.abs.part === 'am' || d.abs.part === 'pm' ? 0.5 : 1) : 0;
 // Temps attendu d'un jour (objectif), diminué des absences et nul les jours fériés ou non travaillés
 const expected = ds => cal().ferie(ds) ? 0 : Math.round(dayTarget(parseYmd(ds).getDay()) * (1 - absFrac(day(ds))));
-function isoWeek(ds) {
-  const d = parseYmd(ds); d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
-  const w1 = new Date(d.getFullYear(), 0, 4);
-  return 1 + Math.round(((d - w1) / 86400000 - 3 + ((w1.getDay() + 6) % 7)) / 7);
-}
 const median = arr => { if (!arr.length) return 0; const s = arr.slice().sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2); };
 const avg = arr => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
 const fmtH = min => (min < 0 ? '-' : '') + (fmtDur(Math.abs(min)) || '0h');
@@ -203,7 +198,7 @@ function viewWeek() {
     </div>
     <div class="toolbar pt-weeknav">
       <button class="btn" data-act="pt-week" data-n="-7" title="Semaine précédente">‹</button>
-      <b>Semaine ${isoWeek(mon)}</b><span class="hint">du ${parseYmd(mon).getDate()} ${MONTHS[parseYmd(mon).getMonth()]} au ${parseYmd(end).getDate()} ${MONTHS[parseYmd(end).getMonth()]} ${end.slice(0, 4)}</span>
+      <b>Semaine ${A.semaineIso(mon)}</b><span class="hint">du ${parseYmd(mon).getDate()} ${MONTHS[parseYmd(mon).getMonth()]} au ${parseYmd(end).getDate()} ${MONTHS[parseYmd(end).getMonth()]} ${end.slice(0, 4)}</span>
       <button class="btn" data-act="pt-week" data-n="7" title="Semaine suivante">›</button>
       ${mon !== A.lundi(today()) ? '<button class="chip" data-act="pt-week" data-n="0">Cette semaine</button>' : ''}
     </div>
@@ -331,9 +326,9 @@ function viewStats() {
   const pct = v => (v / max * 100).toFixed(2) + '%';
   const chart = s.list.length ? `<div class="pt-chart">${s.list.map(w => {
     const over = w.min > w.exp && w.exp > 0;
-    return `<button class="pt-col${w.min ? '' : ' empty'}${w.full ? '' : ' part'}" data-act="pt-goweek" data-d="${w.mon}" title="Semaine ${isoWeek(w.mon)} : ${fmtH(w.min)} (objectif ${fmtH(w.exp)})${w.full ? '' : ' · incomplète, hors moyenne'}">
+    return `<button class="pt-col${w.min ? '' : ' empty'}${w.full ? '' : ' part'}" data-act="pt-goweek" data-d="${w.mon}" title="Semaine ${A.semaineIso(w.mon)} : ${fmtH(w.min)} (objectif ${fmtH(w.exp)})${w.full ? '' : ' · incomplète, hors moyenne'}">
       <span class="pt-bar"><span class="pt-tgt" style="bottom:${pct(w.exp)}"></span><i class="${over ? 'over' : ''}" style="height:${pct(w.min)}"></i></span>
-      <span class="pt-wl">${isoWeek(w.mon)}</span></button>`;
+      <span class="pt-wl">${A.semaineIso(w.mon)}</span></button>`;
   }).join('')}</div>` : '<div class="empty">Rien de pointé cette année.</div>';
   const ecart = s.tot - s.exp;
   return `<div class="toolbar pt-weeknav">

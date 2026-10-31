@@ -25,8 +25,8 @@ test('le filtre s\'appelle Code et plus Projet', async () => {
   const page = await openApp(base([{ id: 's1', title: 'A', priority: 1, projet: 'X' }]), { hash: 'sujets' });
   const html = await page.content();
   assert.match(html, /Code/);
-  assert.equal(await page.locator('[data-field="s-dim-code"], select[data-dim="code"], [data-k^="dim-code"]').count() > 0 || /dim-code|"code"/.test(html), true);
-  assert.doesNotMatch(await page.locator('.dims, .s-dims').first().innerText().catch(() => ''), /Projet/);
+  assert.equal(await page.locator('#main [data-field="s-dim-code"], #main select[data-dim="code"], #main [data-k^="dim-code"]').count() > 0 || /dim-code|"code"/.test(html), true);
+  assert.doesNotMatch(await page.locator('#main .dims, #main .s-dims').first().innerText().catch(() => ''), /Projet/);
 });
 
 test('la démo utilise Code', async () => {

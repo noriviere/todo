@@ -60,7 +60,7 @@ test('fin prévue d\'une étape tapée d\'un trait', async () => {
 
 test('choix au calendrier (sans frappe) : enregistré tout de suite', async () => {
   const page = await open();
-  await page.locator('[data-tid="t1"] [data-field="deadline"]').first().evaluate(el => {
+  await page.locator('#main [data-tid="t1"] [data-field="deadline"]').first().evaluate(el => {
     el.value = '2026-06-22'; el.dispatchEvent(new Event('change', { bubbles: true }));
   });
   await page.waitForTimeout(50);
