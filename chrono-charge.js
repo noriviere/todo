@@ -97,38 +97,41 @@ function addLog(t, log) {
   if (!Array.isArray(t.timeLogs)) t.timeLogs = [];
   t.timeLogs.push(Object.assign({ id: uid() }, log));
   t.realMin = (t.realMin || 0) + log.min;
-  t.updatedAt = nowIso();
 }
+const nom = t => `« ${t.title || 'Sans titre'} »`;
 function startTimer(t) {
-  // Un seul chrono à la fois : démarrer une tâche arrête la précédente.
+  // Un seul chrono à la fois : démarrer une tâche arrête la précédente (dans la même modification).
   // Si elle tourne depuis plus de 4 h (oubli ?), on demande le temps à garder ; annuler ne démarre rien.
-  for (const r of running()) {
-    if (r === t) continue;
-    const long = Date.now() - Date.parse(r.timerStart) > 240 * 60000;
-    stopTimer(r, !long);
-    if (r.timerStart) return;
-  }
-  t.timerStart = nowIso();
-  if (t.status === 'todo' || t.status === 'waiting') A.setTaskField(t, 'status', 'doing');
-  t.updatedAt = nowIso();
-  A.save(); A.render();
+  A.modifier(`Chrono démarré : ${nom(t)}`, () => {
+    for (const r of running()) {
+      if (r === t) continue;
+      const long = Date.now() - Date.parse(r.timerStart) > 240 * 60000;
+      stopTimer(r, !long);
+      if (r.timerStart) return false;
+    }
+    t.timerStart = nowIso();
+    if (t.status === 'todo' || t.status === 'waiting') A.setTaskField(t, 'status', 'doing');
+  });
 }
+// Arrête le chrono et ajoute le temps passé. Annuler cet arrêt relance le chrono depuis son heure de départ.
 function stopTimer(t, quiet) {
   if (!t.timerStart) return;
-  const start = t.timerStart, end = nowIso();
-  let min = Math.round((Date.parse(end) - Date.parse(start)) / 60000);
-  if (!quiet && min > 240) {
-    // Chrono oublié ? On propose de corriger avant d'enregistrer
-    const v = prompt(`Le chrono de « ${t.title || 'Sans titre'} » tourne depuis ${fmtDur(min)}.\nTemps à garder (ex. 2h, 45min) :`, fmtDur(min));
-    if (v === null) return;
-    const m = parseDur(v);
-    if (m != null && !Number.isNaN(m)) min = m;
-  }
-  t.timerStart = null;
-  if (min >= 1) addLog(t, { start, end, date: ymd(new Date(start)), min, kind: 'timer' });
-  t.updatedAt = nowIso();
-  A.save();
-  if (!quiet) { toast(min >= 1 ? `${fmtDur(min)} ajoutées au temps réel` : "Moins d'une minute : rien d'ajouté"); A.render(); }
+  let msg = null;
+  A.modifier(`Chrono arrêté : ${nom(t)}`, () => {
+    const start = t.timerStart, end = nowIso();
+    let min = Math.round((Date.parse(end) - Date.parse(start)) / 60000);
+    if (!quiet && min > 240) {
+      // Chrono oublié ? On propose de corriger avant d'enregistrer
+      const v = prompt(`Le chrono de ${nom(t)} tourne depuis ${fmtDur(min)}.\nTemps à garder (ex. 2h, 45min) :`, fmtDur(min));
+      if (v === null) return false;
+      const m = parseDur(v);
+      if (m != null && !Number.isNaN(m)) min = m;
+    }
+    t.timerStart = null;
+    if (min >= 1) addLog(t, { start, end, date: ymd(new Date(start)), min, kind: 'timer' });
+    msg = min >= 1 ? `${fmtDur(min)} ajoutées au temps réel` : "Moins d'une minute : rien d'ajouté";
+  });
+  if (!quiet && msg) toast(msg);
 }
 
 /* ---------- Prévision de charge ---------- */
@@ -407,21 +410,21 @@ document.addEventListener('click', e => {
       let min = b.dataset.min ? +b.dataset.min : parseDur(box.querySelector('[data-cc-in="min"]').value);
       if (!min || Number.isNaN(min)) { toast('Indique une durée, par exemple 1h30 ou 45min'); return; }
       const date = box.querySelector('[data-cc-in="date"]').value || today();
-      addLog(t, { date, min, kind: 'manual' });
-      if (t.status === 'todo' || t.status === 'waiting') A.setTaskField(t, 'status', 'doing');
-      A.save(); A.render();
-      toast(`${fmtDur(min)} ajoutées`);
+      A.modifier(`Temps ajouté : ${nom(t)}`, () => {
+        addLog(t, { date, min, kind: 'manual' });
+        if (t.status === 'todo' || t.status === 'waiting') A.setTaskField(t, 'status', 'doing');
+      }, { toast: `${fmtDur(min)} ajoutées` });
       break;
     }
     case 'cc-log-del': {
       const id = b.closest('[data-logid]').dataset.logid;
       const i = (t.timeLogs || []).findIndex(l => l.id === id);
       if (i < 0) return;
-      const [l] = t.timeLogs.splice(i, 1);
-      t.realMin = Math.max(0, (t.realMin || 0) - l.min);
-      t.updatedAt = nowIso();
-      A.save(); A.render();
-      toast(`${fmtDur(l.min)} retirées`, () => { t.timeLogs.push(l); t.realMin += l.min; A.save(); A.render(); });
+      const l = t.timeLogs[i];
+      A.modifier(`Temps retiré : ${nom(t)}`, () => {
+        t.timeLogs.splice(i, 1);
+        t.realMin = Math.max(0, (t.realMin || 0) - l.min);
+      }, { toast: `${fmtDur(l.min)} retirées`, annuler: true });
       break;
     }
     case 'cc-range': db().ui.ccRange = +b.dataset.n; A.save(); A.render(); break;
@@ -431,23 +434,23 @@ document.addEventListener('click', e => {
       const sl = off
         ? { id: uid(), title: 'Congés', durMin: settings().workdayMin, freq: 'once', days: [], start: addDays(today(), 1), end: null, archived: false, createdAt: nowIso() }
         : { id: uid(), title: '', durMin: 60, freq: 'weekly', days: [parseYmd(today()).getDay() || 1], start: today(), end: null, archived: false, createdAt: nowIso() };
-      slots().push(sl); A.save(); A.render();
+      A.modifier(off ? 'Congé ajouté (Charge)' : 'Créneau fixe ajouté', () => { slots().push(sl); });
       setTimeout(() => { const el = document.querySelector(`[data-k="sl-${off ? 's' : 't'}-${sl.id}"]`); if (el) el.focus(); }, 0);
       break;
     }
     case 'cc-slot-day': {
       const sl = findSlot(b); if (!sl) return;
       const wd = +b.dataset.wd;
-      sl.days = (sl.days || []).includes(wd) ? sl.days.filter(x => x !== wd) : [...(sl.days || []), wd];
-      A.save(); A.render();
+      A.modifier(`Jours du créneau « ${sl.title || 'Sans nom'} »`, () => {
+        sl.days = (sl.days || []).includes(wd) ? sl.days.filter(x => x !== wd) : [...(sl.days || []), wd];
+      });
       break;
     }
-    case 'cc-slot-archive': { const sl = findSlot(b); if (!sl) return; sl.archived = true; A.save(); A.render(); toast('Créneau archivé', () => { sl.archived = false; A.save(); A.render(); }); break; }
-    case 'cc-slot-restore': { const sl = findSlot(b); if (!sl) return; sl.archived = false; A.save(); A.render(); break; }
+    case 'cc-slot-archive': { const sl = findSlot(b); if (!sl) return; A.modifier(`Créneau archivé : « ${sl.title || 'Sans nom'} »`, () => { sl.archived = true; }, { toast: 'Créneau archivé', annuler: true }); break; }
+    case 'cc-slot-restore': { const sl = findSlot(b); if (!sl) return; A.modifier(`Créneau restauré : « ${sl.title || 'Sans nom'} »`, () => { sl.archived = false; }); break; }
     case 'cc-workday': {
       const s = settings(), wd = +b.dataset.wd;
-      s.workDays = s.workDays.includes(wd) ? s.workDays.filter(x => x !== wd) : [...s.workDays, wd];
-      A.save(); A.render();
+      A.modifier('Jours travaillés', () => { s.workDays = s.workDays.includes(wd) ? s.workDays.filter(x => x !== wd) : [...s.workDays, wd]; });
       break;
     }
   }
@@ -457,20 +460,19 @@ document.addEventListener('change', e => {
   if (el.dataset.ccSlot) {
     const sl = findSlot(el); if (!sl) return;
     const f = el.dataset.ccSlot, v = el.value;
-    if (f === 'title') sl.title = v.trim();
-    else if (f === 'dur') {
-      const m = parseDur(v);
-      if (!m || Number.isNaN(m)) { toast('Durée non comprise. Exemples : 1h, 30min, 1j'); el.value = fmtDur(sl.durMin); return; }
-      sl.durMin = m;
-    }
-    else if (f === 'freq') { sl.freq = v; if (!sl.start) sl.start = today(); if ((v === 'weekly' || v === 'biweekly') && !(sl.days || []).length) sl.days = [parseYmd(sl.start).getDay()]; }
-    else if (f === 'start') sl.start = v || null;
-    else if (f === 'end') sl.end = v || null;
-    A.save(); A.scheduleRender();
+    const m = f === 'dur' ? parseDur(v) : null;
+    if (f === 'dur' && (!m || Number.isNaN(m))) { toast('Durée non comprise. Exemples : 1h, 30min, 1j'); el.value = fmtDur(sl.durMin); return; }
+    A.modifier(() => `Créneau modifié : « ${sl.title || 'Sans nom'} »`, () => {
+      if (f === 'title') sl.title = v.trim();
+      else if (f === 'dur') sl.durMin = m;
+      else if (f === 'freq') { sl.freq = v; if (!sl.start) sl.start = today(); if ((v === 'weekly' || v === 'biweekly') && !(sl.days || []).length) sl.days = [parseYmd(sl.start).getDay()]; }
+      else if (f === 'start') sl.start = v || null;
+      else if (f === 'end') sl.end = v || null;
+    }, { differe: true });
   } else if (el.dataset.ccSet === 'workday') {
     const m = parseDur(el.value);
     if (!m || Number.isNaN(m)) { toast('Durée non comprise. Exemple : 7h'); el.value = fmtDur(settings().workdayMin); return; }
-    settings().workdayMin = m; A.save(); A.scheduleRender();
+    A.modifier('Capacité d\'une journée', () => { settings().workdayMin = m; }, { differe: true });
   }
 });
 document.addEventListener('keydown', e => {
@@ -509,7 +511,7 @@ window.addEventListener('todo:modules', e => {
   const rs = running();
   if (!rs.length) return;
   const before = rs.reduce((a, r) => a + (r.realMin || 0), 0);
-  rs.forEach(r => stopTimer(r, Date.now() - Date.parse(r.timerStart) <= 240 * 60000));
+  A.modifier('Chrono arrêté (module masqué)', () => { rs.forEach(r => stopTimer(r, Date.now() - Date.parse(r.timerStart) <= 240 * 60000)); });
   // Durée à garder refusée : le chrono continue, on garde donc le module affiché
   const kept = running().length;
   if (kept) db().settings.modules.chrono = true;

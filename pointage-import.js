@@ -194,7 +194,8 @@
       if (cur.n1 == null && r.n1 != null) cur.n1 = r.n1;
     }
     preview = null;
-    A.replaceData(base);
-    A.toast(`Import terminé : ${n} jours repris de ton fichier`);
+    // Un seul pas dans l'historique : Ctrl+Z défait tout l'import ; la copie « avant import » reste gardée
+    A.modifier(`Import de pointage (${n} jours)`, () => base,
+      { copie: true, toast: `Import terminé : ${n} jours repris de ton fichier`, lieu: { vue: 'pointage', tid: null, sid: null } });
   });
 })();

@@ -200,15 +200,14 @@ test('mode démo, modules coupés, téléphone : Ctrl+Z et boutons ↶ ↷ march
 });
 
 // Corrections issues de la revue de la PR #29 (chacune d'abord en échec)
-test('une modification de module hors du point unique vide l\'historique : Ctrl+Z n\'efface jamais le chrono', async () => {
+test('un enregistrement direct (module pas encore migré) vide l\'historique : Ctrl+Z ne l\'efface jamais', async () => {
   const page = await openApp(base());
   await ligne(page, 'a').locator('[data-act="archive-task"]').click();
-  await ligne(page, 'b').locator('[data-act="cc-timer"]').click();
-  assert.ok((await tache(page, 'b')).timerStart, 'chrono démarré');
+  await page.evaluate(() => { const A = window.todoApp; A.getData().tasks.find(t => t.id === 'b').title = 'Changée ailleurs'; A.save(); });
   assert.equal(await page.locator('#toast [data-act="undo"]').count(), 0, 'le bandeau « Annuler » de l\'archivage est retiré');
   await page.locator('body').click({ position: { x: 5, y: 5 } });
   await ctrl(page, 'z');
-  assert.ok((await tache(page, 'b')).timerStart, 'le chrono est toujours là');
+  assert.equal((await tache(page, 'b')).title, 'Changée ailleurs', 'la modification directe est toujours là');
   assert.equal((await tache(page, 'a')).archived, true);
 });
 
