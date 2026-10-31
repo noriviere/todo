@@ -342,12 +342,24 @@ const SECTIONS = [
       <li>Le bandeau orange en haut permet de remettre l'exemple à zéro ou de quitter la démo.</li>
     </ul>` },
 
+  { id: 'annuler', g: 'tips', title: 'Annuler et rétablir', html: () => `
+    <p>Toutes tes modifications (cocher, reporter, archiver, renommer, déplacer, créer…) sont gardées dans un historique pendant que l'appli est ouverte : tu peux les défaire une à une, de la plus récente à la plus ancienne, jusqu'à 50 en arrière.</p>
+    <ul>
+      <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> (<kbd>⌘</kbd>+<kbd>Z</kbd> sur Mac) annule la dernière modification ; <kbd>Ctrl</kbd>+<kbd>Y</kbd> ou <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>Z</kbd> la rétablit.</li>
+      <li>Pendant que tu tapes dans un champ, <kbd>Ctrl</kbd>+<kbd>Z</kbd> défait seulement ta frappe, comme d'habitude.</li>
+      <li>Sur téléphone (ou à la souris) : les boutons <b>↶</b> et <b>↷</b> à côté du nom de l'appli. Leur info-bulle dit ce qu'ils vont défaire ; ils sont grisés quand il n'y a rien à faire.</li>
+      <li>Après une annulation, un bandeau « Annulé : … » propose <b>Rétablir</b>, et l'appli te ramène là où tu avais fait la modification (la ligne clignote brièvement).</li>
+      <li>Seules tes données reviennent en arrière : les sujets dépliés, les filtres, la recherche, le thème et les modules actifs ne bougent pas.</li>
+      <li>L'historique repart de zéro au rechargement de la page, et dès que des données arrivent d'ailleurs (synchro GitHub, autre onglet, restauration d'une sauvegarde) : un Ctrl+Z n'efface jamais ce qui vient de ton autre appareil.</li>
+    </ul>` },
+
   { id: 'raccourcis', g: 'tips', title: 'Raccourcis et astuces', html: () => `
     <ul>
       <li><kbd>N</kbd> : nouvelle tâche (saisie rapide), depuis n'importe quelle page.</li>
       <li><kbd>?</kbd> : ouvrir ce mode d'emploi.</li>
       <li><kbd>Entrée</kbd> valide un champ, <kbd>Échap</kbd> annule la modification en cours ou ferme un panneau.</li>
-      <li>Après une action (fait, archivé, reporté…), <b>Annuler</b> apparaît quelques secondes en bas de l'écran.</li>
+      <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> annule ta dernière modification, <kbd>Ctrl</kbd>+<kbd>Y</kbd> la rétablit (boutons ↶ ↷ sur téléphone).</li>
+      <li>Après une action (fait, archivé, reporté…), <b>Annuler</b> apparaît aussi quelques secondes en bas de l'écran.</li>
       <li>Thème <b>Auto / Clair / Sombre</b> en bas de la barre latérale (sur ordinateur).</li>
       <li>Les petits <span style="display:inline-flex;vertical-align:middle;color:var(--accent);width:16px">${I_INFO}</span> à côté des titres et des cases ouvrent directement l'explication correspondante.</li>
     </ul>` }
