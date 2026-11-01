@@ -249,12 +249,12 @@ const SECTIONS = [
       <li><b>Réparti entre la date de début et l'échéance</b> : le temps est étalé sur les jours travaillés. Sans date de début, on part d'aujourd'hui.</li>
       <li><b>Un temps fixe par jour</b> (ex. <code>2h</code>) jusqu'à épuisement ; la vue Charge prévient si ça finit après l'échéance.</li>
     </ul>
-    <p>Une tâche en retard est placée sur aujourd'hui. Les jours de congé, fériés ou entièrement pris par des créneaux fixes ne reçoivent pas de travail.</p>` },
+    <p>Une tâche en retard est placée sur le premier jour travaillé à partir d'aujourd'hui, même après un long congé. Une tâche dont la date de début est après l'échéance est placée à partir de sa date de début et marquée en retard. Les jours de congé, fériés ou entièrement pris par des créneaux fixes ne reçoivent pas de travail.</p>` },
 
   { id: 'creneaux', mod: 'charge', g: 'plan', title: 'Créneaux fixes et semaine type', html: () => `
     <p><b>Créneaux fixes</b> (vue Charge) : le temps pris par ce qui n'est pas une tâche, comme les réunions récurrentes. Il est retiré de ta capacité.</p>
     <ul>
-      <li>Nom, durée, fréquence (chaque semaine, une semaine sur deux, chaque jour, un jour du mois, une seule fois…), jours de la semaine, dates de début et de fin.</li>
+      <li>Nom, durée, fréquence (chaque semaine, une semaine sur deux, chaque jour travaillé, un jour du mois, une seule fois…), jours de la semaine, dates de début et de fin.</li>
       <li>Un créneau s'archive et se restaure comme le reste.</li>
       <li>Les jours fériés${when('pointage', ' et les congés posés dans Pointage')} sont retirés automatiquement : pas besoin de créneau pour eux.</li>
     </ul>
