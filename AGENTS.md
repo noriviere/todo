@@ -21,7 +21,7 @@ Adding or changing an application function: one thread per change, running these
 1. `/mattpocock-skills:grill-with-docs`
 2. `/mattpocock-skills:to-spec`
 3. `/mattpocock-skills:to-tickets`: size each ticket to what one fresh session handles comfortably and publish; Noel leaves the split to you.
-4. `/mattpocock-skills:implement`
+4. `/mattpocock-skills:implement`, or `/implement-spec` (repo skill, `.claude/skills/implement-spec`) when the spec has several tickets, parallel or in series: it drives one implementer subagent per ticket in its own worktree, merges them into one PR and runs its own review.
 5. `/mattpocock-skills:code-review`: give the reviewers the PR body (evidence, screenshots) along with the diff and the issue.
 6. `/retro`
 
@@ -31,7 +31,9 @@ Noel launches each skill. Your part is the reminder: when a step finishes (or wh
 /mattpocock-skills:code-review
 ```
 
-Keep the `/mattpocock-skills:` prefix on steps 1 to 5: the bare `/code-review` launches a different, built-in skill. `/retro` is a repo skill and takes no prefix; where the session does not offer it, read `.claude/skills/retro/SKILL.md` and follow it. Leave the step's own work to the skill. Agent context and tooling changes (this file, CI checks, hooks) skip the six steps and get a thread and a PR of their own: when one comes up in an application thread, ask the coordinator for a separate thread. Exception: a rule of this file that records a decision taken in the thread's spec (a module exception, a new hook) goes in that thread's PR; only independent tooling (CI, hooks, working instructions) gets its own thread.
+At step 4, when `/to-tickets` published more than one ticket, give both commands, each in its own block, and let Noel choose; with a single ticket, give `/mattpocock-skills:implement` alone.
+
+Keep the `/mattpocock-skills:` prefix on steps 1 to 5: the bare `/code-review` launches a different, built-in skill. `/retro` and `/implement-spec` are repo skills and take no prefix; where the session does not offer one, read its `.claude/skills/<name>/SKILL.md` and follow it. Leave the step's own work to the skill. Agent context and tooling changes (this file, CI checks, hooks) skip the six steps and get a thread and a PR of their own: when one comes up in an application thread, ask the coordinator for a separate thread. Exception: a rule of this file that records a decision taken in the thread's spec (a module exception, a new hook) goes in that thread's PR; only independent tooling (CI, hooks, working instructions) gets its own thread.
 
 PR bodies follow the `pr` skill (`.claude/skills/pr`).
 
