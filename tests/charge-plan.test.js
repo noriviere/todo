@@ -159,3 +159,60 @@ test('tâches d\'un jour triées par priorité du sujet puis par durée ; minute
   assert.deepEqual(j.byPrio, { 1: 120, 2: 60, 3: 10, 0: 120 });
   assert.deepEqual([j.taskMin, j.load, j.free], [310, 310, 155]);
 });
+
+// Congé du lundi 2 au vendredi 20 novembre (3 semaines)
+const congeTroisSemaines = () => {
+  const conge = {};
+  for (let d = '2026-11-02'; d <= '2026-11-20'; d = M.addDays(d, 1)) conge[d] = 'full';
+  return cal(conge);
+};
+
+test('congé de plus de 14 jours : une tâche en retard tombe sur le premier jour travaillé après le congé', () => {
+  const fc = prevoir([ouverte({ deadline: '2026-10-30', estimateMin: 90 })], { cal: congeTroisSemaines(), n: 28 });
+  assert.deepEqual(placees(fc), { '2026-11-23': 90 });
+  assert.equal(fc.days.find(d => d.date === '2026-11-23').items[0].al.overdue, true);
+});
+
+test('échéance pendant un congé qui commence aujourd\'hui : premier jour travaillé après le congé, en retard', () => {
+  const fc = prevoir([ouverte({ deadline: '2026-11-13' }), ouverte({ id: 'r', plan: { mode: 'spread' }, deadline: '2026-11-13' })],
+    { cal: congeTroisSemaines(), n: 28 });
+  assert.deepEqual(placees(fc), { '2026-11-23': 120 });
+  assert.deepEqual(fc.days.find(d => d.date === '2026-11-23').items.map(x => x.al.late), [true, true]);
+});
+
+test('début après l\'échéance : placée au premier jour possible à partir du début et marquée en retard', () => {
+  // Échéance : début le samedi 7, échéance le jeudi 5 → le lundi 9, en retard
+  const ech = prevoir([ouverte({ startDate: '2026-11-07', deadline: '2026-11-05', estimateMin: 90 })]);
+  assert.deepEqual(placees(ech), { '2026-11-09': 90 });
+  assert.equal(ech.days.find(d => d.date === '2026-11-09').items[0].al.late, true);
+  // Réparti : début le 11 novembre (férié), échéance le 6 → le jeudi 12, en entier, en retard
+  const rep = prevoir([ouverte({ plan: { mode: 'spread' }, startDate: '2026-11-11', deadline: '2026-11-06', estimateMin: 120 })]);
+  assert.deepEqual(placees(rep), { '2026-11-12': 120 });
+  assert.equal(rep.days.find(d => d.date === '2026-11-12').items[0].al.late, true);
+  // Échéance déjà passée mais début à venir : à partir du début, pas aujourd'hui
+  const passe = prevoir([ouverte({ startDate: '2026-11-04', deadline: '2026-10-30' })]);
+  assert.deepEqual(placees(passe), { '2026-11-04': 60 });
+  const al = passe.days[2].items[0].al;
+  assert.deepEqual([al.overdue, al.late], [true, true]);
+  // X par jour : à partir du début, en retard car elle finit après l'échéance
+  const xj = prevoir([ouverte({ plan: { mode: 'daily', dailyMin: 30 }, startDate: '2026-11-09', deadline: '2026-11-05' })]);
+  assert.deepEqual(placees(xj), { '2026-11-09': 30, '2026-11-10': 30 });
+  assert.equal(xj.days.find(d => d.date === '2026-11-09').items[0].al.late, true);
+  // Début le jour de l'échéance : pas en retard
+  assert.equal(prevoir([ouverte({ startDate: '2026-11-05', deadline: '2026-11-05' })]).days[3].items[0].al.late, false);
+});
+
+test('créneau « Chaque jour travaillé » : suit la semaine type réglée (un mercredi hors semaine type n\'en a pas)', () => {
+  const sansMercredi = M.calendrier({ horaire: [0, 420, 420, 0, 420, 420, 0] });
+  const fc = prevoir([], { creneaux: [{ id: 'j', durMin: 15, freq: 'daily' }], cal: sansMercredi, n: 7 });
+  assert.deepEqual(joursDu(fc, 'j'), ['2026-11-02', '2026-11-03', '2026-11-05', '2026-11-06']);
+});
+
+test('demi-journée de congé le vendredi à 4h : aucun travail, même en retard, réparti ou X par jour', () => {
+  const fc = prevoir([ouverte({ id: 'r', deadline: '2026-10-30' }),
+    ouverte({ id: 's', plan: { mode: 'spread' }, startDate: '2026-11-05', deadline: '2026-11-09', estimateMin: 60 }),
+    ouverte({ id: 'x', plan: { mode: 'daily', dailyMin: 30 }, startDate: '2026-11-06', estimateMin: 60 })],
+    { cal: cal({ '2026-11-06': 'pm' }), jour: '2026-11-06' });
+  assert.equal(fc.days[0].taskMin, 0);
+  assert.deepEqual(placees(fc), { '2026-11-09': 60 + 60 + 30, '2026-11-10': 30 });
+});

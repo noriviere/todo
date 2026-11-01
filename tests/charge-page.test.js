@@ -51,3 +51,14 @@ test('le bandeau des 7 prochains jours donne les mêmes chiffres que l\'onglet C
   assert.match(bandeau[0], /: 1h30 prévues/);
   assert.deepEqual(page.errors, []);
 });
+
+test('Charge : une tâche qui commence après son échéance est prévue à son début, en rouge « en retard »', async () => {
+  const d = donnees();
+  d.tasks = [{ id: 'f', subjectId: 'p', title: 'Commence trop tard', startDate: '2026-10-30', deadline: '2026-10-29', estimateMin: 50 }];
+  const page = await openApp(d, { hash: 'charge' });
+  assert.doesNotMatch(await titreDu(page, '2026-10-29'), /50min/, 'rien le jour de l\'échéance');
+  assert.match(await titreDu(page, '2026-10-30'), /: 50min prévues/);
+  await page.click('#main [data-act="cc-day"][data-d="2026-10-30"]');
+  assert.equal(await page.locator('#main .cc-item[data-tid="f"] .cc-red').innerText(), 'en retard');
+  assert.deepEqual(page.errors, []);
+});

@@ -154,9 +154,10 @@ A.hooks.drawer.push(t => {
 let selDay = null;
 function prioColor(p) { return `var(--p${p})`; }
 function planLabel(t, al) {
-  if (al.overdue) return 'en retard';
-  const m = t.plan && t.plan.mode;
-  if (m === 'daily' && t.plan.dailyMin) return fmtDur(t.plan.dailyMin) + '/jour' + (al.late ? ', finit après l\'échéance' : '');
+  const m = t.plan && t.plan.mode, parJour = m === 'daily' && t.plan.dailyMin;
+  // En retard : échéance passée, ou (hors temps par jour) début après l'échéance ou aucun jour possible avant elle
+  if (al.overdue || (al.late && !parJour)) return 'en retard';
+  if (parJour) return fmtDur(t.plan.dailyMin) + '/jour' + (al.late ? ', finit après l\'échéance' : '');
   if (m === 'spread') return 'réparti jusqu\'au ' + parseYmd(t.deadline).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
   return 'jour de l\'échéance';
 }

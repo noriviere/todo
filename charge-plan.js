@@ -9,6 +9,7 @@ const M = typeof module !== 'undefined' && module.exports ? require('./metier.js
 const { addDays, parseYmd, lundi, remaining } = M;
 const ecart = (a, b) => Math.round((parseYmd(a) - parseYmd(b)) / 86400000);
 const somme = sls => sls.reduce((a, sl) => a + sl.durMin, 0);
+const UN_AN = 366;   // borne de la recherche du premier jour possible, comme celles du calendrier de metier.js
 
 // Un créneau fixe a-t-il lieu ce jour-là ? (entre son début et sa fin, jamais archivé ; « chaque jour travaillé » suit le calendrier)
 function creneauLe(sl, ds, cal) {
@@ -74,7 +75,11 @@ function placer(t, td, peutTravailler) {
     return res;
   }
   if (!dl) { res.unplanned = true; return res; }
-  if (dl < td) { res.overdue = true; res.parts.push({ date: premierJour(td, peutTravailler), min: rem }); return res; }
+  // En retard, ou début après l'échéance : tout le reste le premier jour possible à partir du début (ou d'aujourd'hui)
+  const enEntier = () => { res.parts.push({ date: premierJour(from, peutTravailler), min: rem }); return res; };
+  res.late = from > dl;
+  if (dl < td) { res.overdue = true; return enEntier(); }
+  if (res.late) return enEntier();
   if (mode === 'spread') {
     const days = [];
     for (let d = from; d <= dl; d = addDays(d, 1)) if (peutTravailler(d)) days.push(d);
@@ -85,17 +90,21 @@ function placer(t, td, peutTravailler) {
       return res;
     }
   }
-  res.parts.push({ date: dernierJour(dl, td, peutTravailler), min: rem });
+  // Aucun jour possible entre le début et l'échéance (congé) : le premier jour possible après, en retard
+  const d = dernierJour(dl, from, peutTravailler);
+  if (!d) { res.late = true; return enEntier(); }
+  res.parts.push({ date: d, min: rem });
   return res;
 }
+// Dernier jour possible de ds à plancher en reculant, null s'il n'y en a pas
 function dernierJour(ds, plancher, peutTravailler) {
-  let d = ds;
-  for (let i = 0; i < 14 && d > plancher && !peutTravailler(d); i++) d = addDays(d, -1);
-  return d;
+  for (let d = ds; d >= plancher; d = addDays(d, -1)) if (peutTravailler(d)) return d;
+  return null;
 }
+// Premier jour possible à partir de ds (au plus un an plus loin : sinon ds)
 function premierJour(ds, peutTravailler) {
   let d = ds;
-  for (let i = 0; i < 14 && !peutTravailler(d); i++) d = addDays(d, 1);
+  for (let i = 0; i < UN_AN && !peutTravailler(d); i++) d = addDays(d, 1);
   return peutTravailler(d) ? d : ds;
 }
 
