@@ -10,10 +10,11 @@ after(closeAll);
 
 const ZONE = { main: '#main', drawer: '#drawer' };
 
-// Un « i » décrit par sa partie de l'aide et l'élément qui le contient (texte pour un titre, une case, un libellé)
+// Un « i » décrit par sa partie de l'aide et l'élément qui le contient (texte pour un titre, une case, un libellé).
+// Le texte s'arrête au premier chiffre : les durées et compteurs de la démo (demo.js) ou l'année ne figent pas la liste.
 const releve = (page, zone) => page.$$eval(ZONE[zone] + ' .gd-i', bs => bs.map(b => {
   const p = b.parentElement, tag = p.tagName.toLowerCase();
-  const texte = /^(h1|h2|h3|summary|label|span)$/.test(tag) ? ' « ' + p.textContent.trim().replace(/\s+/g, ' ').slice(0, 24) + ' »' : '';
+  const texte = /^(h1|h2|h3|summary|label|span)$/.test(tag) ? ' « ' + p.textContent.trim().replace(/\s+/g, ' ').replace(/\s*\d.*$/, '').slice(0, 24) + ' »' : '';
   return `${b.dataset.help} ← ${tag}${p.className ? '.' + p.className.split(' ')[0] : ''}${texte}`;
 }));
 
@@ -28,13 +29,13 @@ const reperes = (page, zone) => page.$$eval(ZONE[zone] + ' [data-repere]', els =
 
 // Liste figée sur le code d'avant les repères (table de sélecteurs du guide), démo, tous modules allumés
 const DEMO = {
-  dashboard: ['dashboard ← h1 « Tableau de bord »', 'saisie ← form.qa', 'pointer ← div.pt-today-l', 'filtres ← div.org-filters', "taches ← summary « Aujourd'hui43h50 estimée »"],
+  dashboard: ['dashboard ← h1 « Tableau de bord »', 'saisie ← form.qa', 'pointer ← div.pt-today-l', 'filtres ← div.org-filters', "taches ← summary « Aujourd'hui »"],
   sujets: ['sujets ← h1 « Sujets »', 'priorites ← div.prio-title'],
   projets: ['projets ← h1 « Projets »'],
   'projet ouvert': ['projets ← h3 « Jalons »'],
   charge: ['charge ← h1 « Charge de travail »', 'charge ← div.cc-legend', 'charge ← summary « Non comptées dans la cha »', 'creneaux ← h3 « Créneaux fixes »', 'creneaux ← h3 « Ma semaine type »'],
   'pointage semaine': ['pointer ← h1 « Pointage »', 'pointer ← span « Jour »'],
-  'pointage conges': ['pointer ← h1 « Pointage »', 'conges ← h3 « Poser une absence »', 'compteurs ← h3 « Congés payés 2026 »', 'compteurs ← h3 « RTT 2026 »', 'conges ← h3 « Absences 2026 »', "types-absence ← summary « Types d'absence et droit »"],
+  'pointage conges': ['pointer ← h1 « Pointage »', 'conges ← h3 « Poser une absence »', 'compteurs ← h3 « Congés payés »', 'compteurs ← h3 « RTT »', 'conges ← h3 « Absences »', "types-absence ← summary « Types d'absence et droit »"],
   'pointage bilan': ['pointer ← h1 « Pointage »', 'bilan ← h3 « Heures par semaine »', 'bilan ← h3 « Par mois »', 'bilan ← h3 « Réglages »', 'pointage-import ← h3 « Importer un historique E »'],
   inbox: ['inbox ← h1 « Boîte de réception »', 'saisie ← form.qa'],
   archives: ['archives ← h1 « Archives »'],

@@ -1,7 +1,7 @@
 // Point unique de modification : historique, Ctrl+Z / Ctrl+Y, boutons ↶ ↷, bandeau et retour à l'endroit (ticket #26)
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { openApp, closeAll, day } = require('./helpers');
+const { openApp, closeAll, day, ctrl } = require('./helpers');
 after(closeAll);
 
 const VIEUX = '2000-01-01T00:00:00.000Z';
@@ -16,7 +16,6 @@ const base = (extra = {}) => Object.assign({
 }, extra);
 const tache = async (page, id) => (await page.db()).tasks.find(t => t.id === id);
 const ligne = (page, id) => page.locator(`#main .task[data-tid="${id}"]`).first();
-const ctrl = (page, k) => page.keyboard.press('Control+' + k);
 const boutons = page => page.evaluate(() => [...document.querySelectorAll('#hist .hist-b')].map(b => ({ act: b.dataset.act, off: b.disabled, t: b.title })));
 
 test('Ctrl+Z annule la dernière modification, Ctrl+Y et Ctrl+Maj+Z la rétablissent, avec bandeau', async () => {

@@ -63,3 +63,16 @@ test('le hook pre-push refuse une branche en retard sur origin/main, accepte une
   assert.equal(pousser(git(clone, 'rev-parse', 'HEAD')).status, 0);
   fs.rmSync(tmp, { recursive: true, force: true });
 });
+
+// Un helper de test vit une fois, dans tests/helpers.js : un fichier de test l'importe au lieu d'en garder une copie.
+// Seules les déclarations au niveau du fichier comptent (une variable locale d'un test peut porter le même nom).
+test('aucun fichier de test ne redéfinit un nom exporté par tests/helpers.js', () => {
+  const noms = Object.keys(require('./helpers'));
+  const decl = new RegExp(`^(?:(?:const|let|var)\\s+(${noms.join('|')})\\s*=|(?:async\\s+)?function\\s*\\*?\\s*(${noms.join('|')})\\b)`);
+  const fautes = [];
+  for (const f of fs.readdirSync(__dirname).filter(f => f.endsWith('.test.js'))) lignes('tests/' + f).forEach((l, i) => {
+    const m = l.match(decl);
+    if (m) fautes.push(`tests/${f}:${i + 1} « ${m[1] || m[2]} » → require('./helpers')`);
+  });
+  assert.deepEqual(fautes, [], fautes.join('\n'));
+});
