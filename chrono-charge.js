@@ -304,7 +304,7 @@ function dayDetail(d) {
     <p>${fmtDur(d.load) || '0min'} prévues${d.cap ? ` sur ${fmtDur(d.cap)} · <span class="${over ? 'cc-red' : 'cc-green'}">${over ? 'surcharge de ' + fmtDur(-free) : 'libre ' + (fmtDur(free) || '0min')}</span>` : ' · jour non travaillé'}</p>
     <div class="list">
       ${d.fixed.map(sl => `<div class="task cc-item" style="--pc:var(--faint)"><span class="cc-fxdot"></span><span class="title">${esc(sl.title || 'Créneau fixe')}</span><span class="hint">${esc(describeSlot(sl))}</span><b class="cc-min">${fmtDur(sl.durMin)}</b></div>`).join('')}
-      ${d.items.map(({ t, min, pr, al }) => { const s = A.subj(t.subjectId); return `<div class="task cc-item" data-tid="${t.id}" style="--pc:var(--p${pr})">
+      ${d.items.map(({ t, min, pr, al }) => { const s = A.subj(t.subjectId); return `<div class="task cc-item" data-tid="${t.id}" style="--pc:var(--p${pr})">${A.debutLigneTache(t)}
         <span class="title">${esc(t.title || 'Sans titre')}</span>
         <span class="hint">${s ? esc(s.title) : 'Boîte de réception'} · <span class="${al.overdue || al.late ? 'cc-red' : ''}">${planLabel(t, al)}</span></span>
         <b class="cc-min">${fmtDur(min)}</b>
@@ -360,7 +360,7 @@ A.views.charge = () => {
     ${dayDetail(fc.days.find(d => d.date === selDay))}
     ${fc.unplanned.length || fc.noEst.length ? `<details class="sec"><summary><span class="chev">${A.ICON.chev}</span>Non comptées dans la charge<span class="cnt">${fc.unplanned.length + fc.noEst.length}</span></summary>
       <p class="hint" style="margin:0 0 8px 4px">Ajoute une durée estimée, et une échéance ou un temps par jour, pour qu'elles apparaissent dans le graphique.</p>
-      <div class="list">${[...fc.noEst.map(t => [t, 'sans durée estimée']), ...fc.unplanned.map(t => [t, 'sans échéance (' + fmtDur(remaining(t)) + ')'])].map(([t, why]) => { const s = A.subj(t.subjectId); return `<div class="task cc-item" data-tid="${t.id}" style="--pc:var(--p${s ? s.priority : 0})">
+      <div class="list">${[...fc.noEst.map(t => [t, 'sans durée estimée']), ...fc.unplanned.map(t => [t, 'sans échéance (' + fmtDur(remaining(t)) + ')'])].map(([t, why]) => { const s = A.subj(t.subjectId); return `<div class="task cc-item" data-tid="${t.id}" style="--pc:var(--p${s ? s.priority : 0})">${A.debutLigneTache(t)}
         <span class="title">${esc(t.title || 'Sans titre')}</span><span class="hint">${s ? esc(s.title) : 'Boîte de réception'} · ${why}</span>
         <button class="icon" data-act="details" title="Détails">${A.ICON.more}</button></div>`; }).join('')}</div>
     </details>` : ''}
@@ -381,23 +381,13 @@ A.views.charge = () => {
       </div>
     </div>`;
 };
-// Entrée dans le menu, juste après « Sujets »
-if (!A.NAV.some(x => x[0] === 'charge')) {
-  const i = A.NAV.findIndex(x => x[0] === 'sujets');
-  A.NAV.splice(i + 1, 0, ['charge', 'Charge', 'chart', 'charge']);
-}
-
-// Bandeau des 7 prochains jours sur le tableau de bord
-const origDash = A.views.dashboard;
-A.views.dashboard = () => {
-  const html = origDash();
-  if (!db().tasks.length || !on('charge')) return html;
+// Bandeau des 7 prochains jours sur le tableau de bord (l'onglet Charge, lui, est dans la liste des onglets du cœur)
+A.hooks.bandeauTableau.push(() => {
+  if (!db().tasks.length || !on('charge')) return '';
   const fc = forecast(7);
-  const strip = `<a class="card cc-mini" href="#charge" title="Ouvrir la vue Charge">
+  return `<a class="card cc-mini" href="#charge" title="Ouvrir la vue Charge">
     <div class="cc-mini-h"><b>Charge des 7 prochains jours</b><span class="hint">voir le détail →</span></div>${chart(fc.days, true)}</a>`;
-  const i = html.indexOf('<details class="sec');
-  return i < 0 ? html + strip : html.slice(0, i) + strip + html.slice(i);
-};
+});
 
 /* ---------- Événements ---------- */
 function findSlot(el) { const r = el.closest('[data-slid]'); return r && slots().find(s => s.id === r.dataset.slid); }

@@ -8,7 +8,8 @@ const TODAY = '2026-10-28';
 const noon = ymd => new Date(ymd + 'T12:00:00');
 
 let browser;
-async function openApp(data, { hash = '', viewport = { width: 1280, height: 900 }, touch = false, query = '', today = TODAY } = {}) {
+// url : une autre page que index.html (par exemple une copie aux scripts réordonnés)
+async function openApp(data, { hash = '', viewport = { width: 1280, height: 900 }, touch = false, query = '', today = TODAY, url = URL } = {}) {
   browser = browser || await chromium.launch();
   const ctx = await browser.newContext({ viewport, hasTouch: touch, isMobile: touch });
   const page = await ctx.newPage();
@@ -19,7 +20,7 @@ async function openApp(data, { hash = '', viewport = { width: 1280, height: 900 
   page.on('pageerror', e => errors.push(e.message));
   page.on('dialog', d => d.accept(page.__prompt || undefined));
   if (data) await page.addInitScript(([k, v]) => { if (!sessionStorage.getItem('seeded')) { localStorage.setItem(k, v); sessionStorage.setItem('seeded', '1'); } }, [KEY, JSON.stringify(data)]);
-  await page.goto(URL + query + (hash ? '#' + hash : ''));
+  await page.goto(url + query + (hash ? '#' + hash : ''));
   page.errors = errors;
   page.db = () => page.evaluate(() => window.todoApp.getData());
   return page;

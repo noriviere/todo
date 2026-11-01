@@ -470,8 +470,8 @@ function modOn(id) {
   const v = (db.settings.modules || {})[id];
   return v == null ? m.def !== false : !!v;
 }
-// Un onglet peut appartenir à un module : 4e case de NAV
-const navOn = n => !n[3] || modOn(n[3]);
+// Un onglet peut appartenir à un module (4e case de NAV) : affiché si le module est actif et a fourni sa vue
+const navOn = n => !!views[n[0]] && (!n[3] || modOn(n[3]));
 
 /* ---------- Données ---------- */
 const { blank, normSubject, normTask, migrate } = M;
@@ -756,8 +756,10 @@ function peindreHist() {
   };
   el.innerHTML = bt('hist-undo', a, 'Annuler', ICON.undo) + bt('hist-redo', r, 'Rétablir', ICON.redo);
 }
-// Revient à l'endroit d'une modification : l'écran, puis la ligne (dépliée, défilée, brève surbrillance) si elle est visible
-function allerA(l) {
+// Amène à un endroit { vue, tid | sid } : l'écran, puis la ligne (dépliée, centrée, brève surbrillance) si elle est visible.
+// Sert à Annuler / Rétablir et aux modules (↗ d'Organisation, étapes de Gestion de projet).
+// o.signalerFiltre : prévient quand la ligne existe mais qu'un filtre la cache (pas pour Annuler, dont le message reste affiché)
+function allerA(l, o = {}) {
   if (!l) return;
   const montrer = () => {
     const sel = l.tid ? `#main [data-tid="${CSS.escape(l.tid)}"]` : l.sid ? `#main [data-sid="${CSS.escape(l.sid)}"]` : null;
@@ -770,8 +772,10 @@ function allerA(l) {
       if (sid && subj(sid) && visible(x || { archived: false, subjectId: sid })) {
         const s = subj(sid);
         if (!x && parentOf(s)) expandTo(parentOf(s).id); else expandTo(sid);
+        enregistrerAffichage();
         render();
         el = $(sel);
+        if (!el && o.signalerFiltre) toast('Ce sujet est masqué par un filtre');
       }
     }
     if (!el) return;
@@ -829,11 +833,13 @@ function dateClass(t) {
   const b = bucket(t);
   return b === 'late' ? 'd-late' : b === 'today' ? 'd-today' : b === 'tomorrow' ? 'd-tomorrow' : '';
 }
+// Début d'une ligne de tâche (poignée ⋮⋮ d'Organisation) ; un module qui dessine ses propres lignes de tâche l'appelle aussi
+const debutLigneTache = t => hooks.debutLigneTache.map(f => f(t)).join('');
 function taskRow(t, opt = {}) {
   const s = subj(t.subjectId);
   const pr = s ? s.priority : 0;
   const closed = !isOpen(t), nt = closed ? null : nonTravaille(t.deadline);
-  return `<div class="task st-${t.status}${closed ? ' closed' : ''}" data-tid="${t.id}" style="--pc:${opt.showSubject ? `var(--p${pr})` : 'transparent'}">
+  return `<div class="task st-${t.status}${closed ? ' closed' : ''}" data-tid="${t.id}" style="--pc:${opt.showSubject ? `var(--p${pr})` : 'transparent'}">${debutLigneTache(t)}
     <input type="checkbox" class="chk" data-act="toggle-done" data-k="c-${t.id}" ${t.status === 'done' ? 'checked' : ''} title="Marquer comme fait">
     <input class="inline title" data-field="title" data-k="t-${t.id}" value="${esc(t.title)}" placeholder="Sans titre">
     <div class="meta">
@@ -908,6 +914,7 @@ views.dashboard = () => {
       <a class="stat" href="#inbox"><span class="v">${inbox}</span><span class="l">à ranger<span class="x"> (boîte de réception)</span></span></a>
     </div>
     ${isEmpty ? `<div class="card"><h3>Bienvenue 👋</h3><p>Ajoute une tâche ci-dessus ou crée tes sujets dans l'onglet Sujets. Pour reprendre ton fichier Excel, va dans l'onglet Données.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="demo-start">Voir un exemple</button><button class="btn" data-help="premiers-pas">Lire le mode d'emploi</button></div></div>` : ''}
+    ${hooks.bandeauTableau.map(f => f()).join('')}
     ${sec('late', 'En retard', secOpen('late'))}
     ${sec('today', "Aujourd'hui", secOpen('today'))}
     ${sec('tomorrow', 'Demain', secOpen('tomorrow'))}
@@ -983,7 +990,7 @@ function subjectBlock(s, st, open) {
   const closedT = tasks.filter(t => !isOpen(t)).sort((a, b) => (b.doneAt || b.updatedAt).localeCompare(a.doneAt || a.updatedAt));
   const stLabel = st.status === 'empty' ? 'Vide' : STATUS[st.status];
   return `<div class="subject ${open ? 'open' : ''}${child ? ' child' : ''}" data-sid="${s.id}" style="--pc:var(--p${p});--pbg:var(--p${p}-bg)">
-    <div class="s-head">
+    <div class="s-head">${hooks.debutEnteteSujet.map(f => f(s)).join('')}
       <button class="chev" data-act="toggle-subject" title="Déplier / replier">${ICON.chev}</button>
       <select class="pill prio-sel" data-field="s-priority" data-k="sp-${s.id}" title="Priorité du sujet">
         ${[1, 2, 3].map(x => `<option value="${x}" ${x === p ? 'selected' : ''}>${PRIO[x].short}</option>`).join('')}
@@ -1154,9 +1161,13 @@ function renderDrawer() {
 }
 
 /* ---------- Rendu global ---------- */
+// Liste complète et ordonnée des onglets, ceux des modules compris : un module fournit seulement sa vue (views.<onglet>)
 const NAV = [
   ['dashboard', 'Tableau de bord', 'dash'],
   ['sujets', 'Sujets', 'list'],
+  ['projets', 'Projets', 'gantt', 'projet'],
+  ['charge', 'Charge', 'chart', 'charge'],
+  ['pointage', 'Pointage', 'clock', 'pointage'],
   ['inbox', 'Boîte de réception', 'inbox'],
   ['archives', 'Archives', 'archive'],
   ['donnees', 'Données', 'data']
@@ -1528,8 +1539,11 @@ window.todoApp = {
   demo: DEMO,
   replaceData: d => { keepBackup(); db = migrate(d); viderHistorique(); save(); render(); }
 };
-// Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
-const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], subjectBody: [], apresModif: [], absence: [], refusRangement: [], sortieDuParent: [] };
+// Emplacements où les modules s'affichent (listes de fonctions qui rendent du HTML) et accroches de données.
+// bandeauTableau() : tableau de bord, après les statistiques et avant la première section ;
+// debutLigneTache(t) / debutEnteteSujet(s) : tout début d'une ligne de tâche / d'un en-tête de sujet.
+const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], subjectBody: [], apresModif: [], absence: [], refusRangement: [], sortieDuParent: [],
+  bandeauTableau: [], debutLigneTache: [], debutEnteteSujet: [] };
 const titre = x => (x && x.title) || 'Sans titre';
 // Enregistre l'affichage (filtres, onglets, sujets dépliés, modules actifs), hors historique.
 // Une donnée changée en route (oubli de modifier()) n'est ni perdue ni effaçable : elle devient un pas annulable.
@@ -1545,7 +1559,7 @@ function enregistrerAffichage() {
 }
 Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, enregistrerAffichage, modifier, normTask, titre, annuler, retablir, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats, remaining: M.remaining, taskCmp,
   parentOf, childrenOf, subjLabel, setParent, canNest, expandTo, archiveSubject, createSubject,
-  esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur, calendrier, absenceDu, lundi: M.lundi, semaineIso: M.semaineIso, prochaineEcheance: M.prochaineEcheance, echeancesLes: ds => M.echeancesLes(db, ds), nonTravaille, montrerTaches });
+  esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur, calendrier, absenceDu, lundi: M.lundi, semaineIso: M.semaineIso, prochaineEcheance: M.prochaineEcheance, echeancesLes: ds => M.echeancesLes(db, ds), nonTravaille, montrerTaches, allerA, debutLigneTache });
 
 if (DEMO) {
   document.body.classList.add('demo');

@@ -51,12 +51,7 @@ function projectSchedule(p) {
 // Avancement du projet = celui du sujet : ses tâches de niveau 1 et celles de ses étapes
 const projectProgress = p => A.subjectStats(p).progress;
 
-/* ---------- Onglet ---------- */
-if (!A.NAV.some(x => x[0] === 'projets')) {
-  const i = A.NAV.findIndex(x => x[0] === 'sujets');
-  A.NAV.splice(i + 1, 0, ['projets', 'Projets', 'gantt', 'projet']);
-}
-
+/* ---------- Onglet (sa place dans le menu est tenue par le cœur) ---------- */
 function listView() {
   const ps = projects();
   const cards = ps.map(p => {
@@ -463,7 +458,6 @@ document.addEventListener('change', e => {
 });
 
 // Nouvelle étape depuis un projet : un sujet rangé dans le projet, ouvert dans l'onglet Sujets
-let goTo = null;
 function newStep(p) {
   const title = (prompt('Nom de la nouvelle étape ?') || '').trim();
   if (!title) return;
@@ -471,21 +465,12 @@ function newStep(p) {
     parentId: p.id, plan: {}, after: [], lagDays: 0, who: '' }));
   openStep(s.id);
 }
+// L'étape s'ouvre dépliée ; le cœur amène sur elle (ou prévient qu'un filtre la cache)
 function openStep(sid) {
   A.expandTo(sid); A.enregistrerAffichage();
-  goTo = sid;
-  if (view() === 'sujets') A.render(); else location.hash = 'sujets';
+  if (view() === 'sujets') A.render();
+  A.allerA({ vue: 'sujets', sid }, { signalerFiltre: true });
 }
-window.addEventListener('todo:rendered', () => {
-  if (!goTo || view() !== 'sujets') return;
-  const sid = goTo; goTo = null;
-  setTimeout(() => {
-    const box = document.querySelector(`#main .subject[data-sid="${sid}"]`);
-    if (!box) { toast('Cette étape est masquée par un filtre'); return; }
-    box.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    box.classList.add('org-flash');
-  }, 30);
-});
 
 /* ---------- Échéance ferme (cadenas) et garde-fou sur les tâches ---------- */
 A.ICON.lock = A.ICON.lock || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
