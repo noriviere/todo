@@ -131,6 +131,42 @@ function prochaineEcheance(t, cal, regle, aujourdhui) {
   return Object.assign(r, { theorique: n, decaleeDe: r.decalee ? n : null, jour });
 }
 
+/* ---------- Pointage : temps pointé et semaine complète (CONTEXT.md « Temps pointé », « Semaine complète ») ---------- */
+const enMin = s => { if (!s) return null; const [h, m] = s.split(':').map(Number); return h * 60 + m; };
+// Temps pointé d'un jour (heures « HH:MM » : in, lunchOut, lunchIn, out), en minutes. Les heures pointées ne sont jamais réécrites.
+// Jour passé : Arrivée → Départ moins le repas ; sans Départ, Arrivée → Début repas ; sans Départ ni Début repas, 0.
+// Le jour même : en cours jusqu'à maintenant (live), figé au début du repas pendant la pause.
+// maintenant : minutes écoulées depuis minuit. Rend { min, live, open } (open : pas de départ pointé).
+function tempsPointe(jour, ds, aujourdhui, maintenant) {
+  if (!jour || !jour.in) return { min: 0, live: false, open: false };
+  const pause = jour.lunchOut && !jour.lunchIn;
+  let fin = enMin(jour.out), live = false, repas = !!(jour.lunchOut && jour.lunchIn);
+  if (fin == null) {
+    if (ds === aujourdhui) { fin = pause ? enMin(jour.lunchOut) : maintenant; live = !pause; }
+    else if (jour.lunchOut) { fin = enMin(jour.lunchOut); repas = false; }
+    else return { min: 0, live: false, open: true };
+  }
+  let min = fin - enMin(jour.in);
+  if (repas) min -= Math.max(0, enMin(jour.lunchIn) - enMin(jour.lunchOut));
+  return { min: Math.max(0, min), live, open: !jour.out };
+}
+// Semaine complète : semaine finie dont chaque jour à objectif > 0 a du temps pointé, sans absence ni férié, quel que soit le total.
+// Un jour à objectif 0 (samedi travaillé) ne change rien. Aujourd'hui n'est fini qu'une fois le départ pointé.
+// o : { jour(ds) → jour pointé, objectif(ds) → minutes de la semaine type, ferie(ds), aujourdhui, maintenant,
+//       debut, fin : bornes facultatives de la période comptée (un jour hors d'elles rend la semaine incomplète) }
+function semaineComplete(lundiDs, o) {
+  for (let i = 0; i < 7; i++) {
+    const ds = addDays(lundiDs, i);
+    if (!(o.objectif(ds) > 0)) continue;
+    const j = o.jour(ds);
+    if ((o.debut && ds < o.debut) || (o.fin && ds > o.fin)) return false;
+    if (ds > o.aujourdhui || (ds === o.aujourdhui && !(j && j.out))) return false;
+    if (o.ferie(ds) || (j && j.abs)) return false;
+    if (!(tempsPointe(j, ds, o.aujourdhui, o.maintenant).min > 0)) return false;
+  }
+  return true;
+}
+
 /* ---------- Données ---------- */
 function blank() {
   return {
@@ -381,7 +417,7 @@ function historique(max = 50) {
   };
 }
 
-const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, SEMAINE_TYPE, lundi, semaineIso, feries, calendrier, decaler, prochaineEcheance, DECALAGES, echeancesLes, blank, normSubject, normTask, migrate,
+const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, SEMAINE_TYPE, lundi, semaineIso, feries, calendrier, decaler, prochaineEcheance, tempsPointe, semaineComplete, DECALAGES, echeancesLes, blank, normSubject, normTask, migrate,
   isOpen, remaining, bucket, taskCmp, setTaskField, parentOf, childrenOf, estPremierNiveau, peutEtreRange, peutRanger, ranger, archiverSujet, subjectStats,
   photo, remettre, horodater, memesDonnees, historique };
 if (typeof module === 'object' && module.exports) module.exports = api;

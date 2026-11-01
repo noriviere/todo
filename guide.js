@@ -264,6 +264,7 @@ const SECTIONS = [
     <ul>
       <li>Les boutons <b>Pointer l'arrivée</b>, <b>Pause déjeuner</b>, <b>Retour de pause</b>, <b>Pointer le départ</b> notent l'heure actuelle. Le total de la journée défile pendant que tu es là.</li>
       <li>Le tableau de la semaine permet de corriger chaque heure à la main, de marquer une absence (journée, matin ou après-midi) et d'ajouter une note.</li>
+      <li><b>Une demi-journée</b> pointée « Arrivée » puis « Pause déjeuner », sans retour ni départ, compte jusqu'au début du repas : le vendredi matin compte ses heures dès le lendemain. Sans départ, une journée passée s'arrête toujours au début du repas ; avec seulement une arrivée, elle compte 0. Corriger une heure après coup recalcule le total de la même façon.</li>
       <li>En bas : total de la semaine, objectif et écart. Les flèches ‹ › changent de semaine.</li>
     </ul>
     ${see(['conges', 'bilan'])}`, tab: 'pointage', ptTab: 'semaine' },
@@ -296,7 +297,7 @@ const SECTIONS = [
     <p>Sous-onglet <b>Bilan</b>, par année :</p>
     <ul>
       <li><b>Cumul</b>, <b>moyenne</b> et <b>médiane</b> par semaine, <b>écart</b> à l'objectif.</li>
-      <li>La moyenne et la médiane ne prennent que les <b>semaines complètes</b> : sans congé, absence ni férié, et terminées. Les autres apparaissent pâles dans le graphique.</li>
+      <li>La moyenne et la médiane ne prennent que les <b>semaines complètes</b> : terminées, chaque jour qui a un objectif pointé (une demi-journée suffit), sans congé, absence ni férié, quel que soit le total. Les heures d'un jour sans objectif (un samedi travaillé) comptent dans le total sans rien changer. Les autres apparaissent pâles dans le graphique.</li>
       <li><b>Heures par semaine</b> : clique une barre pour ouvrir la semaine. Le trait est l'objectif de la semaine (diminué des absences et fériés).</li>
       <li><b>Par mois</b> : heures, jours pointés, moyenne par jour, objectif et écart.</li>
       <li><b>Réglages</b> : objectif d'heures pour chaque jour de la semaine. Les jours fériés se règlent dans Données › Calendrier.</li>

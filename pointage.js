@@ -60,24 +60,11 @@ const weekTarget = () => WD_ORDER.reduce((a, wd) => a + dayTarget(wd), 0);
 
 
 /* ---------- Calculs d'heures ---------- */
-const toMin = s => { if (!s) return null; const [h, m] = s.split(':').map(Number); return h * 60 + m; };
 const nowHm = () => { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
-// Temps travaillé d'un jour. Pour aujourd'hui, une journée pas encore terminée compte jusqu'à maintenant (live).
-function worked(ds) {
-  const d = day(ds);
-  if (!d || !d.in) return { min: 0, live: false };
-  const i = toMin(d.in);
-  let end = toMin(d.out), live = false;
-  if (end == null) {
-    if (ds !== today()) return { min: 0, live: false, open: true };
-    end = d.lunchOut && !d.lunchIn ? toMin(d.lunchOut) : nowMin();
-    live = !(d.lunchOut && !d.lunchIn);
-  }
-  let min = end - i;
-  if (d.lunchOut && d.lunchIn) min -= Math.max(0, toMin(d.lunchIn) - toMin(d.lunchOut));
-  return { min: Math.max(0, min), live, open: !d.out };
-}
+// Temps pointé d'un jour (règle de metier.js) : un jour passé sans départ s'arrête au début du repas ;
+// aujourd'hui, une journée pas encore terminée compte jusqu'à maintenant (live).
+const worked = ds => A.tempsPointe(day(ds), ds, today(), nowMin());
 const absFrac = d => d && d.abs ? (d.abs.part === 'am' || d.abs.part === 'pm' ? 0.5 : 1) : 0;
 // Temps attendu d'un jour (objectif), diminué des absences et nul les jours fériés ou non travaillés
 const expected = ds => cal().ferie(ds) ? 0 : Math.round(dayTarget(parseYmd(ds).getDay()) * (1 - absFrac(day(ds))));
@@ -307,12 +294,10 @@ function stats(y) {
     tot += w.min; exp += e;
   }
   const list = Object.keys(weeks).sort().map(k => Object.assign({ mon: k }, weeks[k]));
-  // Semaine complète : chaque jour qui a un objectif (lundi à vendredi) a des heures pointées.
-  // Une semaine avec un congé, une absence ou un férié, ou pas encore finie, n'entre pas dans la moyenne ni la médiane.
-  // Aujourd'hui ne compte que si la journée est terminée (heure de départ pointée) ; les jours hors de l'année affichée rendent la semaine incomplète.
-  const finished = ds => ds < today() || (ds === today() && !!(day(ds) && day(ds).out));
-  const complete = mon => [0, 1, 2, 3, 4, 5, 6].every(i => { const ds = addDays(mon, i); return !dayTarget(parseYmd(ds).getDay()) || (ds >= start && ds <= end && finished(ds) && worked(ds).min > 0 && !(day(ds) && day(ds).abs)); });
-  list.forEach(w => { w.full = complete(w.mon); });
+  // Semaine complète (règle de metier.js) : seules elles entrent dans la moyenne et la médiane.
+  // Les jours hors de l'année affichée (ou d'avant le premier jour saisi) rendent la semaine incomplète.
+  const opt = { jour: day, objectif: ds => dayTarget(parseYmd(ds).getDay()), ferie: ds => cal().ferie(ds), aujourdhui: today(), maintenant: nowMin(), debut: start, fin: end };
+  list.forEach(w => { w.full = A.semaineComplete(w.mon, opt); });
   const vals = list.filter(w => w.full && w.min > 0).map(w => w.min);
   const dayVals = [];
   for (let ds = start; ds <= end; ds = addDays(ds, 1)) { const m = worked(ds).min; if (m) dayVals.push(m); }

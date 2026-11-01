@@ -213,3 +213,79 @@ test('archiver un sujet archive ses sous-sujets ; restaurer ne rend que ceux arc
   assert.equal(s_(d, 'E').archivedAt, null);
   assert.equal(s_(d, 'E').parentId, 'P', 'archiver ne sort pas du parent');
 });
+
+/* ---------- Pointage : temps pointé et semaine complète (CONTEXT.md) ---------- */
+// TODAY = mercredi 28 octobre 2026 ; vendredi 23 et lundi 19 sont passés
+const VEN = '2026-10-23', MAINTENANT = 10 * 60;   // 10h00
+const pointe = (jour, ds = VEN, maintenant = MAINTENANT) => M.tempsPointe(jour, ds, TODAY, maintenant).min;
+
+test('temps pointé d\'un jour passé : sans départ, il s\'arrête au début du repas', () => {
+  assert.equal(pointe({ in: '08:00', lunchOut: '12:00' }), 240, 'vendredi matin : Arrivée → Début repas');
+});
+
+test('temps pointé d\'un jour passé : départ, oubli après le repas, arrivée seule', () => {
+  assert.equal(pointe({ in: '08:00', out: '12:00' }), 240, 'Arrivée + Départ 12h sans repas : 4h, comme avant');
+  assert.equal(pointe({ in: '08:00', lunchOut: '12:00', lunchIn: '13:00', out: '17:00' }), 480, 'journée complète : repas retiré');
+  assert.equal(pointe({ in: '08:00', lunchOut: '12:00', lunchIn: '13:00' }), 240, 'repas complet sans Départ : Arrivée → Début repas');
+  assert.equal(pointe({ in: '08:00' }), 0, 'Arrivée seule : rien ne peut en être déduit');
+  assert.equal(pointe({ note: 'x' }), 0, 'sans arrivée');
+  assert.equal(pointe(null), 0, 'jour non pointé');
+});
+
+test('temps pointé du jour même : en cours jusqu\'à maintenant, figé au début du repas pendant la pause', () => {
+  const t = (jour, maintenant) => M.tempsPointe(jour, TODAY, TODAY, maintenant);
+  assert.deepEqual(t({ in: '08:00' }, 10 * 60), { min: 120, live: true, open: true }, 'en cours');
+  assert.deepEqual(t({ in: '08:00', lunchOut: '12:00' }, 12 * 60 + 30), { min: 240, live: false, open: true }, 'en pause : figé');
+  assert.deepEqual(t({ in: '08:00', lunchOut: '12:00', lunchIn: '13:00' }, 15 * 60), { min: 360, live: true, open: true }, 'après la pause : repas retiré');
+  assert.deepEqual(t({ in: '08:00', out: '12:00' }, 15 * 60), { min: 240, live: false, open: false }, 'parti');
+});
+
+test('temps pointé : une correction après coup suit la même règle, sans réécrire les heures', () => {
+  const jour = { in: '08:00' };
+  assert.equal(pointe(jour), 0);
+  jour.lunchOut = '12:00';
+  assert.equal(pointe(jour), 240, 'Début repas ajouté après coup');
+  jour.lunchOut = '11:30';
+  assert.equal(pointe(jour), 210, 'Début repas changé');
+  jour.out = '12:00'; delete jour.lunchOut;
+  assert.equal(pointe(jour), 240, 'Départ ajouté, Début repas effacé');
+  delete jour.out;
+  assert.equal(pointe(jour), 0, 'Départ effacé à son tour');
+  const fige = { in: '08:00', lunchOut: '12:00' };
+  pointe(fige);
+  assert.deepEqual(fige, { in: '08:00', lunchOut: '12:00' }, 'les heures pointées restent telles quelles');
+});
+
+// Semaine du lundi 19 octobre 2026 (finie) ; objectif du lundi au jeudi 7h45, vendredi 4h, week-end 0
+const LUN = '2026-10-19';
+const OBJ = { 1: 465, 2: 465, 3: 465, 4: 465, 5: 240, 6: 0, 0: 0 };
+const JOURNEE = { in: '08:00', lunchOut: '12:00', lunchIn: '13:00', out: '16:45' };
+function semaine(jours = {}, { feries = {}, aujourdhui = TODAY, debut, fin } = {}) {
+  const pointes = Object.assign({ '2026-10-19': JOURNEE, '2026-10-20': JOURNEE, '2026-10-21': JOURNEE, '2026-10-22': JOURNEE, '2026-10-23': { in: '08:00', lunchOut: '12:00' } }, jours);
+  return M.semaineComplete(LUN, {
+    jour: ds => pointes[ds] || null, objectif: ds => OBJ[M.parseYmd(ds).getDay()], ferie: ds => feries[ds] || null,
+    aujourdhui, maintenant: MAINTENANT, debut, fin });
+}
+
+test('semaine complète : le vendredi pointé le matin seulement la rend complète', () => {
+  assert.equal(semaine(), true);
+});
+
+test('semaine complète : absence, férié, jour sans temps pointé ou semaine pas finie la rendent incomplète', () => {
+  assert.equal(semaine({ '2026-10-23': { in: '08:00' } }), false, 'vendredi : Arrivée seule, 0 pointé');
+  assert.equal(semaine({ '2026-10-23': null }), false, 'vendredi non pointé');
+  assert.equal(semaine({ '2026-10-21': { abs: { type: 'cp', part: 'full' } } }), false, 'congé d\'une journée');
+  assert.equal(semaine({ '2026-10-21': Object.assign({ abs: { type: 'cp', part: 'pm' } }, JOURNEE) }), false, 'demi-journée d\'absence, même pointée');
+  assert.equal(semaine({}, { feries: { '2026-10-20': 'Férié de test' } }), false, 'férié');
+  assert.equal(semaine({}, { aujourdhui: '2026-10-23' }), false, 'vendredi = aujourd\'hui, sans départ : pas finie');
+  assert.equal(semaine({ '2026-10-23': { in: '08:00', out: '12:00' } }, { aujourdhui: '2026-10-23' }), true, 'vendredi = aujourd\'hui, départ pointé : finie');
+  assert.equal(semaine({}, { aujourdhui: '2026-10-22' }), false, 'vendredi à venir');
+  assert.equal(semaine({}, { debut: '2026-10-20' }), false, 'lundi hors de la période comptée');
+});
+
+test('semaine complète : quel que soit le total, et un samedi travaillé ne change rien', () => {
+  const court = { in: '09:00', out: '10:00' };
+  assert.equal(semaine({ '2026-10-19': court, '2026-10-20': court }), true, 'total bien sous l\'objectif');
+  assert.equal(semaine({ '2026-10-24': JOURNEE }), true, 'samedi travaillé (objectif 0)');
+  assert.equal(semaine({ '2026-10-24': { abs: { type: 'cp', part: 'full' } } }, { feries: { '2026-10-25': 'Férié de test' } }), true, 'absence ou férié un jour à objectif 0');
+});
