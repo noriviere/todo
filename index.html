@@ -1543,7 +1543,8 @@ window.todoApp = {
   today,
   render: () => render(),
   demo: DEMO,
-  replaceData: d => { keepBackup(); db = migrate(d); viderHistorique(); save(); render(); }
+  // o.copie: false : ne touche pas au point de retour « avant le dernier import » (version reçue par la Synchro)
+  replaceData: (d, o = {}) => { if (o.copie !== false) keepBackup(); db = migrate(d); viderHistorique(); save(); render(); }
 };
 // Emplacements où les modules s'affichent (listes de fonctions qui rendent du HTML) et accroches de données.
 // bandeauTableau() : tableau de bord, après les statistiques et avant la première section ;
@@ -1588,6 +1589,7 @@ setInterval(() => { if (today() !== day) { day = today(); render(); } }, 60000);
 <script src="organisation.js"></script>
 <script src="projets-plan.js"></script>
 <script src="projets.js"></script>
+<script src="sync-decision.js"></script>
 <script src="sync.js"></script>
 <script src="excel-import.js"></script>
 <script src="guide.js"></script>

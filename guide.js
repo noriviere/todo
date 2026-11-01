@@ -327,6 +327,8 @@ const SECTIONS = [
       <li>Crée un jeton GitHub « fine-grained » limité au seul dépôt des données (droit Contents en lecture et écriture), avec une date d'expiration.</li>
       <li>La synchro se fait seule quelques secondes après chaque modification, à l'ouverture de l'appli et quand tu y reviens. L'état s'affiche en bas de la barre latérale (☁).</li>
       <li>L'appli marche hors connexion et se resynchronise ensuite. Elle refuse de synchroniser vers un dépôt public.</li>
+      <li>Le texte que tu es en train de taper n'est jamais perdu quand une version arrive de GitHub : elle attend que tu sortes du champ, puis la synchro reprend avec ce que tu as validé.</li>
+      <li>Quand la synchro te pose une question, le bouton OK garde toujours la version de cet appareil et l'envoie sur GitHub ; Annuler prend celle de GitHub.</li>
       <li>Si une version reçue ne te convient pas, un bouton permet de revenir à l'état de l'appareil d'avant la synchro.</li>
     </ul>`, tab: 'donnees' },
 
