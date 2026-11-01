@@ -96,5 +96,7 @@
 }
 a.btn{text-decoration:none;color:inherit}
 .pt-dmin{display:inline-flex;align-items:center;gap:2px;margin-right:6px;font-size:13px}
-.pt-dmin input{width:58px}
+.pt-dmin b{color:var(--text);font-weight:600}
+.pt-complete{margin:-4px 0 14px}
+.pt-complete a{color:var(--accent);font-weight:600}
 .pt-col.part .pt-bar i{opacity:.35}

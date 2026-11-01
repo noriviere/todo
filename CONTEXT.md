@@ -60,7 +60,7 @@ L'horaire normal de chaque jour de la semaine (chez Noel 7h45 du lundi au jeudi,
 _À éviter_ : capacité d'une journée, objectif par jour (deux réglages séparés, fondus en un seul)
 
 **Journée pleine** :
-Le plus long horaire de la semaine type. C'est ce que vaut « 1j » dans une durée ; une demi-journée de congé retire la moitié d'une journée pleine, et libère donc tout un jour dont l'horaire est d'une demi-journée ou moins (le vendredi à 4h).
+Le plus long horaire de la semaine type. C'est ce que vaut « 1j » dans une durée ; une demi-journée de congé retire la moitié d'une journée pleine, sauf un jour dont l'horaire ne dépasse pas les trois quarts d'une journée pleine : ce jour est déjà une demi-journée (le vendredi à 4h), et la demi-journée de congé le libère entièrement.
 
 **Jour férié** :
 Un jour férié français, reconnu automatiquement (la case peut se décocher). Il n'est jamais ouvré.

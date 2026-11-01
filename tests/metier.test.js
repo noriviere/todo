@@ -101,10 +101,85 @@ test('migration : dimension « Projet » renommée « Code », données vides co
   assert.equal(d.subjects[1].code, 'C2', 'un code déjà saisi est gardé');
   assert.ok(!('projet' in d.subjects[0]));
   assert.deepEqual(d.ui.dims, { code: 'X1', secteur: '', produit: '' });
-  assert.equal(d.settings.workdayMin, 420);
+  assert.deepEqual(d.settings.horaire, [0, 420, 420, 420, 420, 420, 0]);
   assert.deepEqual(d.settings.modules, {});
   assert.deepEqual(d.tasks, []);
   assert.equal(d.subjects[0].priority, 3);
+});
+
+/* ---------- Horaire de la semaine type (ticket #60) : CONTEXT.md « Semaine type », « Journée pleine » ---------- */
+// Horaire de Noel, indexé par getDay() (0 = dimanche) : 7h45 du lundi au jeudi, 4h le vendredi
+const NOEL = [0, 465, 465, 465, 465, 240, 0];
+const calNoel = (absences = {}, reglages = {}) => M.calendrier(Object.assign(M.blank().settings, { horaire: NOEL }, reglages), ds => absences[ds] || null);
+
+test('heures prévues d\'un jour : l\'horaire de la semaine type, 0 hors semaine type et les jours fériés', () => {
+  const c = calNoel();
+  assert.equal(c.heuresPrevues('2026-11-09'), 465, 'lundi');
+  assert.equal(c.heuresPrevues('2026-11-13'), 240, 'vendredi à 4h');
+  assert.equal(c.heuresPrevues('2026-11-14'), 0, 'samedi à 0h');
+  assert.equal(c.heuresPrevues('2026-11-11'), 0, 'mercredi férié');
+  assert.equal(calNoel({}, { feries: false }).heuresPrevues('2026-11-11'), 465, 'fériés décochés');
+});
+
+test('semaine type déduite de l\'horaire : un jour à 0h n\'en fait pas partie, le vendredi à 4h reste ouvré', () => {
+  const c = calNoel();
+  assert.deepEqual(c.semaine, [1, 2, 3, 4, 5]);
+  assert.equal(c.ouvre('2026-11-13'), true, 'vendredi à 4h : jour ouvré (Gantt, Récurrence)');
+  assert.equal(c.ouvre('2026-11-14'), false, 'samedi à 0h');
+  const sansLundi = M.calendrier({ horaire: [0, 0, 465, 465, 465, 240, 0] });
+  assert.deepEqual(sansLundi.semaine, [2, 3, 4, 5]);
+  assert.equal(sansLundi.ouvre('2026-11-09'), false, 'lundi mis à 0h');
+  assert.equal(M.calendrier({ horaire: [0, 0, 0, 0, 0, 0, 0] }).ouvre('2026-11-10'), true, 'horaire tout à 0 : semaine type par défaut');
+});
+
+test('heures prévues d\'un jour d\'absence : journée → 0, demi-journée → moins la moitié d\'une journée pleine, jamais négatif', () => {
+  const c = calNoel({ '2026-11-12': 'full', '2026-11-10': 'am', '2026-11-13': 'pm', '2026-11-20': 'full' });
+  assert.equal(c.heuresPrevues('2026-11-12'), 0, 'congé d\'une journée un jeudi');
+  assert.equal(c.heuresPrevues('2026-11-20'), 0, 'congé d\'une journée un vendredi : les 4h prévues sont retirées');
+  assert.equal(c.heuresPrevues('2026-11-10'), 465 - 233, 'demi-journée un mardi : moins la moitié de 7h45 (arrondie)');
+  assert.equal(c.heuresPrevues('2026-11-13'), 0, 'demi-journée un vendredi à 4h, déjà une demi-journée : le jour est entièrement libéré');
+  const long = calNoel({ '2026-11-13': 'am' }, { horaire: [0, 465, 465, 465, 465, 360, 0] });
+  assert.equal(long.heuresPrevues('2026-11-13'), 360 - 233, 'vendredi à 6h, plus près d\'une journée : moins la moitié d\'une journée pleine');
+  assert.equal(c.travaille('2026-11-13'), true, 'une demi-journée ne fait pas un jour non travaillé');
+});
+
+test('Récurrence et Gantt suivent la semaine type déduite de l\'horaire : le vendredi à 4h reste un jour ouvré et travaillé', () => {
+  const c = calNoel();
+  const t = tache({ deadline: '2026-11-12', recur: { freq: 'workday', interval: 1 } });
+  assert.equal(M.prochaineEcheance(t, c, 'suivant', '2026-11-01').date, '2026-11-13', 'chaque jour travaillé : jeudi → vendredi');
+  t.deadline = '2026-11-13';
+  assert.equal(M.prochaineEcheance(t, c, 'suivant', '2026-11-01').date, '2026-11-16', 'vendredi → lundi (samedi à 0h)');
+  assert.equal(c.ajouterOuvres('2026-11-12', 1), '2026-11-13', 'Gantt : un jour ouvré après jeudi = vendredi');
+  assert.equal(c.ouvresEntre('2026-11-09', '2026-11-15'), 4, 'semaine du 9 : lundi, mardi, jeudi, vendredi (mercredi férié)');
+});
+
+test('journée pleine : le plus long horaire de la semaine type ; « 1j » la vaut', () => {
+  assert.equal(calNoel().journeePleine, 465);
+  assert.equal(M.journeePleine({ horaire: NOEL }), 465);
+  assert.equal(M.journeePleine({ horaire: [0, 420, 420, 420, 420, 420, 480] }), 480, 'un samedi plus long');
+  const d = M.blank(); d.settings.horaire = NOEL.slice();
+  const t = tache();
+  M.setTaskField(t, 'estimate', '1j', d);
+  assert.equal(t.estimateMin, 465, '1j = 7h45');
+  M.setTaskField(t, 'estimate', '0.5j', d);
+  assert.equal(t.estimateMin, 233);
+  M.setTaskField(t, 'planDaily', '1j', d);
+  assert.equal(t.plan.dailyMin, 465);
+});
+
+test('migration de l\'horaire : repris de l\'Objectif par jour du Pointage, les anciens réglages restent', () => {
+  const d = M.migrate({ settings: { workdayMin: 420, workDays: [1, 2, 3, 4, 5] }, pointage: { dayMin: { 1: 465, 2: 465, 3: 465, 4: 465, 5: 240, 6: 0, 0: 0 } } });
+  assert.deepEqual(d.settings.horaire, NOEL);
+  assert.equal(d.settings.workdayMin, 420, 'ancienne capacité gardée');
+  assert.deepEqual(d.settings.workDays, [1, 2, 3, 4, 5], 'ancienne semaine type gardée');
+  assert.deepEqual(d.pointage.dayMin, { 1: 465, 2: 465, 3: 465, 4: 465, 5: 240, 6: 0, 0: 0 }, 'ancien objectif gardé');
+});
+
+test('migration de l\'horaire sans Pointage : l\'ancienne capacité sur chaque jour de la semaine type cochée', () => {
+  assert.deepEqual(M.migrate({ settings: { workdayMin: 480, workDays: [1, 2, 3, 4] } }).settings.horaire, [0, 480, 480, 480, 480, 0, 0]);
+  assert.deepEqual(M.migrate({}).settings.horaire, [0, 420, 420, 420, 420, 420, 0], 'données vides : 7h du lundi au vendredi');
+  assert.deepEqual(M.migrate({ settings: { horaire: [0, 300, 300, 300, 300, 300, 0] }, pointage: { dayMin: { 1: 465 } } }).settings.horaire,
+    [0, 300, 300, 300, 300, 300, 0], 'déjà migré : l\'horaire commun gagne');
 });
 
 test('modification d\'un champ : statut et pourcentage', () => {
@@ -129,7 +204,7 @@ test('modification d\'un champ : durées, dates, champ inconnu', () => {
   assert.equal(M.setTaskField(t, 'estimate', '1h30', d), true);
   assert.equal(t.estimateMin, 90);
   M.setTaskField(t, 'estimate', '1j', d);
-  assert.equal(t.estimateMin, 420, 'une journée = journée de travail des réglages');
+  assert.equal(t.estimateMin, 420, 'une journée = journée pleine des réglages (7h par défaut)');
   const err = M.setTaskField(t, 'estimate', 'bientôt', d);
   assert.equal(typeof err, 'string');
   assert.match(err, /Durée non comprise/);

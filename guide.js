@@ -61,7 +61,8 @@ const SECTIONS = [
   { id: 'calendrier', g: 'start', title: 'Calendrier : jours ouvrés et fériés', html: () => `
     <p>Onglet Données, carte <b>Calendrier</b> : une seule semaine type pour toute l'appli, quels que soient les modules actifs.</p>
     <ul>
-      <li><b>Semaine type</b> : les jours où l'on travaille normalement (du lundi au vendredi au départ). Clique un jour pour l'ajouter ou le retirer.</li>
+      <li><b>Semaine type</b> : l'horaire normal de chaque jour, par exemple <code>7h45</code> du lundi au jeudi et <code>4h</code> le vendredi (7h du lundi au vendredi au départ). Un jour à <code>0</code> n'est pas dans la semaine type ; il en faut au moins un. ${when('charge', 'La Charge en tire la capacité de chaque jour. ')}${when('pointage', 'Le Pointage en tire son objectif.')}</li>
+      <li><b>Journée pleine</b> : le plus long horaire de la semaine. C'est ce que vaut <code>1j</code> dans une durée. ${when('pointage', 'Une demi-journée de congé en retire la moitié : un jour qui est déjà une demi-journée (le vendredi à 4h) est entièrement libéré.')}</li>
       <li><b>Jours fériés français automatiques</b> : Pâques, Ascension et Pentecôte compris. Le prochain férié est rappelé à côté.</li>
       <li>Un <b>jour ouvré</b> est un jour de la semaine type qui n'est pas férié. ${when('projet', 'Le Gantt des projets compte en jours ouvrés : tes congés ne le décalent pas, puisque les étapes sont souvent faites par d\'autres.')}</li>
       ${when('pointage', '<li>Un <b>jour travaillé</b> est un jour ouvré où tu es là : sans congé ni absence d\'une journée entière posés dans Pointage. La Charge et l\'objectif du Pointage comptent en jours travaillés.</li>')}
@@ -123,12 +124,12 @@ const SECTIONS = [
     ${see(['repartition', 'chrono', 'recurrence', 'durees'])}` },
 
   { id: 'durees', g: 'daily', title: 'Écrire une durée', html: () => `
-    <p>Partout où une durée est demandée (temps estimé, temps réel, créneaux, objectifs), tu peux écrire :</p>
+    <p>Partout où une durée est demandée (temps estimé, temps réel, créneaux, horaire de la semaine type), tu peux écrire :</p>
     <ul>
       <li><code>1h30</code>, <code>1h</code>, <code>1.5h</code> : heures et minutes.</li>
       <li><code>45min</code> ou <code>45m</code> : minutes.</li>
       <li><code>2</code> : un nombre seul compte en <b>heures</b>.</li>
-      <li><code>1j</code> : une journée de travail (la capacité réglée dans la vue Charge, 7h par défaut).</li>
+      <li><code>1j</code> : une journée pleine, le plus long horaire de la semaine type (Données › Calendrier, 7h par défaut).</li>
     </ul>
     <p>Si la durée n'est pas comprise, un message le dit et rien n'est changé.</p>` },
 
@@ -257,7 +258,7 @@ const SECTIONS = [
       <li>Un créneau s'archive et se restaure comme le reste.</li>
       <li>Les jours fériés${when('pointage', ' et les congés posés dans Pointage')} sont retirés automatiquement : pas besoin de créneau pour eux.</li>
     </ul>
-    <p><b>Ma semaine type</b> : la capacité d'une journée (sert aussi pour écrire <code>1j</code>) ; la semaine type se règle dans Données › Calendrier.</p>`, tab: 'charge' },
+    <p><b>Ma semaine type</b> : la capacité de chaque jour, c'est l'horaire de la semaine type (par exemple 4h le vendredi). Il se règle dans Données › Calendrier, avec ou sans le Pointage.</p>`, tab: 'charge' },
 
   { id: 'pointer', mod: 'pointage', g: 'pointage', title: 'Pointer sa journée', html: () => `
     <p>Onglet Pointage, sous-onglet <b>Semaine</b> (et bandeau du tableau de bord) :</p>
@@ -297,10 +298,10 @@ const SECTIONS = [
     <p>Sous-onglet <b>Bilan</b>, par année :</p>
     <ul>
       <li><b>Cumul</b>, <b>moyenne</b> et <b>médiane</b> par semaine, <b>écart</b> à l'objectif.</li>
-      <li>La moyenne et la médiane ne prennent que les <b>semaines complètes</b> : terminées, chaque jour qui a un objectif pointé (une demi-journée suffit), sans congé, absence ni férié, quel que soit le total. Les heures d'un jour sans objectif (un samedi travaillé) comptent dans le total sans rien changer. Les autres apparaissent pâles dans le graphique.</li>
+      <li>La moyenne et la médiane ne prennent que les <b>semaines complètes</b> : terminées, chaque jour de l'horaire de la semaine type pointé (une demi-journée suffit), sans congé, absence ni férié, quel que soit le total. Les heures d'un jour hors horaire (un samedi travaillé) comptent dans le total sans rien changer. Les autres apparaissent pâles dans le graphique.</li>
       <li><b>Heures par semaine</b> : clique une barre pour ouvrir la semaine. Le trait est l'objectif de la semaine (diminué des absences et fériés).</li>
       <li><b>Par mois</b> : heures, jours pointés, moyenne par jour, objectif et écart.</li>
-      <li><b>Réglages</b> : objectif d'heures pour chaque jour de la semaine. Les jours fériés se règlent dans Données › Calendrier.</li>
+      <li><b>Réglages</b> : l'objectif de chaque jour est l'horaire de la semaine type, réglé dans Données › Calendrier avec les jours fériés.</li>
     </ul>
     ${see(['pointage-import'])}`, tab: 'pointage', ptTab: 'bilan' },
 

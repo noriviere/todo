@@ -59,21 +59,16 @@ test('temps retiré : le bandeau « Annuler » passe par l\'historique', async (
   assert.match(await page.locator('#toast').innerText(), /Annulé/);
 });
 
-test('Charge : créneau archivé (bandeau) et capacité de la journée s\'annulent', async () => {
-  const page = await openApp(base({ settings: { modules: {}, workdayMin: 420 },
+test('Charge : créneau archivé (bandeau) s\'annule ; la capacité ne se saisit plus dans la Charge (horaire de la semaine type)', async () => {
+  const page = await openApp(base({ settings: { modules: {} },
     fixedSlots: [{ id: 's1', title: 'Réunion', durMin: 60, freq: 'weekly', days: [1], start: day(-30), end: null, archived: false }] }), { hash: 'charge' });
   await page.click('#main [data-slid="s1"] [data-act="cc-slot-archive"]');
   assert.equal((await page.db()).fixedSlots[0].archived, true);
   await page.click('#toast [data-act="undo"]');
   assert.equal((await page.db()).fixedSlots[0].archived, false);
-  const cap = page.locator('#main [data-cc-set="workday"]');
-  await cap.fill('8h');
-  await cap.press('Enter');
-  await page.waitForTimeout(50);
-  assert.equal((await page.db()).settings.workdayMin, 480);
-  await ailleurs(page);
-  await ctrl(page, 'z');
-  assert.equal((await page.db()).settings.workdayMin, 420);
+  assert.equal(await page.locator('#main [data-cc-set="workday"]').count(), 0, 'plus de saisie « Capacité d\'une journée »');
+  assert.equal(await page.locator('#main .cc-settings [data-act="cal-voir"]').count(), 1, 'lien vers Données › Calendrier');
+  assert.deepEqual(page.errors, []);
 });
 
 test('Pointage : pointer l\'arrivée puis ↶ ; absence posée puis Ctrl+Z, avec retour à l\'onglet Pointage', async () => {

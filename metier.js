@@ -14,7 +14,7 @@ const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); return new D
 const addDays = (s, n) => { const d = parseYmd(s); d.setDate(d.getDate() + n); return ymd(d); };
 const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
-// Durées en minutes : "1h30", "1.5h", "45min", "45m", "2" (= heures), "1j" (= workdayMin) ; vide = null, illisible = NaN
+// Durées en minutes : "1h30", "1.5h", "45min", "45m", "2" (= heures), "1j" (= une journée pleine) ; vide = null, illisible = NaN
 function parseDur(s, workdayMin = 420) {
   s = String(s ?? '').trim().toLowerCase().replace(',', '.').replace(/\s+/g, '');
   if (!s) return null;
@@ -27,11 +27,30 @@ function parseDur(s, workdayMin = 420) {
 }
 
 /* ---------- Calendrier (CONTEXT.md « Calendrier ») ---------- */
-// Semaine type par défaut : du lundi au vendredi (0 = dimanche)
+// Semaine type par défaut : du lundi au vendredi (0 = dimanche), 7h par jour
 const SEMAINE_TYPE = [1, 2, 3, 4, 5];
+const JOURNEE_DEFAUT = 420;
 const UN_AN = 366;   // borne des recherches de jour : on ne cherche jamais plus loin qu'un an
 const JOURS_LONGS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
-const semaineType = settings => settings && Array.isArray(settings.workDays) && settings.workDays.length ? settings.workDays : SEMAINE_TYPE;
+// Horaire de la semaine type : minutes prévues pour chaque jour, indexé par getDay() (0 = dimanche) ; un jour à 0 n'en fait pas partie
+const horaireValide = h => Array.isArray(h) && h.length === 7 && h.every(m => Number.isFinite(m) && m >= 0) && h.some(m => m > 0);
+const horaireSur = (jours, min) => [0, 1, 2, 3, 4, 5, 6].map(wd => jours.includes(wd) ? min : 0);
+// Horaire des réglages ; sinon (données d'avant l'horaire commun) l'Objectif par jour du Pointage s'il existe,
+// puis l'ancienne capacité d'une journée (workdayMin) sur chaque jour de l'ancienne semaine type (workDays)
+function horaireDe(settings, pointage) {
+  const s = settings || {};
+  if (horaireValide(s.horaire)) return s.horaire;
+  const dm = pointage && pointage.dayMin;
+  if (dm && typeof dm === 'object') {
+    const h = [0, 1, 2, 3, 4, 5, 6].map(wd => Math.max(0, Math.round(+dm[wd] || 0)));
+    if (horaireValide(h)) return h;
+  }
+  const jours = Array.isArray(s.workDays) && s.workDays.length ? s.workDays : SEMAINE_TYPE;
+  return horaireSur(jours, s.workdayMin > 0 ? s.workdayMin : JOURNEE_DEFAUT);
+}
+const semaineType = settings => horaireDe(settings).map((m, wd) => m > 0 ? wd : -1).filter(wd => wd >= 0).sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7));
+// Journée pleine : le plus long horaire de la semaine type, ce que vaut « 1j »
+const journeePleine = settings => Math.max(...horaireDe(settings));
 const lundi = ds => addDays(ds, -((parseYmd(ds).getDay() + 6) % 7));
 // Numéro de semaine ISO 8601 : la semaine 1 contient le premier jeudi de l'année
 const semaineIso = ds => { const jeudi = addDays(lundi(ds), 3); return 1 + Math.floor(Math.round((parseYmd(jeudi) - parseYmd(jeudi.slice(0, 4) + '-01-01')) / 864e5) / 7); };
@@ -57,11 +76,22 @@ function feries(y) {
 // Calendrier d'après les réglages (semaine type, fériés automatiques) et les absences de Noel :
 // absenceDe(jour) → 'full' | 'am' | 'pm' | null, fourni par le module Pointage quand il est actif.
 function calendrier(settings, absenceDe = () => null) {
-  const sem = semaineType(settings), avecFeries = !settings || settings.feries !== false;
+  const horaire = horaireDe(settings), sem = semaineType(settings), pleine = journeePleine(settings), avecFeries = !settings || settings.feries !== false;
   const ferie = ds => avecFeries ? feries(+ds.slice(0, 4))[ds] || null : null;
   const ouvre = ds => sem.includes(parseYmd(ds).getDay()) && !ferie(ds);
   const absence = ds => absenceDe(ds) || null;
   const travaille = ds => ouvre(ds) && absence(ds) !== 'full';
+  // Horaire du jour de la semaine (férié compris), puis heures prévues : 0 hors semaine type ou férié, 0 un jour d'absence.
+  // Une demi-journée d'absence retire la moitié d'une journée pleine ; un jour qui est déjà une demi-journée (horaire plus
+  // proche d'une demi-journée que d'une journée pleine, soit au plus ses 3/4 : le vendredi à 4h) est entièrement libéré.
+  const horaireDu = ds => horaire[parseYmd(ds).getDay()];
+  const heuresPrevues = ds => {
+    if (!ouvre(ds)) return 0;
+    const a = absence(ds), h = horaireDu(ds);
+    if (a === 'full') return 0;
+    if (!a) return h;
+    return h <= pleine * 3 / 4 ? 0 : Math.max(0, h - Math.round(pleine / 2));
+  };
   // Le jour lui-même s'il convient, sinon le suivant (au plus un an plus loin : absence posée sur toute l'année)
   const suivant = test => ds => { let d = ds; for (let i = 0; i < UN_AN && !test(d); i++) d = addDays(d, 1); return d; };
   const ouvreSuivant = suivant(ouvre), travailleSuivant = suivant(travaille);
@@ -80,7 +110,7 @@ function calendrier(settings, absenceDe = () => null) {
     for (let d = ds, i = 0; i < UN_AN * 2; i++, d = addDays(d, 1)) if (ferie(d) && (!o.enSemaine || sem.includes(parseYmd(d).getDay()))) return d;
     return null;
   };
-  return { semaine: sem, ferie, ouvre, absence, travaille, raison, prochainFerie, ouvreSuivant, travailleSuivant, ajouterOuvres, ouvresEntre };
+  return { semaine: sem, horaire, journeePleine: pleine, horaireDu, heuresPrevues, ferie, ouvre, absence, travaille, raison, prochainFerie, ouvreSuivant, travailleSuivant, ajouterOuvres, ouvresEntre };
 }
 // Échéance d'une occurrence de récurrence qui tombe un jour non travaillé, selon la règle des réglages :
 // 'suivant' (par défaut) le jour travaillé suivant, 'precedent' le précédent mais jamais avant aujourd'hui
@@ -173,7 +203,7 @@ function blank() {
     version: 1,
     subjects: [],
     tasks: [],
-    settings: { theme: 'auto', workdayMin: 420, lastExport: null, modules: {}, workDays: SEMAINE_TYPE.slice(), feries: true, decalage: 'suivant' },
+    settings: { theme: 'auto', lastExport: null, modules: {}, horaire: horaireSur(SEMAINE_TYPE, JOURNEE_DEFAUT), feries: true, decalage: 'suivant' },
     ui: { expanded: [], showClosed: false, search: '', dims: { code: '', secteur: '', produit: '' } }
   };
 }
@@ -206,12 +236,15 @@ function normTask(t) {
 function migrate(d) {
   const b = blank();
   const feriesAvant = d && d.settings && d.settings.feries;
+  // Horaire commun de la semaine type, repris des anciens réglages (Objectif par jour du Pointage, capacité de la Charge),
+  // calculé avant que les réglages par défaut ne le remplissent. Les anciens champs restent dans les données (autre appareil pas à jour).
+  const horaireAvant = horaireDe(d && d.settings, d && d.pointage).slice();
   d = Object.assign(b, d);
   d.settings = Object.assign(blank().settings, d.settings);
   if (!d.settings.modules || typeof d.settings.modules !== 'object') d.settings.modules = {};
   // Fériés automatiques : réglage commun, repris de l'ancienne case du Pointage
   if (typeof feriesAvant !== 'boolean') d.settings.feries = !(d.pointage && d.pointage.holidays === false);
-  if (!Array.isArray(d.settings.workDays)) d.settings.workDays = SEMAINE_TYPE.slice();
+  d.settings.horaire = horaireAvant;
   d.ui = Object.assign(blank().ui, d.ui);
   // Ancienne dimension « Projet » (Excel) renommée « Code » : « Projet » désigne désormais le module Projets
   const dims = d.ui.dims || {};
@@ -322,7 +355,7 @@ const taskCmp = d => (a, b) => {
 const DUR_ERR = 'Durée non comprise. Exemples : 1h30, 45min, 2 (heures)';
 // Modifie un champ d'une tâche : true si changé, false si champ inconnu, ou le texte de l'erreur (rien n'est modifié)
 function setTaskField(t, f, v, d) {
-  const wd = d && d.settings && d.settings.workdayMin || 420;
+  const wd = journeePleine(d && d.settings);
   switch (f) {
     case 'title': t.title = v.trim(); break;
     case 'notes': t.notes = v; break;
@@ -417,7 +450,7 @@ function historique(max = 50) {
   };
 }
 
-const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, SEMAINE_TYPE, lundi, semaineIso, feries, calendrier, decaler, prochaineEcheance, tempsPointe, semaineComplete, DECALAGES, echeancesLes, blank, normSubject, normTask, migrate,
+const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, SEMAINE_TYPE, horaireDe, journeePleine, lundi, semaineIso, feries, calendrier, decaler, prochaineEcheance, tempsPointe, semaineComplete, DECALAGES, echeancesLes, blank, normSubject, normTask, migrate,
   isOpen, remaining, bucket, taskCmp, setTaskField, parentOf, childrenOf, estPremierNiveau, peutEtreRange, peutRanger, ranger, archiverSujet, subjectStats,
   photo, remettre, horodater, memesDonnees, historique };
 if (typeof module === 'object' && module.exports) module.exports = api;
