@@ -76,3 +76,11 @@ test('aucun fichier de test ne redéfinit un nom exporté par tests/helpers.js',
   });
   assert.deepEqual(fautes, [], fautes.join('\n'));
 });
+
+// Les fils de projet démarrent parfois sans .claude/settings.json (le hook SessionStart ne tourne pas) : les hooks Git
+// restent alors éteints sans bruit. La suite le signale tout de suite, hors CI (la CI n'a pas besoin des hooks).
+test('les hooks Git du dépôt sont actifs (git config core.hooksPath .githooks)', { skip: !!process.env.CI }, () => {
+  const { spawnSync } = require('child_process');
+  const val = spawnSync('git', ['config', 'core.hooksPath'], { cwd: RACINE, encoding: 'utf8' }).stdout.trim();
+  assert.equal(val, '.githooks', 'Hooks Git éteints : lance « git config core.hooksPath .githooks » à la racine du dépôt.');
+});
