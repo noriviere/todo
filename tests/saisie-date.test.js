@@ -4,7 +4,7 @@ const { openApp, closeAll } = require('./helpers');
 after(closeAll);
 
 // Taper une date au clavier d'un trait : le champ ne doit pas être réécrit en cours de frappe.
-// Chromium headless affiche les dates en mm/jj/aaaa : les chiffres sont tapés dans cet ordre.
+// Chromium est lancé en français (tests/helpers.js) : dates en jj/mm/aaaa, les chiffres sont tapés dans cet ordre, comme Noel.
 const data = () => ({
   version: 1,
   subjects: [{ id: 'p1', title: 'Projet', priority: 1, isProject: true, pj: { milestones: [] } },
@@ -20,7 +20,7 @@ const open = () => openApp(data(), { hash: 'sujets' });
 
 test('deadline d\'une tâche tapée d\'un trait puis Tab', async () => {
   const page = await open();
-  await typeDate(page, '[data-tid="t1"] [data-field="deadline"]', '06222026');
+  await typeDate(page, '[data-tid="t1"] [data-field="deadline"]', '22062026');
   await page.evaluate(() => document.activeElement.blur());   // sortie du champ
   await page.waitForTimeout(50);
   assert.equal((await page.db()).tasks[0].deadline, '2026-06-22');
@@ -29,7 +29,7 @@ test('deadline d\'une tâche tapée d\'un trait puis Tab', async () => {
 
 test('date tapée puis Entrée : enregistrée', async () => {
   const page = await open();
-  await typeDate(page, '[data-tid="t1"] [data-field="deadline"]', '06222026');
+  await typeDate(page, '[data-tid="t1"] [data-field="deadline"]', '22062026');
   await page.keyboard.press('Enter');
   await page.waitForTimeout(50);
   assert.equal((await page.db()).tasks[0].deadline, '2026-06-22');
@@ -37,14 +37,14 @@ test('date tapée puis Entrée : enregistrée', async () => {
 
 test('rien n\'est enregistré pendant la frappe', async () => {
   const page = await open();
-  await typeDate(page, '[data-tid="t1"] [data-field="deadline"]', '062220');
+  await typeDate(page, '[data-tid="t1"] [data-field="deadline"]', '220620');
   await page.waitForTimeout(50);
   assert.equal((await page.db()).tasks[0].deadline, null);
 });
 
 test('modifier le jour d\'une date existante', async () => {
   const page = await open();
-  await typeDate(page, '.subject[data-sid="s1"] [data-pjf="start"]', '11052026');
+  await typeDate(page, '.subject[data-sid="s1"] [data-pjf="start"]', '05112026');
   await page.evaluate(() => document.activeElement.blur());   // sortie du champ
   await page.waitForTimeout(50);
   assert.equal((await page.db()).subjects.find(s => s.id === 's1').plan.start, '2026-11-05');
@@ -52,7 +52,7 @@ test('modifier le jour d\'une date existante', async () => {
 
 test('fin prévue d\'une étape tapée d\'un trait', async () => {
   const page = await open();
-  await typeDate(page, '.subject[data-sid="s1"] [data-pjf="end"]', '11102026');
+  await typeDate(page, '.subject[data-sid="s1"] [data-pjf="end"]', '10112026');
   await page.evaluate(() => document.activeElement.blur());   // sortie du champ
   await page.waitForTimeout(50);
   assert.equal((await page.db()).subjects.find(s => s.id === 's1').plan.durDays, 7);

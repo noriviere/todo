@@ -12,11 +12,14 @@ const sujet = (o = {}) => M.normSubject(Object.assign({ id: 'S', title: 'Sujet' 
 const tache = (o = {}) => M.normTask(Object.assign({ subjectId: 'S' }, o));
 
 let browser;
+// Chromium en français, comme le navigateur de Noel : champs d'heure en 24 h, dates en jj/mm/aaaa. L'option locale de Playwright
+// n'y change rien ; sous Linux, c'est la langue de l'environnement (LANGUAGE, LANG) qui compte, --lang sert ailleurs.
+const LANCEMENT = { args: ['--lang=fr-FR'], env: { ...process.env, LANGUAGE: 'fr', LANG: 'fr_FR.UTF-8' } };
 // url : une autre page que index.html (par exemple une copie aux scripts réordonnés)
 // avant(page) : appelé avant le chargement de la page (accroches de test, comme le faux dépôt de la Synchro)
 // Boîtes confirm()/alert() : acceptées, sauf si page.__dialogue(d) est posé (le test répond alors lui-même)
 async function openApp(data, { hash = '', viewport = { width: 1280, height: 900 }, touch = false, query = '', today = TODAY, url = URL, avant } = {}) {
-  browser = browser || await chromium.launch();
+  browser = browser || await chromium.launch(LANCEMENT);
   const ctx = await browser.newContext({ viewport, hasTouch: touch, isMobile: touch });
   const page = await ctx.newPage();
   page.setDefaultTimeout(4000);
