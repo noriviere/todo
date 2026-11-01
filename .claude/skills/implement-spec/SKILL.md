@@ -20,7 +20,7 @@ Communication to and from subagents should be sparse. Communicate primarily thro
 - The PR branch is the session's designated branch. Every subagent pointer includes `AGENTS.md` (standing rules: modules off, guide and demo, phone width, French, `ui-ux-pro-max` for interface changes).
 - Each implementer works the way `/mattpocock-skills:implement` does: `/mattpocock-skills:tdd` at the seams agreed in the spec, single test files while working, the full suite (`node --test tests/*.test.js`) before handing back.
 - Each implementer's brief says: every story of the spec that the ticket touches has a test, even when the ticket's criteria leave it out (`CODING_STANDARDS.md` › Tests).
-- `.githooks/pre-commit` runs the suite on every commit, in worktrees too; never bypass it. `.githooks/pre-push` refuses a branch that does not contain an up-to-date `origin/main`: merge it first.
+- `.githooks/pre-commit` runs the suite on every commit, in worktrees too, once `git config core.hooksPath` is `.githooks` (set it before the first subagent starts; worktrees share it); never bypass it. `.githooks/pre-push` refuses a branch that does not contain an up-to-date `origin/main`: merge it first.
 
 ## Steps
 
