@@ -56,7 +56,11 @@ _À éviter_ : supprimer, retour arrière
 ### Calendrier
 
 **Semaine type** :
-Les jours de la semaine où l'on travaille normalement (du lundi au vendredi par défaut), réglés une fois pour toute l'appli, quels que soient les modules actifs.
+L'horaire normal de chaque jour de la semaine (chez Noel 7h45 du lundi au jeudi, 4h le vendredi), réglé une fois pour toute l'appli, quels que soient les modules actifs. Un jour à 0h n'est pas dans la semaine type. La Charge en tire la capacité de chaque jour, le Pointage son objectif.
+_À éviter_ : capacité d'une journée, objectif par jour (deux réglages séparés, fondus en un seul)
+
+**Journée pleine** :
+Le plus long horaire de la semaine type. C'est ce que vaut « 1j » dans une durée ; une demi-journée de congé retire la moitié d'une journée pleine, et libère donc tout un jour dont l'horaire est d'une demi-journée ou moins (le vendredi à 4h).
 
 **Jour férié** :
 Un jour férié français, reconnu automatiquement (la case peut se décocher). Il n'est jamais ouvré.
@@ -87,6 +91,12 @@ _À éviter_ : planning, workload
 
 **Pointage et congés** :
 Les heures d'arrivée, de repas et de départ, les absences et les compteurs de congés. Les absences réduisent la capacité de la Charge.
+
+**Temps pointé** :
+Le temps de présence d'un jour : de l'arrivée au départ, moins le repas. Un jour passé sans départ s'arrête au début du repas (la demi-journée du vendredi, pointée « Pause déjeuner » sans retour) ; sans départ ni repas, il compte 0. Une correction après coup suit la même règle.
+
+**Semaine complète** :
+Une semaine finie dont chaque jour de la semaine type a du temps pointé, sans absence ni férié, quel que soit le total. Seules les semaines complètes entrent dans la moyenne et la médiane du Bilan ; les heures d'un jour hors semaine type comptent dans le total sans rien changer.
 
 **Récurrence** :
 Une tâche qui se recrée toute seule (chaque jour travaillé, semaine, mois, année) quand la précédente est faite. Si l'occurrence suivante tombe un jour non travaillé, son échéance est décalée (au jour travaillé suivant par défaut, réglable), en repartant toujours de la date théorique : le décalage ne s'accumule pas.
