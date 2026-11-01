@@ -183,7 +183,7 @@
           </div>
           <p class="hint" style="margin:10px 0 0">Astuce : quand Edge ou Chrome demande l'accès, choisis « Autoriser à chaque visite » pour ne plus avoir à cliquer sur Reprendre.</p>`;
       }
-      card.innerHTML = `<div class="card"><h3>Sauvegarde automatique</h3>${body}</div>`;
+      card.innerHTML = `<div class="card"><h3 data-repere="sauvegarde-auto">Sauvegarde automatique</h3>${body}</div>`;
     }
   }
 

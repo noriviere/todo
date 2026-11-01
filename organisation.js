@@ -61,7 +61,7 @@
     const f = F();
     const chip = (v, label, cls) => `<button type="button" class="chip ${cls} ${f.prios.includes(v) ? 'on' : ''}" data-org-prio="${v}">${label}</button>`;
     const subs = db().subjects.filter(s => !s.archived).sort((a, b) => a.priority - b.priority || A.subjLabel(a).localeCompare(A.subjLabel(b), 'fr'));
-    return `<div class="org-filters">
+    return `<div class="org-filters" data-repere="filtres">
       ${chip(1, 'P1', 'p1')}${chip(2, 'P2', 'p2')}${chip(3, 'P3', 'p3')}${chip(0, A.ICON.inbox + 'À ranger', 'inb')}
       <select data-org-subj data-k="org-subj" title="Filtrer sur un sujet">
         <option value="">Tous les sujets</option>
@@ -305,7 +305,7 @@
   // Module activable (Données › Modules actifs) : masqué, plus de ↻, plus d'option Répéter, plus de création automatique
   const recurOn = () => !A.modOn || A.modOn('recurrence');
   A.hooks.taskRow.push(t => t.recur && recurOn() ? `<span class="org-recur" title="Répète : ${esc(recurLabel(t.recur))}">↻</span>` : '');
-  A.hooks.drawer.push(t => !recurOn() ? '' : `<div class="f"><label>Répéter</label>
+  A.hooks.drawer.push(t => !recurOn() ? '' : `<div class="f"><label data-repere="recurrence">Répéter</label>
       <select data-org-recur data-k="dr-recur">${RECUR.map(([v, l]) => `<option value="${v}" ${v === recurKey(t.recur) ? 'selected' : ''}>${l}</option>`).join('')}</select>
       <span class="hint">Quand elle est faite (ou annulée), la suivante est créée automatiquement${t.deadline ? '' : ', à partir de la date du jour'}.</span>
     </div>`);

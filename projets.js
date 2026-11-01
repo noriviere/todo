@@ -72,7 +72,7 @@ function listView() {
       <button class="icon pj-arch" data-pj="unproject" title="Quitter le mode projet (le sujet et ses sous-sujets restent)">✕</button>
     </div>`;
   }).join('');
-  return `<h1>Projets</h1>
+  return `<h1 data-repere="projets">Projets</h1>
     <p class="sub">Les sujets passés en mode projet : leurs sous-sujets sont les étapes du planning, avec leurs jalons.</p>
     <div class="toolbar"><button class="btn primary" data-pj="new-project">+ Nouveau projet</button></div>
     ${ps.length ? `<div class="pj-list">${cards}</div>` : `<div class="card"><p>Aucun projet pour le moment. Crée un projet, ou coche « Mode projet » dans la fiche d'un sujet (onglet Sujets) : ses sous-sujets deviennent les étapes.</p></div>`}`;
@@ -105,7 +105,7 @@ function milestonesSection(p, sc) {
       <button class="icon" data-pj="archive-milestone" title="Archiver le jalon">${A.ICON.archive}</button>
       ${steps.length ? `<div class="pj-after"><span class="pj-lbl">À finir avant</span>${steps.map(o => `<label class="pj-chip"><input type="checkbox" data-pj-before="${o.id}" ${(m.before || []).includes(o.id) ? 'checked' : ''}><span>${esc(o.title)}</span></label>`).join('')}</div>` : ''}
     </div>`).join('');
-  return `<section class="card pj-sec"><h3>Jalons</h3>
+  return `<section class="card pj-sec"><h3 data-repere="projets">Jalons</h3>
     <p class="pj-hint">Dates fixes du projet (livraison, paiements…). Ils ne bougent jamais seuls : une alerte prévient si une étape les dépasse.</p>
     ${rows}
     ${(pjOf(p).milestones || []).filter(m => m.archived).map(m => `<div class="pj-ms arc" data-mid="${m.id}"><span class="pj-dia" aria-hidden="true">◇</span><span>${esc(m.name)} · archivé</span><button class="btn" data-pj="restore-milestone">Restaurer</button></div>`).join('')}

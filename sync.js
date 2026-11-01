@@ -251,7 +251,7 @@
         <p class="hint" style="margin:10px 0 0">Crée un jeton « fine-grained » limité au seul dépôt des données (droit Contents en lecture et écriture) avec une date d'expiration. L'appli refuse de synchroniser vers un dépôt public.<br>
         Sur un nouvel appareil, connecte-toi avec le même dépôt : les données sont récupérées automatiquement.</p>`;
     }
-    card.innerHTML = `<div class="card"><h3>Synchro PC ↔ téléphone</h3>${body}</div>`;
+    card.innerHTML = `<div class="card"><h3 data-repere="synchro">Synchro PC ↔ téléphone</h3>${body}</div>`;
   }
 
   document.addEventListener('click', e => {
