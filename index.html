@@ -816,7 +816,7 @@ function subjectOptions(selected) {
       list.map(s => opt(s, '') + childrenOf(s).sort((a, b) => a.title.localeCompare(b.title, 'fr')).map(c => opt(c, '\u00a0\u00a0↳ ')).join('')).join('') +
       '</optgroup>';
   }
-  // Sujet archivé encore rattaché : on l'affiche pour ne pas le perdre
+  // Sujet archivé dans lequel celui-ci est encore rangé : on l'affiche pour ne pas le perdre
   const cur = subj(selected);
   if (cur && cur.archived) h += `<option value="${cur.id}" selected>🗄 ${esc(cur.title)}</option>`;
   return h;

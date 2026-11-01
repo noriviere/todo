@@ -37,3 +37,26 @@ test('aucune copie des règles de dates hors de metier.js', () => {
   });
   assert.deepEqual(fautes, [], fautes.join('\n'));
 });
+
+// .githooks/pre-push, joué dans un dépôt jetable : refuse une branche qui ne contient pas origin/main
+test('le hook pre-push refuse une branche en retard sur origin/main, accepte une branche à jour', () => {
+  const { execFileSync, spawnSync } = require('child_process');
+  const os = require('os');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pre-push-'));
+  const git = (dir, ...a) => execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...a], { encoding: 'utf8' }).trim();
+  const origine = path.join(tmp, 'origine.git'), clone = path.join(tmp, 'clone');
+  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', origine]);
+  execFileSync('git', ['init', '-q', '-b', 'main', clone]);
+  git(clone, 'remote', 'add', 'origin', origine);
+  git(clone, 'commit', '-q', '--allow-empty', '-m', 'un');
+  const ancien = git(clone, 'rev-parse', 'HEAD');
+  git(clone, 'commit', '-q', '--allow-empty', '-m', 'deux');
+  git(clone, 'push', '-q', '--no-verify', 'origin', 'main');
+  const pousser = sha => spawnSync('sh', [path.join(RACINE, '.githooks', 'pre-push'), 'origin', origine],
+    { cwd: clone, input: `refs/heads/x ${sha} refs/heads/x ${'0'.repeat(40)}\n`, encoding: 'utf8' });
+  const refus = pousser(ancien);
+  assert.equal(refus.status, 1);
+  assert.match(refus.stdout, /Fusionne main d'abord/);
+  assert.equal(pousser(git(clone, 'rev-parse', 'HEAD')).status, 0);
+  fs.rmSync(tmp, { recursive: true, force: true });
+});

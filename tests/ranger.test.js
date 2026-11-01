@@ -4,7 +4,7 @@ const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { openApp, closeAll, ctrl, ailleurs } = require('./helpers');
+const { openApp, closeAll, ctrl, ailleurs, deplier } = require('./helpers');
 after(closeAll);
 
 const donnees = projet => ({
@@ -79,4 +79,14 @@ test('le cœur ne connaît plus les champs de Gestion de projet', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8') + fs.readFileSync(path.join(__dirname, '..', 'metier.js'), 'utf8');
   for (const champ of ['isProject', 'lagDays', '.pj', 'milestones', '.after'])
     assert.ok(!src.includes(champ), `le cœur cite encore « ${champ} »`);
+});
+
+test('deplier ouvre un sujet replié pour atteindre son menu « Dans », et laisse ouvert un sujet déjà ouvert', async () => {
+  const page = await openApp(donnees(true), { hash: 'sujets' });
+  const menu = id => page.locator(`#main .subject[data-sid="${id}"] [data-field="s-parent"]`);
+  assert.equal(await menu('s2').count(), 0, 's2 est replié dans les données');
+  await deplier(page, 's2');
+  await deplier(page, 's1');
+  assert.equal(await menu('s2').count(), 1);
+  assert.equal(await menu('s1').count(), 1, 's1, déjà ouvert, ne s’est pas replié');
 });

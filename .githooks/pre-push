@@ -1,0 +1,15 @@
+#!/bin/sh
+# Avant chaque push : la branche poussée doit contenir origin/main à jour.
+# Sinon la PR est en conflit ou en retard sur les règles de main, et GitHub ne lance pas la CI sur une PR en conflit.
+# (activer une fois : git config core.hooksPath .githooks ; les sessions cloud le font au démarrage)
+git fetch -q origin main 2>/dev/null || echo "pre-push : impossible de récupérer origin/main, vérification sur la dernière copie connue."
+git rev-parse -q --verify origin/main >/dev/null || exit 0
+zero=0000000000000000000000000000000000000000
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue   # suppression d'une branche distante
+  if ! git merge-base --is-ancestor origin/main "$local_sha"; then
+    echo "pre-push : ${local_ref#refs/heads/} ne contient pas origin/main. Fusionne main d'abord : git merge origin/main"
+    exit 1
+  fi
+done
+exit 0

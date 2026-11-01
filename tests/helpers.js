@@ -46,4 +46,11 @@ async function glisserPoignee(page, ligne, vers, { avantLacher, lacher = true } 
   if (lacher) await page.mouse.up();
   return r;
 }
-module.exports = { openApp, closeAll, day, ppd, TODAY, ctrl, ailleurs, glisserPoignee };
+// Déplie un sujet de l'onglet Sujets s'il est replié : son contenu (tâches, menu « Dans »…) n'existe qu'une fois ouvert.
+// Sans lui, un sélecteur sur ce contenu attend jusqu'au délai (4 s). Autre voie : mettre l'id dans ui.expanded des données.
+async function deplier(page, id) {
+  const sujet = page.locator(`#main .subject[data-sid="${id}"]`);
+  if (!(await sujet.evaluate(el => el.classList.contains('open')))) await sujet.locator('.s-head [data-act="toggle-subject"]').click();
+  await page.locator(`#main .subject.open[data-sid="${id}"]`).waitFor();
+}
+module.exports = { openApp, closeAll, day, ppd, TODAY, ctrl, ailleurs, glisserPoignee, deplier };

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Démarrage d'une session Claude Code dans le cloud : active le hook pre-commit (tests Playwright).
+# Démarrage d'une session Claude Code dans le cloud : active les hooks Git (pre-commit : tests Playwright ; pre-push : main fusionné).
 set -euo pipefail
 
 if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
