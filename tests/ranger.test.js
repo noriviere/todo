@@ -50,10 +50,20 @@ for (const projet of [true, false]) {
       return { peut: A.canNest(v, q), range: A.modifier('test', () => A.setParent(v, 'q')) };
     });
     assert.equal(r.peut, false);
+    assert.equal(r.range, false, 'setParent refuse');
     assert.equal(sujet(await page.db(), 'v').parentId || null, null);
     assert.equal(await page.locator('#main .subject[data-sid="v"] [data-field="s-parent"]').count(), 0, 'pas de menu « Dans » sur un projet');
   });
 }
+
+test('ranger une étape d\'un projet dans un autre : elle perd ses liens dans l\'ancien projet', async () => {
+  const page = await openApp(donnees(true), { hash: 'sujets' });
+  await page.evaluate(() => { const A = window.todoApp; A.modifier('test', () => A.setParent(A.subj('s1'), 'v')); });
+  const d = await page.db();
+  assert.equal(sujet(d, 's1').parentId, 'v');
+  assert.deepEqual([sujet(d, 's1').after, sujet(d, 's1').lagDays, sujet(d, 's2').after], [[], 0, []]);
+  assert.deepEqual(sujet(d, 'p1').pj.milestones[0].before, ['s2']);
+});
 
 test('archiver une étape garde ses liens', async () => {
   const page = await openApp(donnees(true), { hash: 'sujets' });

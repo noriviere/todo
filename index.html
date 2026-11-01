@@ -550,6 +550,7 @@ const subjLabel = s => s ? (parentOf(s) ? parentOf(s).title + ' › ' : '') + (s
 // et réagissent à une sortie de parent par hooks.sortieDuParent (même modification, donc annulée avec elle)
 const canBeChild = s => M.peutEtreRange(s, db, hooks.refusRangement);
 const canNest = (s, np) => M.peutRanger(s, np, db, hooks.refusRangement);
+// À appeler dans A.modifier : la réaction des modules fait partie de la même étape d'annulation
 function setParent(s, pid) {
   const r = M.ranger(s, pid, db, hooks.refusRangement);
   if (!r) return false;
