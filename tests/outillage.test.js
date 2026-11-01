@@ -34,11 +34,11 @@ const COPIES = [
 const JOUR_MS = /\b(86400000|864e5|8\.64e7)\b/;
 const JOUR_MS_PERMIS = ['donnees/excel-import.js', 'modules/pointage/pointage-import.js', 'donnees/backup.js'];
 
-// Les fichiers de l'appli, dans tous leurs dossiers (hors tests, bibliothèques tierces, docs et outillage)
+// Les fichiers de l'appli, dans tous leurs dossiers (hors dossiers racine des tests, bibliothèques tierces, docs et outillage)
 const HORS_APPLI = new Set(['.git', '.github', '.githooks', '.claude', 'tests', 'vendor', 'docs', 'node_modules']);
 const fichiersAppli = (ext, dossier = '') => fs.readdirSync(path.join(RACINE, dossier), { withFileTypes: true }).flatMap(e => {
   const rel = dossier ? `${dossier}/${e.name}` : e.name;
-  if (e.isDirectory()) return HORS_APPLI.has(e.name) ? [] : fichiersAppli(ext, rel);
+  if (e.isDirectory()) return !dossier && HORS_APPLI.has(e.name) ? [] : fichiersAppli(ext, rel);
   return e.name.endsWith(ext) ? [rel] : [];
 });
 
@@ -65,6 +65,8 @@ test('chaque fichier appelé par la page et par le manifeste existe', () => {
   const appels = [...page.matchAll(/\b(?:src|href)="([^"#$:]+)"/g)].map(m => m[1]);
   const manifeste = JSON.parse(fs.readFileSync(path.join(RACINE, 'manifest.webmanifest'), 'utf8'));
   appels.push(...manifeste.icons.map(i => i.src));
+  // Scripts chargés à la demande par un fichier de l'appli (s.src = '…') : chemin relatif à la page
+  for (const f of fichiersAppli('.js')) for (const m of fs.readFileSync(path.join(RACINE, f), 'utf8').matchAll(/\.src\s*=\s*'([^'#$:]+)'/g)) appels.push(m[1]);
   assert.ok(appels.length > 10, 'appels lus : ' + appels.join(', '));
   const absents = appels.filter(f => !fs.existsSync(path.join(RACINE, f)));
   assert.deepEqual(absents, [], 'fichiers absents :\n' + absents.join('\n'));

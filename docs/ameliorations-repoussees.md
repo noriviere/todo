@@ -15,7 +15,7 @@ on le barre (`~~…~~`) et on note la PR ou la raison dans « État » ; on ne s
 | 1 | ~~**Piste B** : la prévision de la Charge dans un fichier pur et testé, comme `projets-plan.js` ; `canWork` refait le calcul de `calendrier().travaille`~~ | Revue d'architecture du 01/11 | Fait, PR #66 : `charge-plan.js` testé sous Node, jours possibles = jours travaillés du calendrier commun |
 | 2 | **Piste C** : les compteurs de congés N/N-1 et les stats du Pointage (semaines complètes, médiane) en fonctions pures testées ; déjà corrigés deux fois (PR #4, #6) sans test direct | Revue d'architecture du 01/11 | À lancer |
 | 3 | **Piste D** : un seul lecteur Excel pour l'import de la to-do et celui du pointage (`serialDate`, `loadLib` copiés) | Revue d'architecture du 01/11 (spéculative) | À lancer ; en la faisant, retirer les deux lecteurs de `JOUR_MS_PERMIS` (`tests/outillage.test.js`) |
-| 4 | Ne plus changer à la main la version du cache hors connexion (`sw.js`, `todo-noel-app-v12`) à chaque mise en ligne | Revue d'architecture du 31/10, candidat 6 (spéculatif) | Vérifié, toujours manuel |
+| 4 | Ne plus changer à la main la version du cache hors connexion (`sw.js`, `todo-noel-app-v13` depuis le rangement en dossiers) à chaque mise en ligne | Revue d'architecture du 31/10, candidat 6 (spéculatif) | Vérifié, toujours manuel |
 | 27 | La **Récurrence** ne doit plus être un module activable : elle devient une fonction toujours active (retirée de « Modules actifs ») | Grill du rangement des fichiers, 01/11 (Q2, décision de Noel) | À lancer |
 
 ## Synchro
@@ -64,3 +64,4 @@ on le barre (`~~…~~`) et on note la PR ou la raison dans « État » ; on ne s
 |---|---|---|---|
 | 23 | `setTaskField` rend `true`, `false` ou un texte d'erreur : un résultat `{ ok, erreur }` serait plus clair | Revue PR #24, 31/10 | Repoussée |
 | 24 | `modules/organisation/organisation.js` reconnaît une tâche « jamais touchée » par `createdAt === updatedAt`, ce qui est fragile | Piste 2, 31/10 | À vérifier |
+| 28 | Deux tests (`tests/emplacements.test.js`, `tests/annuler-orga-projets.test.js`) gardent chacun leur liste des scripts de modules : à lire depuis les balises de `index.html` ou à partager dans `tests/helpers.js` | Revue PR #70, 01/11 | Repoussée |
