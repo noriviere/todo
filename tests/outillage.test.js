@@ -84,3 +84,9 @@ test('les hooks Git du dépôt sont actifs (git config core.hooksPath .githooks)
   const val = spawnSync('git', ['config', 'core.hooksPath'], { cwd: RACINE, encoding: 'utf8' }).stdout.trim();
   assert.equal(val, '.githooks', 'Hooks Git éteints : lance « git config core.hooksPath .githooks » à la racine du dépôt.');
 });
+
+// La liste des améliorations repoussées est la première source quand on cherche des améliorations
+test('AGENTS.md renvoie à la liste des améliorations repoussées, qui existe', () => {
+  assert.ok(fs.existsSync(path.join(RACINE, 'docs/ameliorations-repoussees.md')));
+  assert.ok(lignes('AGENTS.md').some(l => l.includes('docs/ameliorations-repoussees.md')));
+});
