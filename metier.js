@@ -186,38 +186,7 @@ function migrate(d) {
     return normSubject(s);
   });
   d.tasks = (d.tasks || []).map(normTask);
-  migrateProjects(d);
   return d;
-}
-// Anciens projets séparés (db.projects) : chaque projet devient un sujet en mode projet, ses étapes ses sous-sujets
-function migrateProjects(d) {
-  const ps = Array.isArray(d.projects) ? d.projects : [];
-  for (const p of ps) {
-    if (!p || !p.id) continue;
-    const steps = d.subjects.filter(s => s.projectId === p.id);
-    const pj = { owner: p.owner || '', color: p.color || '', milestones: Array.isArray(p.milestones) ? p.milestones : [] };
-    let s = d.subjects.find(x => x.id === p.id);
-    if (!s) {
-      const common = k => { const v = [...new Set(steps.map(x => (x[k] || '').trim()))]; return v.length === 1 ? v[0] : ''; };
-      s = normSubject({ id: p.id, title: p.name || 'Projet', priority: steps.length ? Math.min(...steps.map(x => +x.priority || 3)) : 2,
-        code: common('code'), secteur: common('secteur'), produit: common('produit'),
-        archived: !!p.archived, archivedAt: p.archivedAt || null, createdAt: p.createdAt || nowIso() });
-      d.subjects.push(s);
-    }
-    s.isProject = true; s.pj = pj; s.parentId = null;
-    steps.forEach(x => {
-      // Un seul niveau : une étape qui a ses propres sous-sujets reste au premier niveau
-      if (x === s || d.subjects.some(y => y.parentId === x.id && y !== x)) return;
-      const old = x.parentId && x.parentId !== p.id ? d.subjects.find(y => y.id === x.parentId) : null;
-      if (old) {   // rangée ailleurs entre-temps (autre appareil) : ses liens d'étape ne valent plus
-        x.after = []; x.lagDays = 0;
-        ((old.pj && old.pj.milestones) || []).forEach(m => { if (Array.isArray(m.before)) m.before = m.before.filter(id => id !== x.id); });
-      }
-      x.parentId = p.id;
-    });
-  }
-  d.subjects.forEach(s => { delete s.projectId; });
-  delete d.projects;
 }
 
 /* ---------- Tâches ---------- */
@@ -240,6 +209,29 @@ function parentOf(s, d) {
 }
 // Sous-sujets d'un sujet ; all = archivés compris
 const childrenOf = (s, d, all) => d.subjects.filter(x => x.parentId === s.id && x !== s && (all || !x.archived) && parentOf(x, d) === s);
+// Premier niveau à l'affichage : sans parent, ou dont le parent est archivé (sous-sujet restauré seul)
+const estPremierNiveau = (s, d) => { const p = parentOf(s, d); return !p || p.archived; };
+// Ranger dans / sortir de (CONTEXT.md). refus : prédicats fournis par les modules (ex. un sujet en mode projet)
+const peutEtreRange = (s, d, refus = []) => !d.subjects.some(x => x.parentId === s.id && x !== s) && !refus.some(f => f(s));
+const peutRanger = (s, cible, d, refus = []) => !!cible && cible !== s && !cible.parentId && !cible.archived && peutEtreRange(s, d, refus);
+// Range s dans le sujet cibleId, ou l'en sort (cibleId vide). Ne touche que parentId ; renvoie { ancien } ou null si rien ne change
+function ranger(s, cibleId, d, refus = []) {
+  const cible = cibleId ? subjOf(d, cibleId) : null;
+  if (cibleId && !peutRanger(s, cible, d, refus)) return null;
+  const ancien = parentOf(s, d);
+  if ((ancien && ancien.id) === (cible && cible.id)) return null;
+  s.parentId = cible ? cible.id : null;
+  return { ancien };
+}
+// Archiver un sujet archive ses sous-sujets ; la restauration ne rend que ceux archivés avec lui. Ne sort personne de son parent
+function archiverSujet(s, d, on = true, maintenant = nowIso()) {
+  childrenOf(s, d, true).forEach(c => {
+    if (on && !c.archived) { c.archivedWithParent = true; c.archived = true; c.archivedAt = maintenant; }
+    else if (!on && c.archivedWithParent) { c.archivedWithParent = false; c.archived = false; c.archivedAt = null; }
+  });
+  s.archived = on; s.archivedAt = on ? maintenant : null;
+  if (!on) s.archivedWithParent = false;
+}
 
 // État d'un sujet déduit de ses tâches (hors archivées) ; un parent compte aussi les tâches de ses sous-sujets actifs
 function subjectStats(s, d, today) {
@@ -390,7 +382,7 @@ function historique(max = 50) {
 }
 
 const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, SEMAINE_TYPE, lundi, semaineIso, feries, calendrier, decaler, prochaineEcheance, DECALAGES, echeancesLes, blank, normSubject, normTask, migrate,
-  isOpen, remaining, bucket, taskCmp, setTaskField, parentOf, childrenOf, subjectStats,
+  isOpen, remaining, bucket, taskCmp, setTaskField, parentOf, childrenOf, estPremierNiveau, peutEtreRange, peutRanger, ranger, archiverSujet, subjectStats,
   photo, remettre, horodater, memesDonnees, historique };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.todoMetier = api;

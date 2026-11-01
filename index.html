@@ -543,25 +543,19 @@ const activeSubjects = () => db.subjects.filter(s => !s.archived)
 // Sous-sujets : un seul niveau. Un parent introuvable ou lui-même rangé ailleurs ne compte pas (le sujet reste au premier niveau).
 const parentOf = s => M.parentOf(s, db);
 // Premier niveau à l'affichage : sans parent, ou dont le parent est archivé (sous-sujet restauré seul)
-const isTop = s => { const p = parentOf(s); return !p || p.archived; };
+const isTop = s => M.estPremierNiveau(s, db);
 const childrenOf = (s, all) => M.childrenOf(s, db, all);
 const subjLabel = s => s ? (parentOf(s) ? parentOf(s).title + ' › ' : '') + (s.title || 'Sans titre') : '';
-// Peut devenir sous-sujet : pas de sous-sujets à lui (même archivés), pas en mode projet ; la cible est de premier niveau
-const canBeChild = s => !childrenOf(s, true).length && !db.subjects.some(x => x.parentId === s.id && x !== s) && !s.isProject;
-const canNest = (s, np) => np !== s && !np.parentId && !np.archived && canBeChild(s);
-// Change le parent d'un sujet ; une étape qui quitte son parent perd ses liens de planning
+// Ranger dans / sortir de (CONTEXT.md) : règles dans metier.js ; les modules refusent par hooks.refusRangement
+// et réagissent à une sortie de parent par hooks.sortieDuParent (même modification, donc annulée avec elle)
+const canBeChild = s => M.peutEtreRange(s, db, hooks.refusRangement);
+const canNest = (s, np) => M.peutRanger(s, np, db, hooks.refusRangement);
+// À appeler dans A.modifier : la réaction des modules fait partie de la même étape d'annulation
 function setParent(s, pid) {
-  const np = pid ? subj(pid) : null;
-  if (np && !canNest(s, np)) return false;
-  const old = parentOf(s);
-  if ((old && old.id) === (np && np.id)) return false;
-  if (old) {
-    childrenOf(old, true).forEach(x => { if (Array.isArray(x.after)) x.after = x.after.filter(id => id !== s.id); });
-    ((old.pj && old.pj.milestones) || []).forEach(m => { if (Array.isArray(m.before)) m.before = m.before.filter(id => id !== s.id); });
-    s.after = []; s.lagDays = 0;
-  }
-  s.parentId = np ? np.id : null;
-  if (np) expandTo(s.id);
+  const r = M.ranger(s, pid, db, hooks.refusRangement);
+  if (!r) return false;
+  if (r.ancien) hooks.sortieDuParent.forEach(f => f(s, r.ancien));
+  if (s.parentId) expandTo(s.id);
   return true;
 }
 // Déplie un sujet et son parent
@@ -640,15 +634,7 @@ function setSubjectField(s, f, v) {
 function archiveTask(t, on = true) {
   t.archived = on; t.archivedAt = on ? nowIso() : null;
 }
-function archiveSubject(s, on = true) {
-  // Les sous-sujets suivent leur parent ; ceux archivés avant restent archivés à la restauration
-  childrenOf(s, true).forEach(c => {
-    if (on && !c.archived) { c.archivedWithParent = true; c.archived = true; c.archivedAt = nowIso(); }
-    else if (!on && c.archivedWithParent) { c.archivedWithParent = false; c.archived = false; c.archivedAt = null; }
-  });
-  s.archived = on; s.archivedAt = on ? nowIso() : null;
-  if (!on) s.archivedWithParent = false;
-}
+const archiveSubject = (s, on = true) => M.archiverSujet(s, db, on);
 
 /* ---------- Toast ---------- */
 let toastTimer;
@@ -1543,7 +1529,7 @@ window.todoApp = {
   replaceData: d => { keepBackup(); db = migrate(d); viderHistorique(); save(); render(); }
 };
 // Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
-const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], subjectBody: [], apresModif: [], absence: [] };
+const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], subjectBody: [], apresModif: [], absence: [], refusRangement: [], sortieDuParent: [] };
 const titre = x => (x && x.title) || 'Sans titre';
 // Enregistre l'affichage (filtres, onglets, sujets dépliés, modules actifs), hors historique.
 // Une donnée changée en route (oubli de modifier()) n'est ni perdue ni effaçable : elle devient un pas annulable.

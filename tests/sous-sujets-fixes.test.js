@@ -59,11 +59,3 @@ test('la carte d\'un projet permet de quitter le mode projet', async () => {
   await page.click('#main .pj-card[data-pid="p"] [data-pj="unproject"]');
   assert.equal((await page.db()).subjects[0].isProject, false);
 });
-
-test('migration : une étape qui a ses propres sous-sujets reste au premier niveau', async () => {
-  const page = await openApp({ version: 1, projects: [{ id: 'p1', name: 'Achat', milestones: [] }],
-    subjects: [{ id: 'a', title: 'A', priority: 1, projectId: 'p1' }, { id: 'k', title: 'K', priority: 1, parentId: 'a' }], tasks: [], settings: {}, ui: {} });
-  const d = await page.db();
-  assert.equal(d.subjects.find(s => s.id === 'a').parentId || null, null);
-  assert.equal(d.subjects.find(s => s.id === 'k').parentId, 'a');
-});

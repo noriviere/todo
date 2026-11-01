@@ -109,22 +109,6 @@ test('migration : dimension « Projet » renommée « Code », données vides co
   assert.equal(d.subjects[0].priority, 3);
 });
 
-test('migration : un ancien projet séparé devient un sujet en mode projet, ses étapes ses sous-sujets', () => {
-  const d = M.migrate({
-    projects: [{ id: 'PJ', name: 'Chantier', owner: 'Léa', milestones: [{ id: 'm', date: '2026-12-01', before: ['E1'] }] }],
-    subjects: [{ id: 'E1', title: 'Étape 1', projectId: 'PJ', priority: 2, code: 'K' }, { id: 'E2', title: 'Étape 2', projectId: 'PJ', priority: 1, code: 'K' }]
-  });
-  const pj = d.subjects.find(s => s.id === 'PJ');
-  assert.equal(pj.title, 'Chantier');
-  assert.equal(pj.isProject, true);
-  assert.equal(pj.priority, 1);
-  assert.equal(pj.code, 'K');
-  assert.equal(pj.pj.owner, 'Léa');
-  assert.deepEqual(d.subjects.filter(s => s.parentId === 'PJ').map(s => s.id), ['E1', 'E2']);
-  assert.ok(!('projects' in d));
-  assert.ok(d.subjects.every(s => !('projectId' in s)));
-});
-
 test('modification d\'un champ : statut et pourcentage', () => {
   const d = M.blank();
   const t = tache({ status: 'doing', progress: 40 });
@@ -164,4 +148,70 @@ test('modification d\'un champ : durées, dates, champ inconnu', () => {
   M.setTaskField(t, 'deadline', '2026-11-02', d);
   assert.equal(t.deadline, '2026-11-02');
   assert.equal(M.setTaskField(t, 'inconnu', 'x', d), false);
+});
+
+/* ---------- Ranger dans / sortir de (voir CONTEXT.md) ---------- */
+const arbre = () => donnees([
+  sujet({ id: 'P', title: 'Parent' }), sujet({ id: 'Q', title: 'Autre' }),
+  sujet({ id: 'E', title: 'Enfant', parentId: 'P' }), sujet({ id: 'L', title: 'Libre' })], []);
+const s_ = (d, id) => d.subjects.find(s => s.id === id);
+
+test('ranger un sujet dans un autre, puis l\'en sortir', () => {
+  const d = arbre();
+  assert.deepEqual(M.ranger(s_(d, 'L'), 'Q', d), { ancien: null });
+  assert.equal(s_(d, 'L').parentId, 'Q');
+  assert.deepEqual(M.ranger(s_(d, 'L'), null, d), { ancien: s_(d, 'Q') });
+  assert.equal(s_(d, 'L').parentId, null);
+  assert.equal(M.ranger(s_(d, 'L'), null, d), null, 'déjà au premier niveau : rien ne change');
+});
+
+test('ranger ailleurs donne l\'ancien parent et ne touche aucun autre champ', () => {
+  const d = arbre(), e = s_(d, 'E');
+  Object.assign(e, { after: ['X'], lagDays: 3 });
+  assert.deepEqual(M.ranger(e, 'Q', d), { ancien: s_(d, 'P') });
+  assert.equal(e.parentId, 'Q');
+  assert.deepEqual([e.after, e.lagDays], [['X'], 3]);
+});
+
+test('un seul niveau : ce qui ne peut pas être rangé', () => {
+  const d = arbre();
+  assert.equal(M.peutEtreRange(s_(d, 'P'), d), false, 'a un sous-sujet');
+  s_(d, 'E').archived = true;
+  assert.equal(M.peutEtreRange(s_(d, 'P'), d), false, 'a un sous-sujet archivé');
+  assert.equal(M.peutRanger(s_(d, 'L'), s_(d, 'E'), d), false, 'cible sous-sujet');
+  assert.equal(M.peutRanger(s_(d, 'L'), s_(d, 'L'), d), false, 'soi-même');
+  s_(d, 'Q').archived = true;
+  assert.equal(M.peutRanger(s_(d, 'L'), s_(d, 'Q'), d), false, 'cible archivée');
+  assert.equal(M.ranger(s_(d, 'L'), 'Q', d), null);
+  assert.equal(s_(d, 'L').parentId, null);
+  assert.equal(M.peutRanger(s_(d, 'L'), s_(d, 'P'), d), true);
+});
+
+test('un refus fourni par un module empêche de ranger, pas de sortir', () => {
+  const d = arbre(), refus = [s => s.id === 'L' || s.id === 'E'];
+  assert.equal(M.peutEtreRange(s_(d, 'L'), d, refus), false);
+  assert.equal(M.peutRanger(s_(d, 'L'), s_(d, 'P'), d, refus), false);
+  assert.equal(M.ranger(s_(d, 'L'), 'P', d, refus), null);
+  assert.deepEqual(M.ranger(s_(d, 'E'), null, d, refus), { ancien: s_(d, 'P') });
+});
+
+test('premier niveau : sans parent, ou parent archivé', () => {
+  const d = arbre();
+  assert.equal(M.estPremierNiveau(s_(d, 'P'), d), true);
+  assert.equal(M.estPremierNiveau(s_(d, 'E'), d), false);
+  s_(d, 'P').archived = true;
+  assert.equal(M.estPremierNiveau(s_(d, 'E'), d), true);
+});
+
+test('archiver un sujet archive ses sous-sujets ; restaurer ne rend que ceux archivés avec lui', () => {
+  const d = arbre();
+  d.subjects.push(sujet({ id: 'F', title: 'Déjà archivé', parentId: 'P', archived: true, archivedAt: 'avant' }));
+  M.archiverSujet(s_(d, 'P'), d, true, 'T1');
+  assert.deepEqual(['P', 'E', 'F'].map(id => s_(d, id).archived), [true, true, true]);
+  assert.equal(s_(d, 'E').archivedAt, 'T1');
+  assert.equal(s_(d, 'F').archivedAt, 'avant');
+  M.archiverSujet(s_(d, 'P'), d, false);
+  assert.deepEqual(['P', 'E', 'F'].map(id => s_(d, id).archived), [false, false, true]);
+  assert.equal(s_(d, 'E').archivedAt, null);
+  assert.equal(s_(d, 'E').parentId, 'P', 'archiver ne sort pas du parent');
 });

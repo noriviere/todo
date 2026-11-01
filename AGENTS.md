@@ -39,7 +39,7 @@ PR bodies follow the `pr` skill (`.claude/skills/pr`).
 
 - Every interface change uses the `ui-ux-pro-max` skill and the superpowers skills, and keeps the current visual spirit.
 - Archive, never delete: subjects and tasks are archived; no code path removes user data.
-- Every module (see `CONTEXT.md`) can be switched off in « Modules actifs », and the app works fully with any module off. A module file gates its hooks with `A.modOn('<id>')`; hiding a module never deletes its data.
+- Every module (see `CONTEXT.md`) can be switched off in « Modules actifs », and the app works fully with any module off. A module file gates its display and user-action hooks with `A.modOn('<id>')`; hiding a module never deletes its data. Data-consistency hooks are not gated and stay active with the module off: `hooks.refusRangement` (refuse to put a subject inside another) and `hooks.sortieDuParent` (drop links a subject loses when it leaves its parent).
 - Each new function updates the built-in user guide (`guide.js`, sections tagged with their module) and the demo data (`demo.js`).
 - No real data in this repo: Noel's data syncs to the private repo `noriviere/todo-donnees`. Tests and screenshots use fictitious data or demo mode (`index.html?demo`).
 - Code, comments, interface text, commits and PR titles are in French.

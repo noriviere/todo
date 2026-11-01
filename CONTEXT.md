@@ -16,6 +16,10 @@ La priorité d'un sujet, affichée par couleur. P1 « Variable » impacte la ré
 **Sous-sujet** :
 Un sujet rangé sous un autre sujet. Un seul niveau : un sous-sujet ne contient que des tâches. Le sujet parent garde aussi ses propres tâches.
 
+**Ranger dans / sortir de** :
+Ranger un sujet dans un autre en fait un sous-sujet ; l'en sortir le remet au premier niveau. Un sujet qui a des sous-sujets, ou en mode projet, ne peut pas être rangé. Une étape sortie de son projet perd ses prédécesseurs, son décalage et ses liens de jalon. Archiver un sous-sujet ne le sort pas de son parent.
+_À éviter_ : rattacher, détacher, arbre ; « déplacer » est réservé au glisser-déposer
+
 **Sujet en mode projet** :
 Un sujet marqué « Projet » : il apparaît dans l'onglet Projets, ses sous-sujets deviennent des étapes et il porte les jalons. Ses tâches directes restent hors du Gantt et ne comptent que dans l'avancement global.
 _À éviter_ : projet séparé, objet projet
