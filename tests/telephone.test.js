@@ -1,12 +1,11 @@
 // Garde-fou téléphone (≈ 390 px) : aucun écran de l'appli ne fait défiler la page de côté, tous modules actifs
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { openApp, closeAll } = require('./helpers');
+const { openApp, closeAll, aller } = require('./helpers');
 
 after(closeAll);
 
 const LARGEUR = 390;
-const aller = (page, ecran) => page.goto(page.url().replace(/#.*$/, '') + '#' + ecran);
 const largeurPage = page => page.evaluate(() => document.documentElement.scrollWidth);
 
 test('à 390 px, en démo, chaque onglet, un projet ouvert, le panneau d\'une tâche et le guide tiennent dans la largeur', async () => {

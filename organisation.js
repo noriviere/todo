@@ -61,7 +61,7 @@
     const f = F();
     const chip = (v, label, cls) => `<button type="button" class="chip ${cls} ${f.prios.includes(v) ? 'on' : ''}" data-org-prio="${v}">${label}</button>`;
     const subs = db().subjects.filter(s => !s.archived).sort((a, b) => a.priority - b.priority || A.subjLabel(a).localeCompare(A.subjLabel(b), 'fr'));
-    return `<div class="org-filters">
+    return `<div class="org-filters" data-repere="filtres">
       ${chip(1, 'P1', 'p1')}${chip(2, 'P2', 'p2')}${chip(3, 'P3', 'p3')}${chip(0, A.ICON.inbox + 'À ranger', 'inb')}
       <select data-org-subj data-k="org-subj" title="Filtrer sur un sujet">
         <option value="">Tous les sujets</option>
@@ -108,17 +108,10 @@
   // Sous-sujet → place parmi les sous-sujets d'un parent (le sien ou un autre), ou en-tête d'un autre sujet : y est rangé
   let drag = null;
 
-  function addGrips() {
-    if (view() === 'archives') return;
-    const main = document.getElementById('main');
-    main.querySelectorAll('.task[data-tid]').forEach(r => {
-      if (!r.querySelector(':scope > .org-grip')) r.insertAdjacentHTML('afterbegin', '<span class="org-grip" title="Glisser pour déplacer">⋮⋮</span>');
-    });
-    main.querySelectorAll('.subject[data-sid] > .s-head').forEach(h => {
-      if (!h.querySelector(':scope > .org-grip')) h.insertAdjacentHTML('afterbegin', '<span class="org-grip" title="Glisser pour déplacer">⋮⋮</span>');
-    });
-  }
-  window.addEventListener('todo:rendered', addGrips);
+  // Poignées en tête de chaque ligne de tâche et de chaque en-tête de sujet, sauf dans Archives
+  const poignee = () => view() === 'archives' ? '' : '<span class="org-grip" title="Glisser pour déplacer">⋮⋮</span>';
+  A.hooks.debutLigneTache.push(poignee);
+  A.hooks.debutEnteteSujet.push(poignee);
 
   document.addEventListener('mousedown', e => {
     const g = e.target.closest('.org-grip');
@@ -312,7 +305,7 @@
   // Module activable (Données › Modules actifs) : masqué, plus de ↻, plus d'option Répéter, plus de création automatique
   const recurOn = () => !A.modOn || A.modOn('recurrence');
   A.hooks.taskRow.push(t => t.recur && recurOn() ? `<span class="org-recur" title="Répète : ${esc(recurLabel(t.recur))}">↻</span>` : '');
-  A.hooks.drawer.push(t => !recurOn() ? '' : `<div class="f"><label>Répéter</label>
+  A.hooks.drawer.push(t => !recurOn() ? '' : `<div class="f"><label data-repere="recurrence">Répéter</label>
       <select data-org-recur data-k="dr-recur">${RECUR.map(([v, l]) => `<option value="${v}" ${v === recurKey(t.recur) ? 'selected' : ''}>${l}</option>`).join('')}</select>
       <span class="hint">Quand elle est faite (ou annulée), la suivante est créée automatiquement${t.deadline ? '' : ', à partir de la date du jour'}.</span>
     </div>`);
@@ -393,10 +386,7 @@
   /* ================= Aller au sujet depuis le tableau de bord ================= */
   css.textContent += `
 .org-goto{font-size:14px}
-@keyframes orgFlash{0%,60%{background:var(--accent-bg)}100%{background:transparent}}
-.org-flash{animation:orgFlash 2.2s ease-out}
 `;
-  let goTo = null;
   A.hooks.taskRow.push(t => t.subjectId && view() !== 'sujets'
     ? `<button class="icon org-goto" data-org-goto title="Ouvrir dans l'onglet Sujets">↗</button>` : '');
   document.addEventListener('click', e => {
@@ -404,25 +394,7 @@
     if (!b) return;
     const t = A.task(b.closest('[data-tid]').dataset.tid);
     if (!t || !t.subjectId) return;
-    const ui = db().ui;
-    A.expandTo(t.subjectId);
-    A.enregistrerAffichage();
-    goTo = { sid: t.subjectId, tid: t.id };
-    location.hash = 'sujets';
-  });
-  window.addEventListener('todo:rendered', () => {
-    if (!goTo || view() !== 'sujets') return;
-    const g = goTo;
-    goTo = null;
-    // Après le retour en haut de page fait par le changement d'onglet
-    setTimeout(() => {
-      const box = document.querySelector(`#main .subject[data-sid="${g.sid}"]`);
-      if (!box) { A.toast('Ce sujet est masqué par un filtre'); return; }
-      const row = box.querySelector(`.task[data-tid="${g.tid}"]`) || box;
-      row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      row.classList.add('org-flash');
-      box.classList.add('org-flash');
-    }, 30);
+    A.allerA({ vue: 'sujets', tid: t.id }, { signalerFiltre: true });
   });
 
   // La page s'est déjà affichée avant le chargement de ce fichier : on la redessine avec les filtres et les poignées

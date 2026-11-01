@@ -157,9 +157,9 @@
       <p class="hint">Les jours fériés ne sont pas repris : l'appli les calcule toute seule.</p>`;
   }
   function card() {
-    if (preview) return `<div class="card"><h3>Import de l'historique</h3>${summary(preview)}
+    if (preview) return `<div class="card"><h3 data-repere="pointage-import">Import de l'historique</h3>${summary(preview)}
       <button class="btn primary" data-pti="go">Importer</button> <button class="btn" data-pti="cancel">Annuler</button></div>`;
-    return `<div class="card"><h3>Importer un historique Excel</h3>
+    return `<div class="card"><h3 data-repere="pointage-import">Importer un historique Excel</h3>
       <p>Reprend ton ancien fichier de pointage (une feuille par année) : heures d'arrivée, de repas et de départ, CP, absences et droits CP N / N-1. Les jours déjà saisis ici ne sont pas touchés. Tu verras un résumé avant de confirmer.</p>
       <button class="btn" data-pti="pick">Choisir le fichier Excel…</button></div>`;
   }

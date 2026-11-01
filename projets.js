@@ -51,12 +51,7 @@ function projectSchedule(p) {
 // Avancement du projet = celui du sujet : ses tâches de niveau 1 et celles de ses étapes
 const projectProgress = p => A.subjectStats(p).progress;
 
-/* ---------- Onglet ---------- */
-if (!A.NAV.some(x => x[0] === 'projets')) {
-  const i = A.NAV.findIndex(x => x[0] === 'sujets');
-  A.NAV.splice(i + 1, 0, ['projets', 'Projets', 'gantt', 'projet']);
-}
-
+/* ---------- Onglet (sa place dans le menu est tenue par le cœur) ---------- */
 function listView() {
   const ps = projects();
   const cards = ps.map(p => {
@@ -77,7 +72,7 @@ function listView() {
       <button class="icon pj-arch" data-pj="unproject" title="Quitter le mode projet (le sujet et ses sous-sujets restent)">✕</button>
     </div>`;
   }).join('');
-  return `<h1>Projets</h1>
+  return `<h1 data-repere="projets">Projets</h1>
     <p class="sub">Les sujets passés en mode projet : leurs sous-sujets sont les étapes du planning, avec leurs jalons.</p>
     <div class="toolbar"><button class="btn primary" data-pj="new-project">+ Nouveau projet</button></div>
     ${ps.length ? `<div class="pj-list">${cards}</div>` : `<div class="card"><p>Aucun projet pour le moment. Crée un projet, ou coche « Mode projet » dans la fiche d'un sujet (onglet Sujets) : ses sous-sujets deviennent les étapes.</p></div>`}`;
@@ -110,7 +105,7 @@ function milestonesSection(p, sc) {
       <button class="icon" data-pj="archive-milestone" title="Archiver le jalon">${A.ICON.archive}</button>
       ${steps.length ? `<div class="pj-after"><span class="pj-lbl">À finir avant</span>${steps.map(o => `<label class="pj-chip"><input type="checkbox" data-pj-before="${o.id}" ${(m.before || []).includes(o.id) ? 'checked' : ''}><span>${esc(o.title)}</span></label>`).join('')}</div>` : ''}
     </div>`).join('');
-  return `<section class="card pj-sec"><h3>Jalons</h3>
+  return `<section class="card pj-sec"><h3 data-repere="projets">Jalons</h3>
     <p class="pj-hint">Dates fixes du projet (livraison, paiements…). Ils ne bougent jamais seuls : une alerte prévient si une étape les dépasse.</p>
     ${rows}
     ${(pjOf(p).milestones || []).filter(m => m.archived).map(m => `<div class="pj-ms arc" data-mid="${m.id}"><span class="pj-dia" aria-hidden="true">◇</span><span>${esc(m.name)} · archivé</span><button class="btn" data-pj="restore-milestone">Restaurer</button></div>`).join('')}
@@ -463,7 +458,6 @@ document.addEventListener('change', e => {
 });
 
 // Nouvelle étape depuis un projet : un sujet rangé dans le projet, ouvert dans l'onglet Sujets
-let goTo = null;
 function newStep(p) {
   const title = (prompt('Nom de la nouvelle étape ?') || '').trim();
   if (!title) return;
@@ -471,21 +465,12 @@ function newStep(p) {
     parentId: p.id, plan: {}, after: [], lagDays: 0, who: '' }));
   openStep(s.id);
 }
+// L'étape s'ouvre dépliée ; le cœur amène sur elle (ou prévient qu'un filtre la cache)
 function openStep(sid) {
   A.expandTo(sid); A.enregistrerAffichage();
-  goTo = sid;
-  if (view() === 'sujets') A.render(); else location.hash = 'sujets';
+  if (view() === 'sujets') A.render();
+  A.allerA({ vue: 'sujets', sid }, { signalerFiltre: true });
 }
-window.addEventListener('todo:rendered', () => {
-  if (!goTo || view() !== 'sujets') return;
-  const sid = goTo; goTo = null;
-  setTimeout(() => {
-    const box = document.querySelector(`#main .subject[data-sid="${sid}"]`);
-    if (!box) { toast('Cette étape est masquée par un filtre'); return; }
-    box.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    box.classList.add('org-flash');
-  }, 30);
-});
 
 /* ---------- Échéance ferme (cadenas) et garde-fou sur les tâches ---------- */
 A.ICON.lock = A.ICON.lock || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';

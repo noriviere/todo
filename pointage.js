@@ -203,7 +203,7 @@ function viewWeek() {
       ${mon !== A.lundi(today()) ? '<button class="chip" data-act="pt-week" data-n="0">Cette semaine</button>' : ''}
     </div>
     <div class="card pt-week">
-      <div class="pt-row pt-head"><span>Jour</span><span>Présence</span><span class="pt-times"><i>Arrivée</i><i>Début repas</i><i>Fin repas</i><i>Départ</i></span><span class="pt-tot">Total</span><span></span></div>
+      <div class="pt-row pt-head"><span data-repere="pointer">Jour</span><span>Présence</span><span class="pt-times"><i>Arrivée</i><i>Début repas</i><i>Fin repas</i><i>Départ</i></span><span class="pt-tot">Total</span><span></span></div>
       ${html}
       <div class="pt-weeksum"><span>Total semaine <b>${fmtH(tot)}</b></span><span>objectif ${fmtH(exp)}</span><span class="${ecart < 0 ? 'cc-red' : 'cc-green'}">${ecart >= 0 ? '+' : ''}${fmtH(ecart)}</span></div>
     </div>`;
@@ -236,7 +236,7 @@ function viewLeave() {
   const cards = counted.map(t => {
     const c = counter(t.id, y);
     return `<div class="card pt-counter" style="--tc:${t.color}">
-      <h3><i class="pt-dot"></i>${esc(t.label)} ${y}</h3>
+      <h3 data-repere="compteurs"><i class="pt-dot"></i>${esc(t.label)} ${y}</h3>
       <table class="pt-ctab">
         <tr><th></th><th>Droits</th><th>Pris</th><th>Posés à venir</th><th>Reste</th></tr>
         <tr><th>N-1 <span class="hint">(report ${y - 1})</span></th>
@@ -254,7 +254,7 @@ function viewLeave() {
       <button class="btn" data-act="pt-year" data-n="-1">‹</button><b>${y}</b><button class="btn" data-act="pt-year" data-n="1">›</button>
       ${y !== +today().slice(0, 4) ? '<button class="chip" data-act="pt-year" data-n="0">Cette année</button>' : ''}
     </div>
-    <div class="card"><h3>Poser une absence</h3>
+    <div class="card"><h3 data-repere="conges">Poser une absence</h3>
       <p>Les jours ouvrés de la période sont marqués (week-ends et fériés sautés, sauf pour un type en jours calendaires comme le congé paternité). Une absence posée à l'avance bloque la capacité de ces jours dans la vue Charge.</p>
       <div class="pt-form">
         <label>Du <input type="date" class="date" id="pt-from" value="${t0}"></label>
@@ -265,7 +265,7 @@ function viewLeave() {
       </div>
     </div>
     ${cards}
-    <div class="card"><h3>Absences ${y}</h3>
+    <div class="card"><h3 data-repere="conges">Absences ${y}</h3>
       ${Object.keys(byType).length ? `<div class="pt-tags">${Object.entries(byType).map(([k, n]) => `<span class="pt-tag" style="--tc:${type(k).color}"><i class="pt-dot"></i>${esc(type(k).label)} <b>${fmtJ(n)}</b></span>`).join('')}</div>` : ''}
       <div class="list">${ranges.length ? ranges.slice().reverse().map(r => `<div class="task pt-range" style="--pc:${type(r.type).color}" data-from="${r.from}" data-to="${r.to}" data-type="${r.type}">
         <span class="title">${esc(type(r.type).label)}${r.part !== 'full' ? ' · ' + PART[r.part].toLowerCase() : ''}</span>
@@ -274,7 +274,7 @@ function viewLeave() {
         <button class="icon" data-act="pt-unpost" title="Retirer cette absence">✕</button>
       </div>`).join('') : '<div class="empty">Aucune absence cette année.</div>'}</div>
     </div>
-    <details class="sec"><summary><span class="chev">${A.ICON.chev}</span>Types d'absence et droits annuels</summary>
+    <details class="sec"><summary data-repere="types-absence"><span class="chev">${A.ICON.chev}</span>Types d'absence et droits annuels</summary>
       <div class="card">
         <p>« Jours calendaires » : poser une période marque aussi les week-ends et fériés, qui sont décomptés (congé paternité). Sinon seuls les jours ouvrés sont posés. « Compteur » : le type a des droits en jours, suivis en N-1 et N. Le reste de N à la fin de l'année devient le N-1 de l'année suivante, et les jours posés puisent d'abord dans N-1.</p>
         <div class="pt-types">${P().types.map(t => `<div class="pt-type${t.archived ? ' arch' : ''}" data-tyid="${t.id}">
@@ -341,17 +341,17 @@ function viewStats() {
       <div class="stat"><div class="v">${fmtH(median(s.vals))}</div><div class="l">médiane par semaine complète</div></div>
       <div class="stat ${ecart < 0 ? 'late' : ''}"><div class="v">${ecart >= 0 ? '+' : ''}${fmtH(ecart)}</div><div class="l">écart à l'objectif (${fmtH(s.exp)} attendues)</div></div>
     </div>
-    <div class="card"><h3>Heures par semaine</h3>
+    <div class="card"><h3 data-repere="bilan">Heures par semaine</h3>
       <p class="hint">Trait : objectif de la semaine (diminué des absences et fériés). Barres pâles : semaines incomplètes (congé, absence, férié), hors moyenne et médiane. Clique une semaine pour l'ouvrir.</p>
       ${chart}
     </div>
-    <div class="card"><h3>Par mois</h3>
+    <div class="card"><h3 data-repere="bilan">Par mois</h3>
       <table class="pt-mtab"><tr><th>Mois</th><th>Heures</th><th>Jours</th><th>Moy./jour</th><th>Objectif</th><th>Écart</th></tr>
       ${s.months.map((m, i) => m.min || m.exp ? `<tr><td>${MONTHS[i]}</td><td><b>${fmtH(m.min)}</b></td><td>${m.days}</td><td>${m.days ? fmtH(Math.round(m.min / m.days)) : ''}</td><td>${fmtH(m.exp)}</td><td class="${m.min - m.exp < 0 ? 'cc-red' : 'cc-green'}">${m.min - m.exp >= 0 ? '+' : ''}${fmtH(m.min - m.exp)}</td></tr>` : '').join('')}
       <tr class="pt-total"><td>Total</td><td><b>${fmtH(s.tot)}</b></td><td>${s.daysIn}</td><td>${fmtH(avg(s.dayVals))}</td><td>${fmtH(s.exp)}</td><td>${ecart >= 0 ? '+' : ''}${fmtH(ecart)}</td></tr></table>
       <p class="hint" style="margin:8px 0 0">Par jour pointé : moyenne ${fmtH(avg(s.dayVals))}, médiane ${fmtH(median(s.dayVals))}.</p>
     </div>
-    <div class="card"><h3>Réglages</h3>
+    <div class="card"><h3 data-repere="bilan">Réglages</h3>
       <div class="cc-settings">
         <span>Objectif par jour ${WD_ORDER.map(wd => `<label class="pt-dmin">${WD_SHORT[wd]} <input class="inline est" data-pt-set="day" data-wd="${wd}" value="${esc(fmtDur(dayTarget(wd)) || '0')}" title="Ex. 7h45, 4h, 0"></label>`).join('')} <span class="hint">soit ${fmtH(weekTarget())} par semaine</span></span>
         <span class="hint">Semaine type et jours fériés : <a href="#donnees" data-act="cal-voir">Données › Calendrier</a></span>
@@ -363,21 +363,17 @@ function viewStats() {
 const TABS = [['semaine', 'Semaine'], ['conges', 'Congés'], ['bilan', 'Bilan']];
 A.views.pointage = () => {
   const tab = ui().ptTab || 'semaine';
-  return `<h1>Pointage</h1>
+  return `<h1 data-repere="pointer">Pointage</h1>
     <p class="sub">Heures d'arrivée, de repas et de départ, absences et compteurs de congés.</p>
     <div class="toolbar"><div class="chips">${TABS.map(([k, l]) => `<button class="chip ${k === tab ? 'on' : ''}" data-act="pt-tab" data-t="${k}">${l}</button>`).join('')}</div></div>
     ${tab === 'conges' ? viewLeave() : tab === 'bilan' ? viewStats() : viewWeek()}`;
 };
-if (!A.NAV.some(x => x[0] === 'pointage')) {
-  const i = A.NAV.findIndex(x => x[0] === 'charge');
-  A.NAV.splice(i < 0 ? A.NAV.length - 1 : i + 1, 0, ['pointage', 'Pointage', 'clock', 'pointage']);
-}
 // Bandeau sur le tableau de bord : où j'en suis aujourd'hui, et le bouton pour pointer
 A.hooks.dashTop.push(() => {
   if (!on()) return '';
   const ds = today();
   if (!cal().ouvre(ds) && !day(ds)) return '';
-  return `<div class="card pt-today pt-dash"><div class="pt-today-l"><a href="#pointage" class="hint">Pointage</a><div>${todayLine()}</div></div><div class="pt-today-r">${punchButtons(ds, true)}</div></div>`;
+  return `<div class="card pt-today pt-dash"><div class="pt-today-l"><a href="#pointage" class="hint" data-repere="pointer après">Pointage</a><div>${todayLine()}</div></div><div class="pt-today-r">${punchButtons(ds, true)}</div></div>`;
 });
 
 /* ---------- Événements ---------- */

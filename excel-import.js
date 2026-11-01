@@ -163,7 +163,7 @@
     const has = A.getData().subjects.length + A.getData().tasks.length;
     const steps = A.getData().subjects.filter(s => (s.parentId || s.isProject) && !s.archived).length;
     if (preview) {
-      return `<div class="card"><h3>Import depuis Excel</h3>${summary(preview)}
+      return `<div class="card"><h3 data-repere="excel">Import depuis Excel</h3>${summary(preview)}
         <p>${has ? `Tu as déjà ${A.getData().subjects.length} sujets et ${A.getData().tasks.length} tâches dans l'appli. « Remplacer » repart de ton Excel seul, « Ajouter » garde aussi ce qui existe. Dans les deux cas l'état actuel est gardé et tu peux revenir en arrière.` : ''}</p>
         ${steps ? `<p class="hint">⚠ « Remplacer » retire aussi tes ${steps} sujet${steps > 1 ? 's' : ''} organisé${steps > 1 ? 's' : ''} en sous-sujets ou en projets (avec leur planning, leurs liens et leurs jalons). Préfère « Ajouter » pour les garder.</p>` : ''}
         <button class="btn primary" data-xl="replace">${has ? 'Remplacer mes données' : 'Importer'}</button>
@@ -171,7 +171,7 @@
         <button class="btn" data-xl="cancel">Annuler</button></div>`;
     }
     const already = A.getData().subjects.some(s => s.source && s.source.type === 'excel');
-    return `<div class="card"><h3>Import depuis Excel</h3>
+    return `<div class="card"><h3 data-repere="excel">Import depuis Excel</h3>
       <p>Reprend ton fichier ToDoList.xlsm : chaque ligne A, P ou I devient un sujet (P → P1, I → P2, A → P3), les lignes S en dessous deviennent ses tâches, avec échéance, temps estimé, état et commentaires. Les colonnes Projet (appelée Code dans l'appli), Secteur et Produit fini deviennent des paramètres du sujet pour filtrer. La feuille Archive est importée dans les archives. Tu verras un résumé avant de confirmer.</p>
       ${already ? '<p class="hint">Ton Excel a déjà été importé. Réimporter avec « Ajouter » créerait des doublons : utilise plutôt « Remplacer ».</p>' : ''}
       <button class="btn" data-xl="pick">Importer un fichier Excel…</button></div>`;

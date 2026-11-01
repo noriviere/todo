@@ -1,7 +1,7 @@
 // Termes « À éviter » du glossaire (CONTEXT.md) : aucun écran ne doit les afficher
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { openApp, closeAll } = require('./helpers');
+const { openApp, closeAll, aller } = require('./helpers');
 
 after(closeAll);
 
@@ -29,7 +29,6 @@ function verifier(lus, ou) {
 }
 
 // Ouvre un écran par son adresse (#dashboard, #sujets…)
-const aller = (page, ecran) => page.goto(page.url().replace(/#.*$/, '') + '#' + ecran);
 
 test('aucun écran, ni le panneau d\'une tâche, ni le guide n\'affiche deadline, inbox, workload ou date limite', async () => {
   const page = await openApp(null, { query: '?demo' });

@@ -470,8 +470,8 @@ function modOn(id) {
   const v = (db.settings.modules || {})[id];
   return v == null ? m.def !== false : !!v;
 }
-// Un onglet peut appartenir à un module : 4e case de NAV
-const navOn = n => !n[3] || modOn(n[3]);
+// Un onglet peut appartenir à un module (4e case de NAV) : affiché si le module est actif et a fourni sa vue
+const navOn = n => !!views[n[0]] && (!n[3] || modOn(n[3]));
 
 /* ---------- Données ---------- */
 const { blank, normSubject, normTask, migrate } = M;
@@ -756,8 +756,10 @@ function peindreHist() {
   };
   el.innerHTML = bt('hist-undo', a, 'Annuler', ICON.undo) + bt('hist-redo', r, 'Rétablir', ICON.redo);
 }
-// Revient à l'endroit d'une modification : l'écran, puis la ligne (dépliée, défilée, brève surbrillance) si elle est visible
-function allerA(l) {
+// Amène à un endroit { vue, tid | sid } : l'écran, puis la ligne (dépliée, centrée, brève surbrillance) si elle est visible.
+// Sert à Annuler / Rétablir et aux modules (↗ d'Organisation, étapes de Gestion de projet).
+// options.signalerFiltre : prévient quand un filtre cache le sujet visé (pas pour Annuler, dont le message reste affiché)
+function allerA(l, options = {}) {
   if (!l) return;
   const montrer = () => {
     const sel = l.tid ? `#main [data-tid="${CSS.escape(l.tid)}"]` : l.sid ? `#main [data-sid="${CSS.escape(l.sid)}"]` : null;
@@ -770,8 +772,13 @@ function allerA(l) {
       if (sid && subj(sid) && visible(x || { archived: false, subjectId: sid })) {
         const s = subj(sid);
         if (!x && parentOf(s)) expandTo(parentOf(s).id); else expandTo(sid);
+        enregistrerAffichage();
         render();
         el = $(sel);
+        // Tâche introuvable dans un sujet affiché : on montre le sujet ; sujet introuvable : un filtre le cache
+        const boite = $(`#main [data-sid="${CSS.escape(sid)}"]`);
+        if (!el && boite) el = boite;
+        if (!el && options.signalerFiltre) toast('Ce sujet est masqué par un filtre');
       }
     }
     if (!el) return;
@@ -829,11 +836,13 @@ function dateClass(t) {
   const b = bucket(t);
   return b === 'late' ? 'd-late' : b === 'today' ? 'd-today' : b === 'tomorrow' ? 'd-tomorrow' : '';
 }
+// Début d'une ligne de tâche (poignée ⋮⋮ d'Organisation) ; un module qui dessine ses propres lignes de tâche l'appelle aussi
+const debutLigneTache = t => hooks.debutLigneTache.map(f => f(t)).join('');
 function taskRow(t, opt = {}) {
   const s = subj(t.subjectId);
   const pr = s ? s.priority : 0;
   const closed = !isOpen(t), nt = closed ? null : nonTravaille(t.deadline);
-  return `<div class="task st-${t.status}${closed ? ' closed' : ''}" data-tid="${t.id}" style="--pc:${opt.showSubject ? `var(--p${pr})` : 'transparent'}">
+  return `<div class="task st-${t.status}${closed ? ' closed' : ''}" data-tid="${t.id}" style="--pc:${opt.showSubject ? `var(--p${pr})` : 'transparent'}">${debutLigneTache(t)}
     <input type="checkbox" class="chk" data-act="toggle-done" data-k="c-${t.id}" ${t.status === 'done' ? 'checked' : ''} title="Marquer comme fait">
     <input class="inline title" data-field="title" data-k="t-${t.id}" value="${esc(t.title)}" placeholder="Sans titre">
     <div class="meta">
@@ -854,7 +863,7 @@ function taskRow(t, opt = {}) {
   </div>`;
 }
 function quickAdd(defaultSubject) {
-  return `<form class="qa" id="qa">
+  return `<form class="qa" id="qa" data-repere="saisie">
     <input type="text" id="qa-title" data-k="qa-title" placeholder="Nouvelle tâche…  (touche N pour venir ici)" autocomplete="off">
     <select id="qa-subject" data-k="qa-subject" title="Sujet">${subjectOptions(defaultSubject || qaState.subject)}</select>
     <div class="chips">
@@ -882,7 +891,7 @@ views.dashboard = () => {
     if (!arr.length && (key === 'later' || key === 'nodate' || key === 'week')) return '';
     const l = load(arr);
     return `<details class="sec sec-${key}" ${open ? 'open' : ''} data-sec="${key}">
-      <summary><span class="chev">${ICON.chev}</span>${label}<span class="cnt">${arr.length}</span>${l ? `<span class="load">${fmtDur(l)} estimées</span>` : ''}</summary>
+      <summary${key === 'today' ? ' data-repere="taches"' : ''}><span class="chev">${ICON.chev}</span>${label}<span class="cnt">${arr.length}</span>${l ? `<span class="load">${fmtDur(l)} estimées</span>` : ''}</summary>
       <div class="list">${arr.length ? arr.map(t => taskRow(t, { showSubject: true })).join('') : `<div class="empty">${key === 'late' ? 'Rien en retard 👌' : 'Rien de prévu.'}</div>`}</div>
     </details>`;
   };
@@ -891,7 +900,7 @@ views.dashboard = () => {
   const df = db.ui.dashFilter || {};
   const nFilters = (df.prios || []).length + !!df.subjectId + !!(df.q || '').trim() + Object.keys(DIMS).filter(k => db.ui.dims[k]).length;
   return `
-    <h1>Tableau de bord</h1>
+    <h1 data-repere="dashboard">Tableau de bord</h1>
     <p class="sub">${longDate(today()).replace(/^./, c => c.toUpperCase())}</p>
     ${quickAdd()}
     <div class="filt ${db.ui.filtersOpen ? 'open' : ''}">
@@ -908,6 +917,7 @@ views.dashboard = () => {
       <a class="stat" href="#inbox"><span class="v">${inbox}</span><span class="l">à ranger<span class="x"> (boîte de réception)</span></span></a>
     </div>
     ${isEmpty ? `<div class="card"><h3>Bienvenue 👋</h3><p>Ajoute une tâche ci-dessus ou crée tes sujets dans l'onglet Sujets. Pour reprendre ton fichier Excel, va dans l'onglet Données.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="demo-start">Voir un exemple</button><button class="btn" data-help="premiers-pas">Lire le mode d'emploi</button></div></div>` : ''}
+    ${hooks.bandeauTableau.map(f => f()).join('')}
     ${sec('late', 'En retard', secOpen('late'))}
     ${sec('today', "Aujourd'hui", secOpen('today'))}
     ${sec('tomorrow', 'Demain', secOpen('tomorrow'))}
@@ -927,7 +937,7 @@ views.sujets = () => {
   const match = s => matchOne(s) || childrenOf(s).some(matchOne);
   const list = activeSubjects().filter(isTop).filter(match).filter(dimOkSubject);
   const withStats = sortSubjects(list.map(s => ({ s, st: subjectStats(s) })));
-  let html = `<h1>Sujets</h1><p class="sub">${list.length} sujet${list.length > 1 ? 's' : ''} actif${list.length > 1 ? 's' : ''}, classés par priorité puis par urgence.</p>
+  let html = `<h1 data-repere="sujets">Sujets</h1><p class="sub">${list.length} sujet${list.length > 1 ? 's' : ''} actif${list.length > 1 ? 's' : ''}, classés par priorité puis par urgence.</p>
     <div class="toolbar">
       <input class="search" id="search" data-k="search" placeholder="Rechercher un sujet ou une tâche…" value="${esc(db.ui.search)}">
       <label class="tog"><input type="checkbox" data-act="toggle-closed" ${db.ui.showClosed ? 'checked' : ''}> Afficher faites et annulées</label>
@@ -939,12 +949,15 @@ views.sujets = () => {
     ${dimsBar()}
     ${Object.keys(DIMS).map(k => `<datalist id="dl-${k}">${dimValues(k).map(x => `<option value="${esc(x)}">`).join('')}</datalist>`).join('')}`;
   if (!list.length) html += `<div class="card"><p>${q ? 'Aucun sujet ne correspond.' : 'Aucun sujet pour le moment.'}</p></div>`;
+  // Le « i » des priorités ne se pose que sur le premier groupe affiché
+  let repere = ' data-repere="priorites"';
   for (const p of [1, 2, 3]) {
     const grp = withStats.filter(x => x.s.priority === p);
     if (!grp.length) continue;
-    html += `<div class="prio-group" data-p="${p}"><div class="prio-title" style="--pc:var(--p${p})"><i class="sw"></i>${PRIO[p].short} · ${PRIO[p].name}<span style="font-weight:400;text-transform:none;letter-spacing:0">${PRIO[p].desc}</span></div>`;
+    html += `<div class="prio-group" data-p="${p}"><div class="prio-title"${repere} style="--pc:var(--p${p})"><i class="sw"></i>${PRIO[p].short} · ${PRIO[p].name}<span style="font-weight:400;text-transform:none;letter-spacing:0">${PRIO[p].desc}</span></div>`;
     for (const { s, st } of grp) html += subjectBlock(s, st, exp.has(s.id) || !!q);
     html += '</div>';
+    repere = '';
   }
   return html;
 };
@@ -983,7 +996,7 @@ function subjectBlock(s, st, open) {
   const closedT = tasks.filter(t => !isOpen(t)).sort((a, b) => (b.doneAt || b.updatedAt).localeCompare(a.doneAt || a.updatedAt));
   const stLabel = st.status === 'empty' ? 'Vide' : STATUS[st.status];
   return `<div class="subject ${open ? 'open' : ''}${child ? ' child' : ''}" data-sid="${s.id}" style="--pc:var(--p${p});--pbg:var(--p${p}-bg)">
-    <div class="s-head">
+    <div class="s-head">${hooks.debutEnteteSujet.map(f => f(s)).join('')}
       <button class="chev" data-act="toggle-subject" title="Déplier / replier">${ICON.chev}</button>
       <select class="pill prio-sel" data-field="s-priority" data-k="sp-${s.id}" title="Priorité du sujet">
         ${[1, 2, 3].map(x => `<option value="${x}" ${x === p ? 'selected' : ''}>${PRIO[x].short}</option>`).join('')}
@@ -1022,7 +1035,7 @@ function subjectBlock(s, st, open) {
 
 views.inbox = () => {
   const tasks = db.tasks.filter(t => !t.archived && !t.subjectId && isOpen(t)).sort(M.taskCmp(db));
-  return `<h1>Boîte de réception</h1>
+  return `<h1 data-repere="inbox">Boîte de réception</h1>
     <p class="sub">Les tâches notées vite fait, à ranger dans un sujet avec la liste déroulante.</p>
     ${quickAdd('')}
     <div class="list">${tasks.length ? tasks.map(t => taskRow(t, { showSubject: true })).join('') : '<div class="empty">Tout est rangé 👌</div>'}</div>`;
@@ -1035,7 +1048,7 @@ views.archives = () => {
   const tasks = db.tasks.filter(t => t.archived && (!q || t.title.toLowerCase().includes(q)))
     .sort((a, b) => (b.archivedAt || '').localeCompare(a.archivedAt || ''));
   const fmt = iso => iso ? new Date(iso).toLocaleDateString('fr-FR') : '';
-  return `<h1>Archives</h1><p class="sub">Rien n'est supprimé : tout ce qui est archivé peut être restauré.</p>
+  return `<h1 data-repere="archives">Archives</h1><p class="sub">Rien n'est supprimé : tout ce qui est archivé peut être restauré.</p>
     <div class="toolbar"><input class="search" id="search" data-k="search" placeholder="Rechercher dans les archives…" value="${esc(db.ui.search)}"></div>
     <details class="sec" open><summary><span class="chev">${ICON.chev}</span>Sujets archivés<span class="cnt">${subs.length}</span></summary>
       <div class="list">${subs.length ? subs.map(s => `<div class="task" data-sid="${s.id}" style="--pc:var(--p${s.priority})">
@@ -1056,7 +1069,7 @@ const DECALAGES = M.DECALAGES;
 function calendrierCard() {
   const st = db.settings, cal = calendrier(), sem = cal.semaine;
   const proch = cal.prochainFerie(today());
-  return `<div class="card" id="calendrier"><h3>Calendrier</h3>
+  return `<div class="card" id="calendrier"><h3 data-repere="calendrier">Calendrier</h3>
     <p>Les jours où l'on travaille normalement, pour toute l'appli : la Charge, la Récurrence, le Pointage et le Gantt des projets. Un jour ouvré est un jour de la semaine type qui n'est pas férié.</p>
     <div class="cal-set">
       <div class="cal-row"><b id="cal-jours-l">Semaine type</b>
@@ -1070,7 +1083,7 @@ function calendrierCard() {
 }
 
 function modulesCard() {
-  return `<div class="card"><h3>Modules actifs</h3>
+  return `<div class="card"><h3 data-repere="modules">Modules actifs</h3>
     <p>Garde l'appli aussi simple que tu veux : coupe ce dont tu ne te sers pas. Les sujets, tâches, archives et données restent toujours là. Masquer un module ne supprime rien : ses données sont gardées et reviennent quand tu le réactives.</p>
     <div class="mods">${MODULES.map(m => {
       const on = modOn(m.id);
@@ -1085,18 +1098,18 @@ function modulesCard() {
 
 views.donnees = () => {
   const le = db.settings.lastExport;
-  return `<h1>Données</h1>
+  return `<h1 data-repere="donnees">Données</h1>
     <p class="sub">${DEMO ? 'Mode démo : ces données sont fictives et disparaissent en quittant la démo.' : 'Tes données restent sur ce PC, dans ce navigateur.'} ${db.subjects.length} sujets, ${db.tasks.length} tâches au total.</p>
-    ${DEMO ? '' : `<div class="card"><h3>Mode démo</h3>
+    ${DEMO ? '' : `<div class="card"><h3 data-repere="demo">Mode démo</h3>
       <p>Pour montrer l'appli sans tes données : ouvre une version remplie d'exemples (sujets, tâches, charge, pointage). Tes vraies données ne sont pas touchées et rien n'est synchronisé pendant la démo.</p>
       <button class="btn" data-act="demo-start">Voir l'exemple</button></div>`}
     ${modulesCard()}
     ${calendrierCard()}
     <div id="autosave-card"></div>
-    <div class="card"><h3>Sauvegarde manuelle (export JSON)</h3>
+    <div class="card"><h3 data-repere="export">Sauvegarde manuelle (export JSON)</h3>
       <p>Télécharge un fichier de sauvegarde à garder dans ton dossier ToDoList. Fais-le régulièrement : si l'historique du navigateur est effacé, c'est ce fichier qui te permet de tout récupérer.<br>Dernière sauvegarde : <b>${le ? new Date(le).toLocaleString('fr-FR') : 'jamais'}</b></p>
       <button class="btn primary" data-act="export">Exporter en JSON</button></div>
-    <div class="card"><h3>Restaurer (import JSON)</h3>
+    <div class="card"><h3 data-repere="export">Restaurer (import JSON)</h3>
       <p>Remplace les données actuelles par celles d'un fichier de sauvegarde. Une copie de l'état actuel est gardée dans le navigateur au cas où.</p>
       <button class="btn" data-act="import">Importer un JSON…</button>
       ${store.getItem(BACKUP_KEY) ? ' <button class="btn" data-act="undo-import">Revenir à l\'état d\'avant le dernier import</button>' : ''}</div>
@@ -1119,7 +1132,7 @@ function renderDrawer() {
   const fmt = iso => iso ? new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '—';
   el.innerHTML = `<div class="drawer-bg" data-act="close-drawer"></div>
   <div class="drawer" data-tid="${t.id}">
-    <h2>Détails de la tâche <button class="icon x" data-act="close-drawer" title="Fermer (Échap)">✕</button></h2>
+    <h2><span data-repere="details après">Détails de la tâche</span> <button class="icon x" data-act="close-drawer" title="Fermer (Échap)">✕</button></h2>
     <div class="f"><label>Titre</label><input data-field="title" data-k="dr-title" value="${esc(t.title)}"></div>
     <div class="f"><label>Sujet</label><select data-field="subjectId" data-k="dr-subj">${subjectOptions(t.subjectId)}</select></div>
     <div class="row2">
@@ -1131,10 +1144,10 @@ function renderDrawer() {
       ${modOn('charge') ? `<div class="f"><label>Date de début</label><input type="date" data-field="startDate" data-k="dr-sd" value="${t.startDate || ''}"></div>` : ''}
     </div>
     <div class="row2">
-      <div class="f"><label>Temps estimé</label><input data-field="estimate" data-k="dr-est" value="${esc(fmtDur(t.estimateMin))}" placeholder="ex. 1h30"></div>
+      <div class="f"><label data-repere="durees">Temps estimé</label><input data-field="estimate" data-k="dr-est" value="${esc(fmtDur(t.estimateMin))}" placeholder="ex. 1h30"></div>
       ${modOn('chrono') ? `<div class="f"><label>Temps réel passé</label><input data-field="real" data-k="dr-real" value="${esc(fmtDur(t.realMin || null))}" placeholder="ex. 2h"></div>` : ''}
     </div>
-    ${modOn('charge') ? `<div class="f"><label>Répartition du travail</label>
+    ${modOn('charge') ? `<div class="f"><label data-repere="repartition">Répartition du travail</label>
       <select data-field="planMode" data-k="dr-plan">
         <option value="deadline" ${t.plan.mode === 'deadline' ? 'selected' : ''}>Tout le jour de l'échéance</option>
         <option value="spread" ${t.plan.mode === 'spread' ? 'selected' : ''}>Réparti entre la date de début et l'échéance</option>
@@ -1154,9 +1167,13 @@ function renderDrawer() {
 }
 
 /* ---------- Rendu global ---------- */
+// Liste complète et ordonnée des onglets, ceux des modules compris : un module fournit seulement sa vue (views.<onglet>)
 const NAV = [
   ['dashboard', 'Tableau de bord', 'dash'],
   ['sujets', 'Sujets', 'list'],
+  ['projets', 'Projets', 'gantt', 'projet'],
+  ['charge', 'Charge', 'chart', 'charge'],
+  ['pointage', 'Pointage', 'clock', 'pointage'],
   ['inbox', 'Boîte de réception', 'inbox'],
   ['archives', 'Archives', 'archive'],
   ['donnees', 'Données', 'data']
@@ -1528,8 +1545,11 @@ window.todoApp = {
   demo: DEMO,
   replaceData: d => { keepBackup(); db = migrate(d); viderHistorique(); save(); render(); }
 };
-// Points d'accroche pour chrono-charge.js (chrono, temps réel, vue Charge)
-const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], subjectBody: [], apresModif: [], absence: [], refusRangement: [], sortieDuParent: [] };
+// Emplacements où les modules s'affichent (listes de fonctions qui rendent du HTML) et accroches de données.
+// bandeauTableau() : tableau de bord, après les statistiques et avant la première section ;
+// debutLigneTache(t) / debutEnteteSujet(s) : tout début d'une ligne de tâche / d'un en-tête de sujet.
+const hooks = { taskRow: [], drawer: [], dashFilter: [dimOk], dashTop: [], subjectsToolbar: [], subjectBody: [], apresModif: [], absence: [], refusRangement: [], sortieDuParent: [],
+  bandeauTableau: [], debutLigneTache: [], debutEnteteSujet: [] };
 const titre = x => (x && x.title) || 'Sans titre';
 // Enregistre l'affichage (filtres, onglets, sujets dépliés, modules actifs), hors historique.
 // Une donnée changée en route (oubli de modifier()) n'est ni perdue ni effaçable : elle devient un pas annulable.
@@ -1545,7 +1565,7 @@ function enregistrerAffichage() {
 }
 Object.assign(window.todoApp, { hooks, views, NAV, ICON, MODULES, modOn, PRIO, STATUS, DIMS, dimOk, dimsBar, enregistrerAffichage, modifier, normTask, titre, annuler, retablir, scheduleRender, task, subj, visible, isOpen, setTaskField, toast, subjectStats, remaining: M.remaining, taskCmp,
   parentOf, childrenOf, subjLabel, setParent, canNest, expandTo, archiveSubject, createSubject,
-  esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur, calendrier, absenceDu, lundi: M.lundi, semaineIso: M.semaineIso, prochaineEcheance: M.prochaineEcheance, echeancesLes: ds => M.echeancesLes(db, ds), nonTravaille, montrerTaches });
+  esc, uid, nowIso, ymd, addDays, diffDays, parseYmd, longDate, fmtDur, parseDur, calendrier, absenceDu, lundi: M.lundi, semaineIso: M.semaineIso, prochaineEcheance: M.prochaineEcheance, echeancesLes: ds => M.echeancesLes(db, ds), nonTravaille, montrerTaches, allerA, debutLigneTache });
 
 if (DEMO) {
   document.body.classList.add('demo');
