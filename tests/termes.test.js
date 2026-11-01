@@ -10,7 +10,7 @@ after(closeAll);
 // Termes « À éviter » sans ambiguïté : aucun texte lu à l'écran ne les contient (pluriel compris)
 const LISTE = ['deadline', 'date limite', 'inbox', 'tâches orphelines', 'workload', 'corbeille', 'suppression', 'supprimer',
   'retour arrière', "capacité d'une journée", 'objectif par jour', 'plugin', 'dashboard', 'fusion', 'merge',
-  'catégorie', 'rattacher', 'détacher', 'arbre', 'projet séparé', 'objet projet', 'item', 'reste à faire'];
+  'catégorie', 'rattacher', 'détacher', 'arbre', 'projet séparé', 'objet projet', 'item', 'reste à faire', 'slot'];
 // Termes « À éviter » hors du contrôle : l'écran les emploie à bon droit dans un autre sens (ou les données de l'utilisateur)
 const EXCEPTIONS = {
   dossier: 'le dossier de la Sauvegarde et du fichier téléchargé, sur le PC',

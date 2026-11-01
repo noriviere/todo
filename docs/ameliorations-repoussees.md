@@ -36,6 +36,7 @@ on le barre (`~~…~~`) et on note la PR ou la raison dans « État » ; on ne s
 | 11 | Un chrono qui passe minuit est compté entièrement sur le jour de départ | Revue du code du 24/10 | À vérifier |
 | 12 | Congés : un solde négatif (ex. −2 jours) est oublié au bout d'un an | Revue du code du 24/10 | À vérifier |
 | 13 | Excel : les fichiers au format de dates « 1904 » (anciens Mac) donnent des dates fausses | Revue du code du 24/10 | Vérifié, non géré |
+| 26 | Charge : lisser la surcharge, en reportant le travail d'un jour surchargé vers les jours libres (aujourd'hui la Charge montre la surcharge sans rien déplacer) | Grill piste B, 01/11 (Q7) | Repoussée |
 
 ## Gestion de projet
 

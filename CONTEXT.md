@@ -89,6 +89,10 @@ Le bouton ▶ d'une tâche qui mesure le temps réel passé.
 La prévision jour par jour du travail à venir, à partir des temps estimés, comparée à la capacité de chaque jour. Une tâche peut être répartie sur plusieurs jours.
 _À éviter_ : planning, workload
 
+**Créneau fixe** :
+Un temps réservé qui revient (réunion, point d'équipe…) et qui prend sur la capacité de la Charge ce jour-là.
+_À éviter_ : slot, réunion (pour le terme général)
+
 **Pointage et congés** :
 Les heures d'arrivée, de repas et de départ, les absences et les compteurs de congés. Les absences réduisent la capacité de la Charge.
 
