@@ -241,7 +241,7 @@ A.hooks.drawer.push(t => {
     const h = l.start && l.kind === 'timer' ? ' · ' + new Date(l.start).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
     return `<div class="cc-log" data-logid="${l.id}"><span>${d}${h}</span><span class="hint">${l.kind === 'timer' ? 'chrono' : 'saisi'}</span><b>${fmtDur(l.min)}</b><button class="icon" data-act="cc-log-del" title="Retirer cette ligne (le temps réel est corrigé)">✕</button></div>`;
   };
-  return `<div class="f cc-box"><label>Temps passé</label>
+  return `<div class="f cc-box"><label data-repere="chrono">Temps passé</label>
     <div class="cc-head">
       <button class="btn${run ? ' cc-stop' : ' primary'}" data-act="cc-timer">${run ? STOP + ' Arrêter' : PLAY + ' Démarrer le chrono'}</button>
       ${run ? `<span class="cc-big" data-cc-tick="${t.id}">${clock(elapsedSec(t))}</span>` : ''}
@@ -289,7 +289,7 @@ function chart(days, compact) {
     </${tag}>`;
   }).join('')}</div>`;
 }
-const legend = () => `<div class="cc-legend">
+const legend = () => `<div class="cc-legend" data-repere="charge">
   <span><i class="fx"></i>Créneaux fixes, congés, fériés</span>
   ${[1, 2, 3].map(p => `<span><i style="background:${prioColor(p)}"></i>${A.PRIO[p].short} ${A.PRIO[p].name}</span>`).join('')}
   <span><i style="background:var(--p0)"></i>Boîte de réception</span>
@@ -342,7 +342,7 @@ A.views.charge = () => {
   const td = fc.days[0];
   const act = slots().filter(s => !s.archived), arch = slots().filter(s => s.archived);
   const fixedWeek = sum(wk, 'fixedMin');
-  return `<h1>Charge de travail</h1>
+  return `<h1 data-repere="charge">Charge de travail</h1>
     <p class="sub">Temps restant des tâches ouvertes, réparti selon le réglage de chaque tâche, plus tes créneaux fixes.</p>
     <div class="toolbar">
       <div class="chips">${[7, 14, 28].map(x => `<button class="chip ${x === n ? 'on' : ''}" data-act="cc-range" data-n="${x}">${x} jours</button>`).join('')}</div>
@@ -358,13 +358,13 @@ A.views.charge = () => {
       ${fc.after ? `<p class="hint" style="margin:8px 0 0">${fmtDur(fc.after)} de travail sont prévues après ces ${n} jours.</p>` : ''}
     </div>
     ${dayDetail(fc.days.find(d => d.date === selDay))}
-    ${fc.unplanned.length || fc.noEst.length ? `<details class="sec"><summary><span class="chev">${A.ICON.chev}</span>Non comptées dans la charge<span class="cnt">${fc.unplanned.length + fc.noEst.length}</span></summary>
+    ${fc.unplanned.length || fc.noEst.length ? `<details class="sec"><summary data-repere="charge"><span class="chev">${A.ICON.chev}</span>Non comptées dans la charge<span class="cnt">${fc.unplanned.length + fc.noEst.length}</span></summary>
       <p class="hint" style="margin:0 0 8px 4px">Ajoute une durée estimée, et une échéance ou un temps par jour, pour qu'elles apparaissent dans le graphique.</p>
       <div class="list">${[...fc.noEst.map(t => [t, 'sans durée estimée']), ...fc.unplanned.map(t => [t, 'sans échéance (' + fmtDur(remaining(t)) + ')'])].map(([t, why]) => { const s = A.subj(t.subjectId); return `<div class="task cc-item" data-tid="${t.id}" style="--pc:var(--p${s ? s.priority : 0})">
         <span class="title">${esc(t.title || 'Sans titre')}</span><span class="hint">${s ? esc(s.title) : 'Boîte de réception'} · ${why}</span>
         <button class="icon" data-act="details" title="Détails">${A.ICON.more}</button></div>`; }).join('')}</div>
     </details>` : ''}
-    <div class="card"><h3>Créneaux fixes</h3>
+    <div class="card"><h3 data-repere="creneaux">Créneaux fixes</h3>
       <p>Le temps pris chaque semaine par ce qui n'est pas une tâche : réunions récurrentes, points d'équipe… Il est retiré de ta capacité. Un jour entièrement pris ne reçoit pas de tâche réparties. ${on('pointage') ? `Les congés posés dans l'onglet <a href="#pointage">Pointage</a> et les jours fériés sont retirés automatiquement.` : ''}</p>
       <div class="cc-slots">${act.map(slotRow).join('') || '<div class="empty">Aucun créneau fixe pour le moment.</div>'}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
@@ -374,7 +374,7 @@ A.views.charge = () => {
       ${arch.length ? `<details class="cc-arch"><summary class="hint">${arch.length} créneau${arch.length > 1 ? 'x' : ''} archivé${arch.length > 1 ? 's' : ''}</summary>
         ${arch.map(sl => `<div class="cc-slot" data-slid="${sl.id}"><span class="cc-st">${esc(sl.title)}</span><span class="hint">${fmtDur(sl.durMin)} · ${esc(describeSlot(sl))}</span><button class="btn" data-act="cc-slot-restore">Restaurer</button></div>`).join('')}</details>` : ''}
     </div>
-    <div class="card"><h3>Ma semaine type</h3>
+    <div class="card"><h3 data-repere="creneaux">Ma semaine type</h3>
       <div class="cc-settings">
         <label>Capacité d'une journée <input class="inline est" data-cc-set="workday" data-k="cc-wd" value="${esc(fmtDur(st.workdayMin))}" title="Temps de travail disponible par jour (sert aussi pour « 1j »)"></label>
         <span>Semaine type : ${esc(WD_ORDER.filter(x => A.calendrier().semaine.includes(x)).map(x => WD_LONG[x].slice(0, 3) + '.').join(' '))} <a href="#donnees" class="cc-cal-lien" data-act="cal-voir">Régler dans Données › Calendrier</a></span>

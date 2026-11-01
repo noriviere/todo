@@ -1,7 +1,7 @@
 /* Mode d'emploi intégré.
    - Bouton « Mode d'emploi » dans la barre latérale (toujours au même endroit), raccourci « ? ».
    - Panneau qui s'ouvre par-dessus la page en cours : résumé des fonctions, sommaire, puis une section par sujet.
-   - Petits « i » ajoutés à côté des titres, cases et boutons clés : ils ouvrent le guide sur la bonne section.
+   - Petits « i » ajoutés là où un écran pose un repère (data-repere) : ils ouvrent le guide sur la bonne section.
    Module séparé de index.html : il s'appuie sur window.todoApp et sur l'événement todo:rendered. */
 (function () {
 'use strict';
@@ -497,69 +497,18 @@ if (side && !side.querySelector('.gd-open')) {
 }
 
 /* ---------- Petits « i » contextuels ---------- */
-// Repérés par un sélecteur, éventuellement le début du texte ; « in » : ajouté à la fin de l'élément, « after » : juste après
-const SPOTS = [
-  ['#main h1', 'Tableau de bord', 'dashboard'],
-  ['#main h1', 'Sujets', 'sujets'],
-  ['#main h1', 'Boîte de réception', 'inbox'],
-  ['#main h1', 'Archives', 'archives'],
-  ['#main h1', 'Données', 'donnees'],
-  ['#main h1', 'Charge de travail', 'charge'],
-  ['#main h1', 'Pointage', 'pointer'],
-  ['#main h1', 'Projets', 'projets'],
-  ['#main .pj-sec h3', 'Jalons', 'projets'],
-  ['#main #qa', '', 'saisie'],
-  ['#main .org-filters', '', 'filtres'],
-  ['#main .prio-title', '', 'priorites', 'first'],
-  ['#main details.sec-today > summary', '', 'taches'],
-  ['#main .pt-dash .pt-today-l > a', '', 'pointer', 'after'],
-  ['#main .cc-legend', '', 'charge'],
-  ['#main details.sec > summary', 'Non comptées', 'charge'],
-  ['#main .card h3', 'Créneaux fixes', 'creneaux'],
-  ['#main .card h3', 'Ma semaine type', 'creneaux'],
-  ['#main .pt-week .pt-head > span:first-child', '', 'pointer'],
-  ['#main .card h3', 'Poser une absence', 'conges'],
-  ['#main .pt-counter h3', '', 'compteurs'],
-  ['#main .card h3', 'Absences', 'conges'],
-  ['#main details.sec > summary', "Types d'absence", 'types-absence'],
-  ['#main .card h3', 'Heures par semaine', 'bilan'],
-  ['#main .card h3', 'Par mois', 'bilan'],
-  ['#main .card h3', 'Réglages', 'bilan'],
-  ['#main .card h3', 'Modules actifs', 'modules'],
-  ['#main .card h3', 'Calendrier', 'calendrier'],
-  ['#main .card h3', 'Mode démo', 'demo'],
-  ['#main .card h3', 'Sauvegarde automatique', 'sauvegarde-auto'],
-  ['#main .card h3', 'Sauvegarde manuelle', 'export'],
-  ['#main .card h3', 'Restaurer', 'export'],
-  ['#main .card h3', 'Synchro', 'synchro'],
-  ['#main .card h3', 'Import depuis Excel', 'excel'],
-  ['#main .card h3', "Import de l'historique", 'pointage-import'],
-  ['#main .card h3', 'Importer un historique', 'pointage-import'],
-  ['#drawer .drawer h2', '', 'details'],
-  ['#drawer .f > label', 'Temps estimé', 'durees'],
-  ['#drawer .f > label', 'Répartition du travail', 'repartition'],
-  ['#drawer .f > label', 'Temps passé', 'chrono'],
-  ['#drawer .f > label', 'Répéter', 'recurrence']
-];
+// Chaque écran pose ses repères dans son HTML : data-repere="<id de la section>" ajoute le « i » à la fin de l'élément,
+// data-repere="<id> après" juste après lui. Le guide ne connaît aucun sélecteur d'écran.
 const iBtn = id => `<button type="button" class="gd-i" data-help="${id}" title="Aide : ${esc(byId(id).title)}" aria-label="Aide : ${esc(byId(id).title)}">${I_INFO}</button>`;
 function addInfo() {
-  for (const [sel, text, id, where] of SPOTS) {
-    let els = [...document.querySelectorAll(sel)];
-    if (where === 'first') els = els.slice(0, 1);
-    els.forEach(el => {
-      if (text && !el.textContent.trim().startsWith(text)) return;
-      if (where === 'after') {
-        if (!(el.nextElementSibling && el.nextElementSibling.classList.contains('gd-i'))) el.insertAdjacentHTML('afterend', iBtn(id));
-        return;
-      }
-      if (el.querySelector(':scope > .gd-i')) return;
-      // Dans un titre qui contient un bouton de fermeture (panneau détails), le « i » se place avant ce bouton
-      const x = el.querySelector(':scope > .x');
-      x ? x.insertAdjacentHTML('beforebegin', iBtn(id)) : el.insertAdjacentHTML('beforeend', iBtn(id));
-    });
-  }
+  document.querySelectorAll('#main [data-repere], #drawer [data-repere]').forEach(el => {
+    const [id, ou] = el.dataset.repere.split(' ');
+    if (ou === 'après') {
+      if (!(el.nextElementSibling && el.nextElementSibling.classList.contains('gd-i'))) el.insertAdjacentHTML('afterend', iBtn(id));
+    } else if (!el.querySelector(':scope > .gd-i')) el.insertAdjacentHTML('beforeend', iBtn(id));
+  });
 }
-// Les cartes des modules (synchro, sauvegarde, imports) et le panneau détails se dessinent après le rendu : on surveille
+// Les cartes peintes après l'écran (synchro, sauvegarde, imports) et le panneau détails : on surveille
 let queued = false;
 const queue = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; addInfo(); }); } };
 window.addEventListener('todo:rendered', queue);
