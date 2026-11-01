@@ -53,7 +53,7 @@ test('temps retiré : le bandeau « Annuler » passe par l\'historique', async (
   const page = await openApp(base({ tasks: [{ id: 'a', subjectId: 'p', title: 'Tâche A', deadline: day(0), realMin: 30,
     timeLogs: [{ id: 'l1', date: day(0), min: 30, kind: 'manual' }] }] }));
   await ligne(page, 'a').locator('[data-act="details"]').click();
-  await page.click('.drawer [data-act="cc-log-del"]');
+  await page.click('#drawer [data-act="cc-log-del"]');
   assert.equal((await tache(page, 'a')).realMin, 0);
   await page.click('#toast [data-act="undo"]');
   const t = await tache(page, 'a');
@@ -65,11 +65,11 @@ test('temps retiré : le bandeau « Annuler » passe par l\'historique', async (
 test('Charge : créneau archivé (bandeau) et capacité de la journée s\'annulent', async () => {
   const page = await openApp(base({ settings: { modules: {}, workdayMin: 420 },
     fixedSlots: [{ id: 's1', title: 'Réunion', durMin: 60, freq: 'weekly', days: [1], start: day(-30), end: null, archived: false }] }), { hash: 'charge' });
-  await page.click('[data-slid="s1"] [data-act="cc-slot-archive"]');
+  await page.click('#main [data-slid="s1"] [data-act="cc-slot-archive"]');
   assert.equal((await page.db()).fixedSlots[0].archived, true);
   await page.click('#toast [data-act="undo"]');
   assert.equal((await page.db()).fixedSlots[0].archived, false);
-  const cap = page.locator('[data-cc-set="workday"]');
+  const cap = page.locator('#main [data-cc-set="workday"]');
   await cap.fill('8h');
   await cap.press('Enter');
   await page.waitForTimeout(50);
@@ -87,9 +87,9 @@ test('Pointage : pointer l\'arrivée puis ↶ ; absence posée puis Ctrl+Z, avec
   assert.equal(((await page.db()).pointage.days[day(0)] || {}).in, undefined);
 
   await page.click('#main [data-act="pt-tab"][data-t="conges"]');
-  await page.fill('#pt-from', day(1));
-  await page.fill('#pt-to', day(1));
-  await page.click('[data-act="pt-post"]');
+  await page.fill('#main #pt-from', day(1));
+  await page.fill('#main #pt-to', day(1));
+  await page.click('#main [data-act="pt-post"]');
   assert.ok((await page.db()).pointage.days[day(1)].abs);
   await page.goto(page.url().replace(/#.*$/, '#dashboard'));
   await page.waitForTimeout(50);
@@ -104,7 +104,7 @@ test('module coupé après une modification : Ctrl+Z la défait sans rallumer le
   await page.locator('#main [data-act="pt-punch"][data-f="in"]').first().click();
   await page.goto(page.url().replace(/#.*$/, '#donnees'));
   await page.waitForTimeout(50);
-  await page.locator('[data-mod="pointage"]').uncheck({ force: true });
+  await page.locator('#main [data-mod="pointage"]').uncheck({ force: true });
   await page.waitForTimeout(50);
   assert.equal(await peutAnnuler(page), true, 'couper un module ne vide pas l\'historique');
   await ailleurs(page);
@@ -135,9 +135,9 @@ test('import d\'un fichier de pointage : un seul pas, Ctrl+Z défait tout l\'imp
   const page = await openApp(base(), { hash: 'pointage' });
   await page.locator('#main [data-act="pt-punch"][data-f="in"]').first().click();   // une modification avant l'import
   await page.click('#main [data-act="pt-tab"][data-t="bilan"]');
-  const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('[data-pti="pick"]')]);
+  const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('#main [data-pti="pick"]')]);
   await fc.setFiles({ name: 'pointage.xlsx', mimeType: 'application/octet-stream', buffer });
-  await page.click('[data-pti="go"]');
+  await page.click('#main [data-pti="go"]');
   await page.waitForTimeout(50);
   const jours = d => Object.keys(d.pointage.days).length;
   assert.equal(jours(await page.db()), 3, 'deux jours importés + le pointage du jour');
@@ -153,7 +153,7 @@ test('import d\'un fichier de pointage : un seul pas, Ctrl+Z défait tout l\'imp
 test('chrono masqué pendant qu\'il tourne : l\'arrêt ne s\'annule pas, aucun chrono invisible ne repart', async () => {
   const page = await openApp(base(), { hash: 'donnees' });
   await page.evaluate(() => { const A = window.todoApp; A.modifier('Chrono démarré', d => { d.tasks[0].timerStart = A.nowIso(); }); });
-  await page.locator('[data-mod="chrono"]').uncheck({ force: true });
+  await page.locator('#main [data-mod="chrono"]').uncheck({ force: true });
   await page.waitForTimeout(50);
   assert.equal((await tache(page, 'a')).timerStart, null, 'arrêté en masquant le module');
   await ailleurs(page);
@@ -166,8 +166,8 @@ test('allumer un module pour la première fois ne vide pas l\'historique', async
   await ligne(page, 'a').locator('[data-act="archive-task"]').click();
   await page.evaluate(() => { location.hash = 'donnees'; });
   await page.waitForTimeout(60);
-  await page.locator('[data-mod="charge"]').check({ force: true });
-  await page.locator('[data-mod="pointage"]').check({ force: true });
+  await page.locator('#main [data-mod="charge"]').check({ force: true });
+  await page.locator('#main [data-mod="pointage"]').check({ force: true });
   for (const h of ['charge', 'pointage']) { await page.evaluate(h => { location.hash = h; }, h); await page.waitForTimeout(60); }
   await page.click('#main [data-act="pt-tab"][data-t="conges"]');
   assert.equal(await peutAnnuler(page), true);

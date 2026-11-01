@@ -16,8 +16,8 @@ const data = () => ({
   ],
   tasks: [], settings: {}, ui: { expanded: ['p'] }
 });
-const card = (page, id) => page.locator(`.subject[data-sid="${id}"]`).first();
-const head = (page, id) => page.locator(`.subject[data-sid="${id}"] > .s-head`).first();
+const card = (page, id) => page.locator(`#main .subject[data-sid="${id}"]`).first();
+const head = (page, id) => page.locator(`#main .subject[data-sid="${id}"] > .s-head`).first();
 const order = page => page.evaluate(() => [...document.querySelectorAll('.subject[data-sid="p"] .s-children > .subject')].map(x => x.dataset.sid).join(''));
 
 // Glisse la poignée de `id` jusqu'au point (x, y) ; renvoie l'état du trait juste avant de lâcher
@@ -83,7 +83,7 @@ test('sous-sujet sur l\'en-tête d\'un autre sujet : rangé dedans, annulable', 
 
 test('sous-sujet : pas de dépôt hors d\'une liste de sous-sujets', async () => {
   const page = await openApp(data(), { hash: 'sujets' });
-  const t = await page.locator('.prio-group[data-p="2"] .prio-title').boundingBox();
+  const t = await page.locator('#main .prio-group[data-p="2"] .prio-title').boundingBox();
   const { line, into } = await drag(page, 'a', { x: t.x + 40, y: t.y + t.height / 2 });
   assert.equal(line, null);
   assert.equal(into.length, 0);

@@ -17,32 +17,32 @@ test('filtre Code sur le tableau de bord : une tâche du parent ne passe pas gr�
 test('« Dans » masqué pour un sujet qui a des sous-sujets archivés', async () => {
   const page = await openApp(base([{ id: 'p', title: 'P', priority: 1 }, { id: 'c', title: 'C', priority: 1, parentId: 'p', archived: true }, { id: 'o', title: 'O', priority: 1 }],
     [], { ui: { expanded: ['p'] } }), { hash: 'sujets' });
-  assert.equal(await page.locator('.subject[data-sid="p"] [data-field="s-parent"]').count(), 0);
+  assert.equal(await page.locator('#main .subject[data-sid="p"] [data-field="s-parent"]').count(), 0);
 });
 
 test('ranger un sujet dans un parent replié l\'affiche déplié ; un projet ne se range pas', async () => {
   const page = await openApp(base([{ id: 'p', title: 'P', priority: 1 }, { id: 'o', title: 'O', priority: 1 },
     { id: 'q', title: 'Q', priority: 1, isProject: true, pj: { milestones: [] } }], [], { ui: { expanded: ['o', 'q'] } }), { hash: 'sujets' });
-  await page.locator('.subject[data-sid="o"] [data-field="s-parent"]').selectOption('p');
+  await page.locator('#main .subject[data-sid="o"] [data-field="s-parent"]').selectOption('p');
   await page.waitForTimeout(50);
-  assert.equal(await page.locator('.subject[data-sid="p"] .subject[data-sid="o"]').count(), 1);
-  assert.equal(await page.locator('.subject[data-sid="q"] [data-field="s-parent"]').count(), 0);
+  assert.equal(await page.locator('#main .subject[data-sid="p"] .subject[data-sid="o"]').count(), 1);
+  assert.equal(await page.locator('#main .subject[data-sid="q"] [data-field="s-parent"]').count(), 0);
 });
 
 test('parent archivé : la transformation crée un sujet de premier niveau, pas d\'étape d\'un projet archivé', async () => {
   const page = await openApp(base([{ id: 'p', title: 'P', priority: 1, archived: true, isProject: true, pj: { milestones: [] } },
     { id: 'c', title: 'C', priority: 1, parentId: 'p', plan: {} }], [{ id: 't', subjectId: 'c', title: 'Tâche' }], { ui: { expanded: ['c'] } }), { hash: 'sujets' });
-  assert.equal(await page.locator('.subject[data-sid="c"] [data-pjf="dur"]').count(), 0);
-  await page.click('.task[data-tid="t"] [data-act="details"]');
-  await page.click('.drawer [data-act="to-subject"]');
+  assert.equal(await page.locator('#main .subject[data-sid="c"] [data-pjf="dur"]').count(), 0);
+  await page.click('#main .task[data-tid="t"] [data-act="details"]');
+  await page.click('#drawer [data-act="to-subject"]');
   const d = await page.db();
   assert.equal(d.subjects.find(s => s.title === 'Tâche').parentId || null, null);
 });
 
 test('annuler une transformation ne laisse pas de sujet fantôme', async () => {
   const page = await openApp(base([{ id: 'p', title: 'P', priority: 1 }], [{ id: 't', subjectId: 'p', title: 'Tâche' }], { ui: { expanded: ['p'] } }), { hash: 'sujets' });
-  await page.click('.task[data-tid="t"] [data-act="details"]');
-  await page.click('.drawer [data-act="to-subject"]');
+  await page.click('#main .task[data-tid="t"] [data-act="details"]');
+  await page.click('#drawer [data-act="to-subject"]');
   await page.click('#toast [data-act="undo"]');
   const d = await page.db();
   assert.equal(d.subjects.length, 1);
@@ -56,6 +56,6 @@ test('un projet archivé ne s\'ouvre plus dans Projets', async () => {
 
 test('la carte d\'un projet permet de quitter le mode projet', async () => {
   const page = await openApp(base([{ id: 'p', title: 'Projet X', priority: 1, isProject: true, pj: { milestones: [] } }]), { hash: 'projets' });
-  await page.click('.pj-card[data-pid="p"] [data-pj="unproject"]');
+  await page.click('#main .pj-card[data-pid="p"] [data-pj="unproject"]');
   assert.equal((await page.db()).subjects[0].isProject, false);
 });

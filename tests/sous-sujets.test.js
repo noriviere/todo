@@ -17,12 +17,12 @@ const nest = (extra = {}) => Object.assign({
   ],
   settings: {}, ui: { expanded: ['p'] }
 }, extra);
-const box = (page, id) => page.locator(`.subject[data-sid="${id}"]`).first();
+const box = (page, id) => page.locator(`#main .subject[data-sid="${id}"]`).first();
 
 test('un sous-sujet s\'affiche replié sous son parent, et le parent compte ses tâches', async () => {
   const page = await openApp(nest(), { hash: 'sujets' });
   assert.equal(await page.locator('#main > .prio-group > .subject[data-sid="c"]').count(), 0);
-  const child = page.locator('.subject[data-sid="p"] .s-children .subject.child[data-sid="c"]');
+  const child = page.locator('#main .subject[data-sid="p"] .s-children .subject.child[data-sid="c"]');
   assert.equal(await child.count(), 1);
   assert.equal(await child.locator('.s-body').count(), 0);
   assert.match(await box(page, 'p').locator('> .s-head').innerText(), /1\/2/);
@@ -36,7 +36,7 @@ test('« Dans » range un sujet sous un autre ; absent sur un parent', async () 
   await page.waitForTimeout(50);
   const d = await page.db();
   assert.equal(d.subjects.find(s => s.id === 'o').parentId, 'p');
-  assert.equal(await page.locator('.subject[data-sid="p"] .s-children .subject[data-sid="o"]').count(), 1);
+  assert.equal(await page.locator('#main .subject[data-sid="p"] .s-children .subject[data-sid="o"]').count(), 1);
 });
 
 test('« + Sous-sujet » crée un sous-sujet ouvert', async () => {
@@ -57,30 +57,30 @@ test('archiver un parent cache ses sous-sujets, restaurer les rend', async () =>
   await page.evaluate(() => { location.hash = 'dashboard'; });
   assert.doesNotMatch(await page.locator('#main').innerText(), /Rédiger cahier/);
   await page.evaluate(() => { location.hash = 'archives'; });
-  await page.locator('.task[data-sid="p"] [data-act="restore-subject"]').click();
+  await page.locator('#main .task[data-sid="p"] [data-act="restore-subject"]').click();
   d = await page.db();
   assert.equal(d.subjects.find(s => s.id === 'c').archived, false);
 });
 
 test('la recherche d\'une tâche d\'un sous-sujet ouvre le parent et le sous-sujet', async () => {
   const page = await openApp(nest({ ui: { expanded: [] } }), { hash: 'sujets' });
-  await page.fill('#search', 'cahier');
+  await page.fill('#main #search', 'cahier');
   await page.waitForTimeout(50);
-  assert.equal(await page.locator('.subject[data-sid="c"] .task[data-tid="t2"]').count(), 1);
-  assert.equal(await page.locator('.subject[data-sid="o"]').count(), 0);
+  assert.equal(await page.locator('#main .subject[data-sid="c"] .task[data-tid="t2"]').count(), 1);
+  assert.equal(await page.locator('#main .subject[data-sid="o"]').count(), 0);
 });
 
 test('les sous-sujets sont listés « ↳ » sous leur parent', async () => {
   const page = await openApp(nest({ tasks: [{ id: 'x', title: 'Boîte', subjectId: null }] }), { hash: 'inbox' });
-  const opts = await page.locator('.task[data-tid="x"] [data-field="subjectId"] option').allInnerTexts();
+  const opts = await page.locator('#main .task[data-tid="x"] [data-field="subjectId"] option').allInnerTexts();
   const i = opts.findIndex(o => o.includes('Achat machine'));
   assert.match(opts[i + 1], /↳ CDC/);
 });
 
 /* ---------- Task 3 : transformer une tâche en sous-sujet ---------- */
 async function convert(page, tid) {
-  await page.locator(`.task[data-tid="${tid}"] [data-act="details"]`).first().click();
-  await page.locator('.drawer [data-act="to-subject"]').click();
+  await page.locator(`#main .task[data-tid="${tid}"] [data-act="details"]`).first().click();
+  await page.locator('#drawer [data-act="to-subject"]').click();
   return page.db();
 }
 test('une tâche d\'un sujet devient un sous-sujet qui la contient', async () => {
@@ -120,9 +120,9 @@ test('« Mode projet » sur un sujet le fait apparaître dans Projets, ses sous-
   await box(page, 'p').locator('[data-pj="open-project"]').click();
   await page.waitForFunction(() => location.hash === '#projets');
   assert.match(await page.locator('#main h1').innerText(), /Achat machine/);
-  assert.match(await page.locator('.pj-unplanned').innerText(), /CDC/);
+  assert.match(await page.locator('#main .pj-unplanned').innerText(), /CDC/);
   // Avancement global : la tâche faite du niveau 1 compte
-  await page.click('[data-pj="back"]');
-  assert.match(await page.locator('.pj-card').innerText(), /50%/);
+  await page.click('#main [data-pj="back"]');
+  assert.match(await page.locator('#main .pj-card').innerText(), /50%/);
   assert.deepEqual(page.errors, []);
 });

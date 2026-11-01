@@ -183,3 +183,13 @@ test('occurrence décalée : la date théorique à garder est donnée', () => {
   assert.equal(suivante({ deadline: '2026-10-01', recur: { freq: 'month', interval: 1 } }).decaleeDe, '2026-11-01');
   assert.equal(suivante({ deadline: '2026-10-02', recur: { freq: 'month', interval: 1 } }).decaleeDe, null);
 });
+
+test('numéro de semaine ISO : la semaine 1 contient le premier jeudi de l\'année', () => {
+  assert.equal(M.semaineIso('2026-10-28'), 44);
+  assert.equal(M.semaineIso('2026-01-01'), 1);       // un jeudi
+  assert.equal(M.semaineIso('2026-12-31'), 53);      // 2026 compte 53 semaines
+  assert.equal(M.semaineIso('2027-01-03'), 53);      // dimanche, encore la semaine 53 de 2026
+  assert.equal(M.semaineIso('2027-01-04'), 1);
+  assert.equal(M.semaineIso('2024-12-30'), 1);       // lundi, déjà la semaine 1 de 2025
+  assert.equal(M.semaineIso('2026-03-30'), 14);      // lendemain du passage à l'heure d'été
+});

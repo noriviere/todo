@@ -26,7 +26,7 @@ for (const projet of [true, false]) {
 
   test(`sortir une étape de son projet nettoie ses liens (Gestion de projet ${etat}), Ctrl+Z les rend`, async () => {
     const page = await openApp(donnees(projet), { hash: 'sujets' });
-    await page.locator('.subject[data-sid="s1"] [data-field="s-parent"]').selectOption('');
+    await page.locator('#main .subject[data-sid="s1"] [data-field="s-parent"]').selectOption('');
     let d = await page.db();
     const s1 = sujet(d, 's1');
     assert.equal(s1.parentId || null, null);
@@ -51,7 +51,7 @@ for (const projet of [true, false]) {
     });
     assert.equal(r.peut, false);
     assert.equal(sujet(await page.db(), 'v').parentId || null, null);
-    assert.equal(await page.locator('.subject[data-sid="v"] [data-field="s-parent"]').count(), 0, 'pas de menu « Dans » sur un projet');
+    assert.equal(await page.locator('#main .subject[data-sid="v"] [data-field="s-parent"]').count(), 0, 'pas de menu « Dans » sur un projet');
   });
 }
 
