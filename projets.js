@@ -140,8 +140,8 @@ function detailView(p) {
 
 /* ---------- Gantt ---------- */
 const T = ymd => Date.UTC(+ymd.slice(0, 4), +ymd.slice(5, 7) - 1, +ymd.slice(8, 10));
-const dd = (a, b) => Math.round((T(b) - T(a)) / 864e5);
-const shift = (ymd, n) => new Date(T(ymd) + n * 864e5).toISOString().slice(0, 10);
+const dd = (a, b) => A.diffDays(b, a);   // jours de a à b (calendrier commun de metier.js)
+const shift = A.addDays;
 const MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 const PPD = { week: 22, month: 5 };   // pixels par jour des deux échelles prêtes à l'emploi
 const ZMIN = 0.6, ZMAX = 40;           // zoom libre : de quelques années à quelques jours à l'écran
@@ -597,7 +597,7 @@ document.addEventListener('click', e => { if (swallowClick && e.target.closest('
 // À l'ouverture, la frise se place sur aujourd'hui (un tiers de la largeur avant) ; ensuite elle garde la position choisie.
 // La position est gardée en jours (date du bord gauche), pour rester au même endroit quand le zoom change.
 const scrollPos = new Map();
-const DAY0 = g => T(g.dataset.lo) / 864e5;
+const DAY0 = g => A.diffDays(g.dataset.lo, '1970-01-01');
 window.addEventListener('todo:rendered', () => {
   if (view() !== 'projets') return;
   document.querySelectorAll('#main .pj-gantt').forEach(g => {

@@ -29,11 +29,17 @@ const COPIES = [
   [/%\s*19\b/, 'calcul de Pâques : M.feries ou A.calendrier().ferie'],
 ];
 
+// La durée d'un jour en millisecondes sert à compter ou décaler des jours : M.diffDays / M.addDays (A.diffDays / A.addDays).
+// Exceptions : les deux lecteurs Excel (date série d'Excel, à réunir par la piste D) et l'âge de la sauvegarde (backup.js).
+const JOUR_MS = /\b(86400000|864e5|8\.64e7)\b/;
+const JOUR_MS_PERMIS = ['excel-import.js', 'pointage-import.js', 'backup.js'];
+
 test('aucune copie des règles de dates hors de metier.js', () => {
   const fichiers = ['index.html', ...fs.readdirSync(RACINE).filter(f => f.endsWith('.js') && f !== 'metier.js')];
   const fautes = [];
   for (const f of fichiers) lignes(f).forEach((l, i) => {
     for (const [motif, remede] of COPIES) if (motif.test(l)) fautes.push(`${f}:${i + 1} → ${remede}`);
+    if (!JOUR_MS_PERMIS.includes(f) && JOUR_MS.test(l)) fautes.push(`${f}:${i + 1} → écart ou décalage de jours : A.diffDays / A.addDays`);
   });
   assert.deepEqual(fautes, [], fautes.join('\n'));
 });
