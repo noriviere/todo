@@ -22,10 +22,11 @@ on le barre (`~~…~~`) et on note la PR ou la raison dans « État » ; on ne s
 | # | Amélioration | Origine | État |
 |---|---|---|---|
 | 5 | **Fusion sujet par sujet** en cas de conflit PC / téléphone, au lieu de choisir une version entière | Revue du code du 24/10 ; repoussée encore au grill piste A (Q2) | Repoussée |
-| 6 | Une synchro reçue redessine l'écran pendant que tu tapes : le texte en cours de saisie est perdu | Revue du code du 24/10 | Vérifié, toujours là. Proposé comme correction dans la piste A |
+| 6 | ~~Une synchro reçue redessine l'écran pendant que tu tapes : le texte en cours de saisie est perdu~~ | Revue du code du 24/10 | Fait, PR #56 (piste A) : la version reçue attend la sortie du champ |
 | 7 | Données au-delà de 1 Mo : envoi jamais testé | Revue du code du 24/10 | Non testé |
 | 8 | Récurrence : une occurrence peut-elle être recréée en double quand une synchro arrive ? | Revue du code du 24/10 | À vérifier (le rattrapage après des données venues d'ailleurs existe depuis la piste 2) |
 | 9 | La date du dernier export est partagée entre PC et téléphone (elle part dans la synchro) | Revue du code du 24/10 | Vérifié, toujours là |
+| 25 | La question « GitHub vide » (et les messages de conflit) écrivent « 1 sujets » ou « 1 tâches » : `compte()` (`sync.js`) met toujours le pluriel | Rétro piste A, 01/11 | Repoussée |
 
 ## Charge, Chrono, Pointage
 

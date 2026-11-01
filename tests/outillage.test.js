@@ -79,10 +79,13 @@ test('aucun fichier de test ne redéfinit un nom exporté par tests/helpers.js',
 
 // Les fils de projet démarrent parfois sans .claude/settings.json (le hook SessionStart ne tourne pas) : les hooks Git
 // restent alors éteints sans bruit. La suite le signale tout de suite, hors CI (la CI n'a pas besoin des hooks).
+// Les worktrees (implement-spec) écrivent le chemin absolu du dossier : toute valeur qui y mène est acceptée.
 test('les hooks Git du dépôt sont actifs (git config core.hooksPath .githooks)', { skip: !!process.env.CI }, () => {
   const { spawnSync } = require('child_process');
   const val = spawnSync('git', ['config', 'core.hooksPath'], { cwd: RACINE, encoding: 'utf8' }).stdout.trim();
-  assert.equal(val, '.githooks', 'Hooks Git éteints : lance « git config core.hooksPath .githooks » à la racine du dépôt.');
+  const reel = p => { try { return fs.realpathSync(p); } catch { return p; } };
+  assert.ok(val && reel(path.resolve(RACINE, val)) === reel(path.join(RACINE, '.githooks')),
+    `Hooks Git éteints (core.hooksPath = « ${val} ») : lance « git config core.hooksPath .githooks » à la racine du dépôt.`);
 });
 
 // La liste des améliorations repoussées est la première source quand on cherche des améliorations

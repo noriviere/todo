@@ -1,22 +1,23 @@
 // Synchro PC ↔ téléphone de bout en bout : deux appareils (contextes de navigateur séparés) partagent un faux dépôt (spec #52)
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { closeAll, day, ctrl, ailleurs, aller, fauxDepot, SYNC_CFG, appareil, synchroFinie, synchroniser } = require('./helpers');
+const { sujet, tache, closeAll, day, ctrl, ailleurs, aller, fauxDepot, SYNC_CFG, appareil, synchroFinie, synchroniser } = require('./helpers');
 const D = require('../sync-decision.js');
 after(closeAll);
 
 const VIEUX = '2000-01-01T00:00:00.000Z';
-const sujet = (id, title) => ({ id, title, priority: 1, createdAt: VIEUX, updatedAt: VIEUX });
-const tache = (id, title) => ({ id, subjectId: 'p', title, deadline: day(0), createdAt: VIEUX, updatedAt: VIEUX });
+// Sujet et tâche jamais modifiés depuis longtemps : aucun n'est plus récent qu'une version reçue
+const vieuxSujet = (id, title) => sujet({ id, title, priority: 1, createdAt: VIEUX, updatedAt: VIEUX });
+const vieilleTache = (id, title) => tache({ id, subjectId: 'p', title, deadline: day(0), createdAt: VIEUX, updatedAt: VIEUX });
 const base = () => ({
   version: 1,
-  subjects: [sujet('p', 'Sujet P')],
-  tasks: [tache('a', 'Tâche A'), tache('b', 'Tâche B'), tache('c', 'Tâche C')],
+  subjects: [vieuxSujet('p', 'Sujet P')],
+  tasks: [vieilleTache('a', 'Tâche A'), vieilleTache('b', 'Tâche B'), vieilleTache('c', 'Tâche C')],
   settings: { modules: {} }, ui: { expanded: ['p'] }
 });
-const autre = () => ({ version: 1, subjects: [sujet('p', 'Sujet P'), sujet('q', 'Sujet Q')], tasks: [tache('x', 'Tâche X')], settings: { modules: {} } });
+const autre = () => ({ version: 1, subjects: [vieuxSujet('p', 'Sujet P'), vieuxSujet('q', 'Sujet Q')], tasks: [vieilleTache('x', 'Tâche X')], settings: { modules: {} } });
 const IMPORT_KEY = 'todo-noel-v1-avant-import';
-const POINT_IMPORT = { [IMPORT_KEY]: JSON.stringify({ subjects: [sujet('i', 'Copie d\'avant import')], tasks: [] }), [IMPORT_KEY + '-date']: '2026-10-01T08:00:00.000Z' };
+const POINT_IMPORT = { [IMPORT_KEY]: JSON.stringify({ subjects: [vieuxSujet('i', 'Copie d\'avant import')], tasks: [] }), [IMPORT_KEY + '-date']: '2026-10-01T08:00:00.000Z' };
 const pointImport = page => page.evaluate(k => [localStorage.getItem(k), localStorage.getItem(k + '-date')], IMPORT_KEY);
 // Copie « avant la dernière synchro reçue » de l'appareil
 const copieAvantSynchro = page => page.evaluate(() => JSON.parse(localStorage.getItem('todo-noel-v1-avant-synchro')));

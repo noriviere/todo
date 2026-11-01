@@ -2,10 +2,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const M = require('../metier.js');
-const { TODAY, day } = require('./helpers.js');
+const { TODAY, day, sujet, tache } = require('./helpers.js');
 
-const sujet = (o = {}) => M.normSubject(Object.assign({ id: 'S', title: 'Sujet' }, o));
-const tache = (o = {}) => M.normTask(Object.assign({ subjectId: 'S' }, o));
 const donnees = (subjects, tasks) => Object.assign(M.blank(), { subjects, tasks });
 const etat = (subjects, tasks, s = subjects[0]) => M.subjectStats(s, donnees(subjects, tasks), TODAY);
 
