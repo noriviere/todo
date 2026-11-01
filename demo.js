@@ -155,13 +155,13 @@ function data(td) {
     subjects,
     tasks,
     fixedSlots,
-    settings: { theme: 'auto', workdayMin: 420, lastExport: null, modules: { projet: true } },
+    // Horaire de la semaine type (Données › Calendrier) : 7h45 du lundi au jeudi, 4h le vendredi
+    settings: { theme: 'auto', horaire: [0, 465, 465, 465, 465, 240, 0], lastExport: null, modules: { projet: true } },
     ui: { expanded: ['s1', 's3'], showClosed: false, search: '', dims: { code: '', secteur: '', produit: '' } },
     pointage: {
       days,
       rights: { cp: { [y]: { acq: 25, n1: 6 } }, rtt: { [y]: { acq: 10, n1: 0 } } },
-      defaults: { cp: 25, rtt: 10 },
-      dayMin: { 1: 465, 2: 465, 3: 465, 4: 465, 5: 240, 6: 0, 0: 0 }
+      defaults: { cp: 25, rtt: 10 }
     }
   };
 }

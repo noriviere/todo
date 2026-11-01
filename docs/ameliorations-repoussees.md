@@ -32,7 +32,7 @@ on le barre (`~~…~~`) et on note la PR ou la raison dans « État » ; on ne s
 
 | # | Amélioration | Origine | État |
 |---|---|---|---|
-| 10 | Capacité d'une journée toujours fixe (7 h), alors que le Pointage prévoit 7h45 du lundi au jeudi et 4 h le vendredi | Revue du code du 24/10 | Vérifié, toujours là |
+| 10 | ~~Capacité d'une journée toujours fixe (7 h), alors que le Pointage prévoit 7h45 du lundi au jeudi et 4 h le vendredi~~ | Revue du code du 24/10 | Fait, PR #61 : un seul horaire de la semaine type (Données › Calendrier) pour la Charge et le Pointage |
 | 11 | Un chrono qui passe minuit est compté entièrement sur le jour de départ | Revue du code du 24/10 | À vérifier |
 | 12 | Congés : un solde négatif (ex. −2 jours) est oublié au bout d'un an | Revue du code du 24/10 | À vérifier |
 | 13 | Excel : les fichiers au format de dates « 1904 » (anciens Mac) donnent des dates fausses | Revue du code du 24/10 | Vérifié, non géré |
