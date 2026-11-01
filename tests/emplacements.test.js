@@ -53,14 +53,14 @@ test('un onglet de module garde sa place quel que soit l\'ordre de chargement de
   // Copie de index.html dont les fichiers des modules se chargent dans l'ordre inverse
   const racine = path.resolve(__dirname, '..');
   const html = fs.readFileSync(path.join(racine, 'index.html'), 'utf8');
-  const MODS = ['chrono-charge.js', 'pointage.js', 'pointage-import.js', 'organisation.js', 'projets-plan.js', 'projets.js'];
+  const MODS = ['modules/chrono-charge/chrono-charge.js', 'modules/pointage/pointage.js', 'modules/pointage/pointage-import.js', 'modules/organisation/organisation.js', 'modules/projets/projets-plan.js', 'modules/projets/projets.js'];
   const balise = f => `<script src="${f}"></script>`;
   MODS.forEach(f => assert.ok(html.includes(balise(f)), f + ' chargé par index.html'));
   let copie = html;
   MODS.forEach(f => { copie = copie.replace(balise(f) + '\n', ''); });
   // projets-plan.js reste avant projets.js, qui s'en sert à son chargement
-  const inverse = ['projets-plan.js', 'projets.js', 'organisation.js', 'pointage.js', 'pointage-import.js', 'chrono-charge.js'];
-  copie = copie.replace('<script src="sync.js">', inverse.map(balise).join('\n') + '\n<script src="sync.js">')
+  const inverse = ['modules/projets/projets-plan.js', 'modules/projets/projets.js', 'modules/organisation/organisation.js', 'modules/pointage/pointage.js', 'modules/pointage/pointage-import.js', 'modules/chrono-charge/chrono-charge.js'];
+  copie = copie.replace('<script src="donnees/sync.js">', inverse.map(balise).join('\n') + '\n<script src="donnees/sync.js">')
     .replace('<head>', `<head><base href="file://${racine}/">`);
   const dossier = fs.mkdtempSync(path.join(os.tmpdir(), 'todo-ordre-'));
   const fichier = path.join(dossier, 'index.html');

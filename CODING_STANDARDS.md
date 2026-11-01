@@ -15,9 +15,9 @@ Read at review time. Judgement calls only: anything mechanical belongs in a test
 
 ## Domain rules
 
-- A domain rule lives once, in `metier.js`; a module calls it through `window.todoApp` rather than keeping its own copy. `tests/outillage.test.js` catches the known copies of date rules (semaine type, lundi, Pâques, and the length of a day in milliseconds: count or shift days with `A.diffDays` / `A.addDays`; only the two Excel readers and `backup.js` may use it).
+- A domain rule lives once, in `noyau/metier.js`; a module calls it through `window.todoApp` rather than keeping its own copy. `tests/outillage.test.js` catches the known copies of date rules (semaine type, lundi, Pâques, and the length of a day in milliseconds: count or shift days with `A.diffDays` / `A.addDays`; only the two Excel readers and `donnees/backup.js` may use it).
 - Changed interface text uses the `CONTEXT.md` terms. For each concept the diff touches, search the whole repo (not only the diff) for that entry's _À éviter_ terms in interface text.
 
 ## Demo data
 
-- Demo dates chained to the project plan are counted in working days (`work(td, n)` in `demo.js`), like the planner, so the demo shows the same thing every weekday.
+- Demo dates chained to the project plan are counted in working days (`work(td, n)` in `aide/demo.js`), like the planner, so the demo shows the same thing every weekday.

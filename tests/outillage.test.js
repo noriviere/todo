@@ -32,16 +32,42 @@ const COPIES = [
 // La durée d'un jour en millisecondes sert à compter ou décaler des jours : M.diffDays / M.addDays (A.diffDays / A.addDays).
 // Exceptions : les deux lecteurs Excel (date série d'Excel, à réunir par la piste D) et l'âge de la sauvegarde (backup.js).
 const JOUR_MS = /\b(86400000|864e5|8\.64e7)\b/;
-const JOUR_MS_PERMIS = ['excel-import.js', 'pointage-import.js', 'backup.js'];
+const JOUR_MS_PERMIS = ['donnees/excel-import.js', 'modules/pointage/pointage-import.js', 'donnees/backup.js'];
+
+// Les fichiers de l'appli, dans tous leurs dossiers (hors tests, bibliothèques tierces, docs et outillage)
+const HORS_APPLI = new Set(['.git', '.github', '.githooks', '.claude', 'tests', 'vendor', 'docs', 'node_modules']);
+const fichiersAppli = (ext, dossier = '') => fs.readdirSync(path.join(RACINE, dossier), { withFileTypes: true }).flatMap(e => {
+  const rel = dossier ? `${dossier}/${e.name}` : e.name;
+  if (e.isDirectory()) return HORS_APPLI.has(e.name) ? [] : fichiersAppli(ext, rel);
+  return e.name.endsWith(ext) ? [rel] : [];
+});
 
 test('aucune copie des règles de dates hors de metier.js', () => {
-  const fichiers = ['index.html', ...fs.readdirSync(RACINE).filter(f => f.endsWith('.js') && f !== 'metier.js')];
+  const fichiers = ['index.html', ...fichiersAppli('.js').filter(f => f !== 'noyau/metier.js')];
   const fautes = [];
   for (const f of fichiers) lignes(f).forEach((l, i) => {
     for (const [motif, remede] of COPIES) if (motif.test(l)) fautes.push(`${f}:${i + 1} → ${remede}`);
     if (!JOUR_MS_PERMIS.includes(f) && JOUR_MS.test(l)) fautes.push(`${f}:${i + 1} → écart ou décalage de jours : A.diffDays / A.addDays`);
   });
   assert.deepEqual(fautes, [], fautes.join('\n'));
+});
+
+// Rangement (AGENTS.md) : la racine ne garde que la page, le service worker et le manifeste ; le code va dans les dossiers
+// noyau/, modules/<module>/, donnees/, aide/.
+test('aucun fichier .js ou .css à la racine, hors service worker', () => {
+  const fautes = fs.readdirSync(RACINE).filter(f => /\.(js|css)$/.test(f) && f !== 'sw.js');
+  assert.deepEqual(fautes, [], 'à ranger dans noyau/, modules/<module>/, donnees/ ou aide/ :\n' + fautes.join('\n'));
+});
+
+// Une feuille de styles ou une icône manquante ne fait échouer aucun test d'écran : chaque fichier appelé doit exister.
+test('chaque fichier appelé par la page et par le manifeste existe', () => {
+  const page = fs.readFileSync(path.join(RACINE, 'index.html'), 'utf8');
+  const appels = [...page.matchAll(/\b(?:src|href)="([^"#$:]+)"/g)].map(m => m[1]);
+  const manifeste = JSON.parse(fs.readFileSync(path.join(RACINE, 'manifest.webmanifest'), 'utf8'));
+  appels.push(...manifeste.icons.map(i => i.src));
+  assert.ok(appels.length > 10, 'appels lus : ' + appels.join(', '));
+  const absents = appels.filter(f => !fs.existsSync(path.join(RACINE, f)));
+  assert.deepEqual(absents, [], 'fichiers absents :\n' + absents.join('\n'));
 });
 
 // .githooks/pre-push, joué dans un dépôt jetable : refuse une branche qui ne contient pas origin/main

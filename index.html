@@ -338,12 +338,12 @@ details.sec>summary .load{margin-left:auto;font-size:12px;color:var(--muted);fon
 body.demo .demo-link{display:none}
 body.demo .brand .dot{background:var(--warn)}
 </style>
-<link rel="stylesheet" href="chrono-charge.css">
-<link rel="stylesheet" href="pointage.css">
-<link rel="stylesheet" href="projets.css">
-<link rel="stylesheet" href="guide.css">
+<link rel="stylesheet" href="modules/chrono-charge/chrono-charge.css">
+<link rel="stylesheet" href="modules/pointage/pointage.css">
+<link rel="stylesheet" href="modules/projets/projets.css">
+<link rel="stylesheet" href="aide/guide.css">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" href="icones/apple-touch-icon.png">
 <meta name="theme-color" content="#f5f6fa" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#191d27" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -370,8 +370,8 @@ body.demo .brand .dot{background:var(--warn)}
 <div id="toast"></div>
 <input type="file" id="file" accept=".json,application/json" hidden>
 
-<script src="demo.js"></script>
-<script src="metier.js"></script>
+<script src="aide/demo.js"></script>
+<script src="noyau/metier.js"></script>
 <script>
 (function(){
 'use strict';
@@ -1600,17 +1600,17 @@ let day = today();
 setInterval(() => { if (today() !== day) { day = today(); render(); } }, 60000);
 })();
 </script>
-<script src="backup.js"></script>
-<script src="charge-plan.js"></script>
-<script src="chrono-charge.js"></script>
-<script src="pointage.js"></script>
-<script src="pointage-import.js"></script>
-<script src="organisation.js"></script>
-<script src="projets-plan.js"></script>
-<script src="projets.js"></script>
-<script src="sync-decision.js"></script>
-<script src="sync.js"></script>
-<script src="excel-import.js"></script>
-<script src="guide.js"></script>
+<script src="donnees/backup.js"></script>
+<script src="modules/chrono-charge/charge-plan.js"></script>
+<script src="modules/chrono-charge/chrono-charge.js"></script>
+<script src="modules/pointage/pointage.js"></script>
+<script src="modules/pointage/pointage-import.js"></script>
+<script src="modules/organisation/organisation.js"></script>
+<script src="modules/projets/projets-plan.js"></script>
+<script src="modules/projets/projets.js"></script>
+<script src="donnees/sync-decision.js"></script>
+<script src="donnees/sync.js"></script>
+<script src="donnees/excel-import.js"></script>
+<script src="aide/guide.js"></script>
 </body>
 </html>

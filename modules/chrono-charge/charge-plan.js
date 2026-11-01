@@ -5,7 +5,7 @@
 (function (root) {
 'use strict';
 
-const M = typeof module !== 'undefined' && module.exports ? require('./metier.js') : root.todoMetier;
+const M = typeof module !== 'undefined' && module.exports ? require('../../noyau/metier.js') : root.todoMetier;
 const { addDays, diffDays, parseYmd, lundi, remaining, jourSuivant } = M;
 const somme = sls => sls.reduce((a, sl) => a + sl.durMin, 0);
 

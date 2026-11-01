@@ -7,7 +7,7 @@
   'use strict';
   const A = typeof window !== 'undefined' ? window.todoApp : null;
 
-  const { pad } = typeof window !== 'undefined' ? window.todoMetier : require('./metier.js');
+  const { pad } = typeof window !== 'undefined' ? window.todoMetier : require('../../noyau/metier.js');
   const norm = v => String(v ?? '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   function serialDate(v) {
     if (typeof v !== 'number' || !isFinite(v) || v < 1) return null;

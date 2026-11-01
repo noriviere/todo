@@ -76,7 +76,7 @@ test('archiver une étape garde ses liens', async () => {
 });
 
 test('le cœur ne connaît plus les champs de Gestion de projet', () => {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8') + fs.readFileSync(path.join(__dirname, '..', 'metier.js'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8') + fs.readFileSync(path.join(__dirname, '..', 'noyau', 'metier.js'), 'utf8');
   for (const champ of ['isProject', 'lagDays', '.pj', 'milestones', '.after'])
     assert.ok(!src.includes(champ), `le cœur cite encore « ${champ} »`);
 });

@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const P = require('../projets-plan.js');
-const M = require('../metier.js');
+const P = require('../modules/projets/projets-plan.js');
+const M = require('../noyau/metier.js');
 // Semaine du lundi au vendredi, sans fériés (les cas avec fériés sont plus bas)
 const WD = M.calendrier({ workDays: [1, 2, 3, 4, 5], feries: false });
 const run = (steps, ms = []) => P.schedule(steps, ms, WD);

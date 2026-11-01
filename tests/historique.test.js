@@ -1,7 +1,7 @@
 // Historique des modifications (règles pures de metier.js), testé sous Node
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const M = require('../metier.js');
+const M = require('../noyau/metier.js');
 
 const pas = n => ({ libelle: 'Modif ' + n, avant: 'a' + n, apres: 'b' + n });
 
