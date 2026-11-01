@@ -121,6 +121,13 @@ La page globale de tous les sujets, à la manière d'un tableau Jira.
 **Synchro** :
 La copie des données vers le dépôt GitHub privé `noriviere/todo-donnees`, pour retrouver la même liste sur le PC et le téléphone.
 
+**Dernière synchro** :
+La dernière version de GitHub que cet appareil a envoyée ou reçue. Elle sert de point de comparaison : on regarde ce qui a changé ici et sur GitHub depuis.
+
+**Conflit de synchro** :
+Les données ont été modifiées sur cet appareil et sur un autre depuis la dernière synchro. Une version entière gagne, au choix de Noel ; l'autre reste récupérable.
+_À éviter_ : fusion, merge
+
 **Sauvegarde** :
 La copie automatique des données dans un dossier local choisi sur le PC.
 _À éviter_ : export (réservé au fichier JSON téléchargé à la main)
