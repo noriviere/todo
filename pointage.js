@@ -368,10 +368,6 @@ A.views.pointage = () => {
     <div class="toolbar"><div class="chips">${TABS.map(([k, l]) => `<button class="chip ${k === tab ? 'on' : ''}" data-act="pt-tab" data-t="${k}">${l}</button>`).join('')}</div></div>
     ${tab === 'conges' ? viewLeave() : tab === 'bilan' ? viewStats() : viewWeek()}`;
 };
-if (!A.NAV.some(x => x[0] === 'pointage')) {
-  const i = A.NAV.findIndex(x => x[0] === 'charge');
-  A.NAV.splice(i < 0 ? A.NAV.length - 1 : i + 1, 0, ['pointage', 'Pointage', 'clock', 'pointage']);
-}
 // Bandeau sur le tableau de bord : où j'en suis aujourd'hui, et le bouton pour pointer
 A.hooks.dashTop.push(() => {
   if (!on()) return '';
