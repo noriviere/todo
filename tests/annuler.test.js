@@ -1,7 +1,7 @@
 // Point unique de modification : historique, Ctrl+Z / Ctrl+Y, boutons ↶ ↷, bandeau et retour à l'endroit (ticket #26)
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { openApp, closeAll, day, ctrl } = require('./helpers');
+const { openApp, closeAll, lireTache, day, ctrl } = require('./helpers');
 after(closeAll);
 
 const VIEUX = '2000-01-01T00:00:00.000Z';
@@ -14,28 +14,27 @@ const base = (extra = {}) => Object.assign({
     { id: 'c', subjectId: 'q', title: 'Tâche C', deadline: day(1), updatedAt: VIEUX }],
   settings: { modules: {} }, ui: { expanded: ['p', 'q'] }
 }, extra);
-const tache = async (page, id) => (await page.db()).tasks.find(t => t.id === id);
 const ligne = (page, id) => page.locator(`#main .task[data-tid="${id}"]`).first();
 const boutons = page => page.evaluate(() => [...document.querySelectorAll('#hist .hist-b')].map(b => ({ act: b.dataset.act, off: b.disabled, t: b.title })));
 
 test('Ctrl+Z annule la dernière modification, Ctrl+Y et Ctrl+Maj+Z la rétablissent, avec bandeau', async () => {
   const page = await openApp(base());
   await ligne(page, 'a').locator('[data-act="archive-task"]').click();
-  assert.equal((await tache(page, 'a')).archived, true);
+  assert.equal((await lireTache(page, 'a')).archived, true);
   await page.locator('body').click({ position: { x: 5, y: 5 } });
   await ctrl(page, 'z');
-  assert.equal((await tache(page, 'a')).archived, false);
+  assert.equal((await lireTache(page, 'a')).archived, false);
   assert.match(await page.locator('#toast').innerText(), /Annulé : Tâche archivée : « Tâche A »/);
   assert.match(await page.locator('#toast button').innerText(), /Rétablir/);
   await ctrl(page, 'y');
-  assert.equal((await tache(page, 'a')).archived, true);
+  assert.equal((await lireTache(page, 'a')).archived, true);
   assert.match(await page.locator('#toast').innerText(), /Rétabli : Tâche archivée/);
   await ctrl(page, 'z');
   await ctrl(page, 'Shift+Z');
-  assert.equal((await tache(page, 'a')).archived, true);
+  assert.equal((await lireTache(page, 'a')).archived, true);
   await ctrl(page, 'z');
   await page.click('#toast [data-act="undo"]');   // « Rétablir » du bandeau
-  assert.equal((await tache(page, 'a')).archived, true);
+  assert.equal((await lireTache(page, 'a')).archived, true);
   assert.deepEqual(page.errors, []);
 });
 
@@ -45,12 +44,12 @@ test('plusieurs Ctrl+Z remontent l\'historique ; une nouvelle modification vide 
   await ligne(page, 'b').locator('[data-act="archive-task"]').click();
   await page.locator('body').click({ position: { x: 5, y: 5 } });
   await ctrl(page, 'z'); await ctrl(page, 'z');
-  assert.equal((await tache(page, 'a')).status, 'todo');
-  assert.equal((await tache(page, 'b')).archived, false);
+  assert.equal((await lireTache(page, 'a')).status, 'todo');
+  assert.equal((await lireTache(page, 'b')).archived, false);
   await ligne(page, 'c').locator('[data-act="archive-task"]').click();
   await page.locator('body').click({ position: { x: 5, y: 5 } });
   await ctrl(page, 'y');
-  assert.equal((await tache(page, 'a')).status, 'todo', 'rien à rétablir après une nouvelle modification');
+  assert.equal((await lireTache(page, 'a')).status, 'todo', 'rien à rétablir après une nouvelle modification');
   assert.match(await page.locator('#toast').innerText(), /Rien à rétablir/);
 });
 
@@ -60,7 +59,7 @@ test('Ctrl+Z pendant la frappe dans un champ ne défait que la frappe', async ()
   await page.fill('#main #qa-title', 'abc');
   await page.focus('#main #qa-title');
   await ctrl(page, 'z');
-  assert.equal((await tache(page, 'a')).archived, true, 'la modification de l\'appli n\'est pas annulée');
+  assert.equal((await lireTache(page, 'a')).archived, true, 'la modification de l\'appli n\'est pas annulée');
 });
 
 test('boutons ↶ ↷ : grisés sans historique, info-bulle qui dit ce qu\'ils font, un champ validé = un pas', async () => {
@@ -75,12 +74,12 @@ test('boutons ↶ ↷ : grisés sans historique, info-bulle qui dit ce qu\'ils f
   assert.equal(u.t, 'Annuler : Titre : « Tâche A bis »');
   assert.equal(r.off, true);
   await page.click('#hist [data-act="hist-undo"]');
-  assert.equal((await tache(page, 'a')).title, 'Tâche A');
+  assert.equal((await lireTache(page, 'a')).title, 'Tâche A');
   const [u2, r2] = await boutons(page);
   assert.equal(u2.off, true);
   assert.equal(r2.t, 'Rétablir : Titre : « Tâche A bis »');
   await page.click('#hist [data-act="hist-redo"]');
-  assert.equal((await tache(page, 'a')).title, 'Tâche A bis');
+  assert.equal((await lireTache(page, 'a')).title, 'Tâche A bis');
 });
 
 test('date « modifiée le » posée seulement sur ce qui a changé, et remise par Ctrl+Z', async () => {
@@ -92,7 +91,7 @@ test('date « modifiée le » posée seulement sur ce qui a changé, et remise p
   assert.equal(d.subjects.find(s => s.id === 'p').updatedAt, VIEUX);
   await page.locator('body').click({ position: { x: 5, y: 5 } });
   await ctrl(page, 'z');
-  assert.equal((await tache(page, 'a')).updatedAt, VIEUX);
+  assert.equal((await lireTache(page, 'a')).updatedAt, VIEUX);
 });
 
 test('annuler ne touche pas l\'affichage ni le thème', async () => {
@@ -117,7 +116,7 @@ test('après Ctrl+Z, retour à l\'écran de la modification, sujet déplié et l
   await ctrl(page, 'z');
   await page.waitForTimeout(80);
   assert.match(page.url(), /#sujets/);
-  assert.equal((await tache(page, 'c')).deadline, day(1));
+  assert.equal((await lireTache(page, 'c')).deadline, day(1));
   assert.equal(await page.locator('#main .subject[data-sid="q"] .task[data-tid="c"].flash').count(), 1);
 });
 
@@ -125,7 +124,7 @@ test('le bandeau « Annuler » d\'une modification utilise l\'historique ; il di
   const page = await openApp(base());
   await ligne(page, 'a').locator('[data-act="archive-task"]').click();
   await page.click('#toast [data-act="undo"]');
-  assert.equal((await tache(page, 'a')).archived, false);
+  assert.equal((await lireTache(page, 'a')).archived, false);
   assert.match(await page.locator('#toast').innerText(), /Annulé/);
   await ligne(page, 'b').locator('[data-act="archive-task"]').click();
   await ligne(page, 'c').locator('[data-field="title"]').fill('C2');
@@ -145,7 +144,7 @@ test('l\'historique se vide quand des données arrivent d\'ailleurs (synchro, au
   assert.deepEqual((await boutons(page)).map(b => b.off), [true, true]);
   await page.locator('body').click({ position: { x: 5, y: 5 } });
   await ctrl(page, 'z');
-  assert.equal((await tache(page, 'b')).archived, true);
+  assert.equal((await lireTache(page, 'b')).archived, true);
 });
 
 test('50 pas au plus ; un import (données complètes) compte pour un seul pas', async () => {
@@ -161,7 +160,7 @@ test('50 pas au plus ; un import (données complètes) compte pour un seul pas',
   await ctrl(page, 'z');
   assert.equal((await page.db()).tasks.length, 3, 'un Ctrl+Z défait tout l\'import');
   for (let i = 0; i < 60; i++) await page.evaluate(() => window.todoApp.annuler());
-  assert.equal((await tache(page, 'a')).title, 'T5', 'les 5 plus anciennes ne sont plus annulables');
+  assert.equal((await lireTache(page, 'a')).title, 'T5', 'les 5 plus anciennes ne sont plus annulables');
 });
 
 test('annuler la transformation d\'une tâche en sujet retire le sujet créé et revient à la tâche', async () => {
@@ -183,7 +182,7 @@ test('mode démo, modules coupés, téléphone : Ctrl+Z et boutons ↶ ↷ march
   const id = await page.locator('#main .task').first().getAttribute('data-tid');
   await ligne(page, id).locator('[data-act="archive-task"]').click();
   await ctrl(page, 'z');
-  assert.equal((await tache(page, id)).archived, false);
+  assert.equal((await lireTache(page, id)).archived, false);
 
   const off = { chrono: false, charge: false, pointage: false, recurrence: false, projet: false };
   const tel = await openApp(base({ settings: { modules: off } }), { viewport: { width: 390, height: 800 }, touch: true });
@@ -193,7 +192,7 @@ test('mode démo, modules coupés, téléphone : Ctrl+Z et boutons ↶ ↷ march
   const box = await b.boundingBox();
   assert.ok(box.height >= 44 && box.width >= 40, 'cible tactile assez grande');
   await b.click();
-  assert.equal((await tache(tel, 'a')).archived, false);
+  assert.equal((await lireTache(tel, 'a')).archived, false);
   assert.equal(await tel.evaluate(() => document.documentElement.scrollWidth), 390);
   assert.deepEqual(tel.errors, []);
 });
@@ -203,12 +202,12 @@ test('une donnée changée puis « enregistrer l\'affichage » devient un pas an
   const page = await openApp(base());
   await ligne(page, 'a').locator('[data-act="archive-task"]').click();
   await page.evaluate(() => { const A = window.todoApp; A.getData().tasks.find(t => t.id === 'b').title = 'Changée ailleurs'; A.enregistrerAffichage(); });
-  assert.equal((await tache(page, 'b')).title, 'Changée ailleurs', 'enregistrée');
+  assert.equal((await lireTache(page, 'b')).title, 'Changée ailleurs', 'enregistrée');
   await page.locator('body').click({ position: { x: 5, y: 5 } });
   await ctrl(page, 'z');
-  assert.equal((await tache(page, 'b')).title, 'Tâche B', 'Ctrl+Z la défait');
+  assert.equal((await lireTache(page, 'b')).title, 'Tâche B', 'Ctrl+Z la défait');
   await ctrl(page, 'z');
-  assert.equal((await tache(page, 'a')).archived, false, 'l\'historique d\'avant est gardé');
+  assert.equal((await lireTache(page, 'a')).archived, false, 'l\'historique d\'avant est gardé');
 });
 
 test('une validation sans changement ne crée pas de pas dans l\'historique', async () => {
@@ -218,7 +217,7 @@ test('une validation sans changement ne crée pas de pas dans l\'historique', as
   await est.press('Enter');
   await page.waitForTimeout(50);
   assert.deepEqual((await boutons(page)).map(b => b.off), [true, true]);
-  assert.equal((await tache(page, 'a')).updatedAt, VIEUX, 'date « modifiée le » inchangée');
+  assert.equal((await lireTache(page, 'a')).updatedAt, VIEUX, 'date « modifiée le » inchangée');
 });
 
 test('Ctrl+Z dans un champ date n\'annule pas la modification de l\'appli', async () => {
@@ -226,7 +225,7 @@ test('Ctrl+Z dans un champ date n\'annule pas la modification de l\'appli', asyn
   await ligne(page, 'a').locator('[data-act="archive-task"]').click();
   await page.focus('#main #qa-date');
   await ctrl(page, 'z');
-  assert.equal((await tache(page, 'a')).archived, true);
+  assert.equal((await lireTache(page, 'a')).archived, true);
 });
 
 test('Fait sur une tâche récurrente puis Ctrl+Z : la tâche rouverte et l\'occurrence suivante retirée', async () => {

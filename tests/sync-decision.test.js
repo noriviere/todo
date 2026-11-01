@@ -2,13 +2,12 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const D = require('../sync-decision.js');
+const { sujet, tache } = require('./helpers');
 
-const sujet = (id, title) => ({ id, title });
-const tache = (id, title) => ({ id, subjectId: 's1', title });
 const donnees = (...titres) => ({
   version: 1,
-  subjects: [sujet('s1', 'Sujet 1')],
-  tasks: titres.map((t, i) => tache('t' + i, t)),
+  subjects: [sujet({ id: 's1', title: 'Sujet 1' })],
+  tasks: titres.map((t, i) => tache({ id: 't' + i, subjectId: 's1', title: t })),
   settings: {}
 });
 const VIDE = { version: 1, subjects: [], tasks: [], settings: {}, pointage: { days: {} } };

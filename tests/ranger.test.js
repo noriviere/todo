@@ -19,7 +19,7 @@ const donnees = projet => ({
     { id: 'v', title: 'Projet vide', priority: 2, isProject: true, pj: { milestones: [] } }],
   tasks: [], settings: { modules: { projet } }, ui: { expanded: ['p1', 's1', 'q', 'v'] }
 });
-const sujet = (d, id) => d.subjects.find(s => s.id === id);
+const sujetDe = (d, id) => d.subjects.find(s => s.id === id);
 
 for (const projet of [true, false]) {
   const etat = projet ? 'actif' : 'désactivé';
@@ -28,18 +28,18 @@ for (const projet of [true, false]) {
     const page = await openApp(donnees(projet), { hash: 'sujets' });
     await page.locator('#main .subject[data-sid="s1"] [data-field="s-parent"]').selectOption('');
     let d = await page.db();
-    const s1 = sujet(d, 's1');
+    const s1 = sujetDe(d, 's1');
     assert.equal(s1.parentId || null, null);
     assert.deepEqual([s1.after, s1.lagDays], [[], 0], 'prédécesseurs et décalage retirés');
     assert.deepEqual([s1.plan, s1.who], [{ start: '2026-11-02', durDays: 2 }, 'Achats'], 'durée, fin prévue et « Qui » gardés');
-    assert.deepEqual(sujet(d, 's2').after, [], 'retirée des prédécesseurs de ses sœurs');
-    assert.deepEqual(sujet(d, 'p1').pj.milestones[0].before, ['s2'], 'retirée des liens de jalon');
+    assert.deepEqual(sujetDe(d, 's2').after, [], 'retirée des prédécesseurs de ses sœurs');
+    assert.deepEqual(sujetDe(d, 'p1').pj.milestones[0].before, ['s2'], 'retirée des liens de jalon');
     await ailleurs(page);
     await ctrl(page, 'z');
     d = await page.db();
-    assert.equal(sujet(d, 's1').parentId, 'p1');
-    assert.deepEqual([sujet(d, 's1').after, sujet(d, 's1').lagDays, sujet(d, 's2').after], [['s0'], 2, ['s1']]);
-    assert.deepEqual(sujet(d, 'p1').pj.milestones[0].before, ['s1', 's2']);
+    assert.equal(sujetDe(d, 's1').parentId, 'p1');
+    assert.deepEqual([sujetDe(d, 's1').after, sujetDe(d, 's1').lagDays, sujetDe(d, 's2').after], [['s0'], 2, ['s1']]);
+    assert.deepEqual(sujetDe(d, 'p1').pj.milestones[0].before, ['s1', 's2']);
     assert.deepEqual(page.errors, []);
   });
 
@@ -51,7 +51,7 @@ for (const projet of [true, false]) {
     });
     assert.equal(r.peut, false);
     assert.equal(r.range, false, 'setParent refuse');
-    assert.equal(sujet(await page.db(), 'v').parentId || null, null);
+    assert.equal(sujetDe(await page.db(), 'v').parentId || null, null);
     assert.equal(await page.locator('#main .subject[data-sid="v"] [data-field="s-parent"]').count(), 0, 'pas de menu « Dans » sur un projet');
   });
 }
@@ -60,19 +60,19 @@ test('ranger une étape d\'un projet dans un autre : elle perd ses liens dans l\
   const page = await openApp(donnees(true), { hash: 'sujets' });
   await page.evaluate(() => { const A = window.todoApp; A.modifier('test', () => A.setParent(A.subj('s1'), 'v')); });
   const d = await page.db();
-  assert.equal(sujet(d, 's1').parentId, 'v');
-  assert.deepEqual([sujet(d, 's1').after, sujet(d, 's1').lagDays, sujet(d, 's2').after], [[], 0, []]);
-  assert.deepEqual(sujet(d, 'p1').pj.milestones[0].before, ['s2']);
+  assert.equal(sujetDe(d, 's1').parentId, 'v');
+  assert.deepEqual([sujetDe(d, 's1').after, sujetDe(d, 's1').lagDays, sujetDe(d, 's2').after], [[], 0, []]);
+  assert.deepEqual(sujetDe(d, 'p1').pj.milestones[0].before, ['s2']);
 });
 
 test('archiver une étape garde ses liens', async () => {
   const page = await openApp(donnees(true), { hash: 'sujets' });
   await page.evaluate(() => { const A = window.todoApp; A.modifier('test', () => A.archiveSubject(A.subj('s1'))); });
   const d = await page.db();
-  assert.equal(sujet(d, 's1').archived, true);
-  assert.equal(sujet(d, 's1').parentId, 'p1');
-  assert.deepEqual([sujet(d, 's1').after, sujet(d, 's2').after], [['s0'], ['s1']]);
-  assert.deepEqual(sujet(d, 'p1').pj.milestones[0].before, ['s1', 's2']);
+  assert.equal(sujetDe(d, 's1').archived, true);
+  assert.equal(sujetDe(d, 's1').parentId, 'p1');
+  assert.deepEqual([sujetDe(d, 's1').after, sujetDe(d, 's2').after], [['s0'], ['s1']]);
+  assert.deepEqual(sujetDe(d, 'p1').pj.milestones[0].before, ['s1', 's2']);
 });
 
 test('le cœur ne connaît plus les champs de Gestion de projet', () => {

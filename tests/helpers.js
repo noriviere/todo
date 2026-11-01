@@ -6,6 +6,10 @@ const KEY = 'todo-noel-v1';
 // Jour fixe des tests : l'appli lit la date du jour (retards, Gantt), et les données de test ont des dates en dur
 const TODAY = '2026-10-28';
 const noon = ymd => new Date(ymd + 'T12:00:00');
+const M = require('../metier.js');
+// Fabricants de données de test : un sujet ou une tâche complets (champs par défaut de metier.js), à compléter par o
+const sujet = (o = {}) => M.normSubject(Object.assign({ id: 'S', title: 'Sujet' }, o));
+const tache = (o = {}) => M.normTask(Object.assign({ subjectId: 'S' }, o));
 
 let browser;
 // url : une autre page que index.html (par exemple une copie aux scripts réordonnés)
@@ -119,4 +123,7 @@ async function synchroniser(page) {
   await page.click('#main [data-act="sync-now"]');
   await synchroFinie(page);
 }
-module.exports = { openApp, closeAll, day, ppd, TODAY, ctrl, ailleurs, glisserPoignee, deplier, aller, fauxDepot, SYNC_CFG, appareil, synchroFinie, synchroniser };
+// La tâche id telle qu'enregistrée dans la page
+const lireTache = async (page, id) => (await page.db()).tasks.find(t => t.id === id);
+
+module.exports = { sujet, tache, lireTache, openApp, closeAll, day, ppd, TODAY, ctrl, ailleurs, glisserPoignee, deplier, aller, fauxDepot, SYNC_CFG, appareil, synchroFinie, synchroniser };

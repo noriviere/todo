@@ -3,7 +3,7 @@ const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { openApp, closeAll, day, ctrl, ailleurs, glisserPoignee } = require('./helpers');
+const { openApp, closeAll, lireTache, day, ctrl, ailleurs, glisserPoignee } = require('./helpers');
 after(closeAll);
 
 const base = (extra = {}) => Object.assign({
@@ -13,7 +13,6 @@ const base = (extra = {}) => Object.assign({
     { id: 'c', subjectId: 'p', title: 'Tâche C', deadline: day(1) }],
   settings: { modules: { projet: true } }, ui: { expanded: ['p'] }
 }, extra);
-const tache = async (page, id) => (await page.db()).tasks.find(t => t.id === id);
 const ligne = (page, id) => page.locator(`#main .task[data-tid="${id}"]`).first();
 
 async function glisserTache(page, id, versId) {
@@ -25,14 +24,14 @@ async function glisserTache(page, id, versId) {
 test('glisser une tâche sur une autre : échéance reprise, puis Ctrl+Z et le bandeau « Annuler » la remettent', async () => {
   const page = await openApp(base());
   await glisserTache(page, 'a', 'c');
-  assert.equal((await tache(page, 'a')).deadline, day(1));
+  assert.equal((await lireTache(page, 'a')).deadline, day(1));
   await page.click('#toast [data-act="undo"]');
-  assert.equal((await tache(page, 'a')).deadline, day(0));
+  assert.equal((await lireTache(page, 'a')).deadline, day(0));
   await ctrl(page, 'y');
-  assert.equal((await tache(page, 'a')).deadline, day(1));
+  assert.equal((await lireTache(page, 'a')).deadline, day(1));
   await ailleurs(page);
   await ctrl(page, 'z');
-  assert.equal((await tache(page, 'a')).deadline, day(0));
+  assert.equal((await lireTache(page, 'a')).deadline, day(0));
 });
 
 test('récurrente : l\'occurrence suivante est une tâche complète, et Ctrl+Z sur « Fait » la retire', async () => {
@@ -76,10 +75,10 @@ test('choisir une récurrence s\'annule', async () => {
   await ligne(page, 'a').locator('[data-act="details"]').click();
   await page.selectOption('#drawer [data-org-recur]', 'week:1');
   await page.waitForTimeout(50);
-  assert.deepEqual((await tache(page, 'a')).recur, { freq: 'week', interval: 1 });
+  assert.deepEqual((await lireTache(page, 'a')).recur, { freq: 'week', interval: 1 });
   await ailleurs(page);
   await ctrl(page, 'z');
-  assert.equal((await tache(page, 'a')).recur || null, null);
+  assert.equal((await lireTache(page, 'a')).recur || null, null);
 });
 
 const projet = () => base({
@@ -123,7 +122,7 @@ test('modules Gestion de projet et Récurrence coupés : l\'appli marche et Ctrl
   await glisserTache(page, 'a', 'c');
   await ailleurs(page);
   await ctrl(page, 'z');
-  assert.equal((await tache(page, 'a')).deadline, day(0));
+  assert.equal((await lireTache(page, 'a')).deadline, day(0));
   assert.deepEqual(page.errors, []);
 });
 
