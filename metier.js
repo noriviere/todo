@@ -12,6 +12,8 @@ const pad = n => String(n).padStart(2, '0');
 const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 const addDays = (s, n) => { const d = parseYmd(s); d.setDate(d.getDate() + n); return ymd(d); };
+// Nombre de jours de b à a (négatif si a est avant b)
+const diffDays = (a, b) => Math.round((parseYmd(a) - parseYmd(b)) / 86400000);
 const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
 // Durées en minutes : "1h30", "1.5h", "45min", "45m", "2" (= heures), "1j" (= une journée pleine, journee minutes) ; vide = null, illisible = NaN
@@ -31,6 +33,8 @@ function parseDur(s, journee = JOURNEE_DEFAUT) {
 const SEMAINE_TYPE = [1, 2, 3, 4, 5];
 const JOURNEE_DEFAUT = 420;
 const UN_AN = 366;   // borne des recherches de jour : on ne cherche jamais plus loin qu'un an
+// Le jour ds lui-même si test(ds), sinon le suivant qui le passe (au plus un an plus loin : absence posée sur toute l'année)
+const jourSuivant = test => ds => { let d = ds; for (let i = 0; i < UN_AN && !test(d); i++) d = addDays(d, 1); return d; };
 const JOURS_LONGS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 // Horaire de la semaine type : minutes prévues pour chaque jour, indexé par getDay() (0 = dimanche) ; un jour à 0 n'en fait pas partie
 const horaireValide = h => Array.isArray(h) && h.length === 7 && h.every(m => Number.isFinite(m) && m >= 0) && h.some(m => m > 0);
@@ -85,6 +89,8 @@ function calendrier(settings, absenceDe = () => null) {
   // Une demi-journée d'absence retire la moitié d'une journée pleine ; un jour qui est déjà une demi-journée (horaire plus
   // proche d'une demi-journée que d'une journée pleine, soit au plus ses 3/4 : le vendredi à 4h) est entièrement libéré.
   const horaireDu = ds => horaire[parseYmd(ds).getDay()];
+  // Jour de la semaine type (horaire non nul), férié ou absence compris
+  const enSemaineType = ds => horaireDu(ds) > 0;
   const heuresPrevues = ds => {
     if (!ouvre(ds)) return 0;
     const a = absence(ds), h = horaireDu(ds);
@@ -92,9 +98,7 @@ function calendrier(settings, absenceDe = () => null) {
     if (!a) return h;
     return h <= pleine * 3 / 4 ? 0 : Math.max(0, Math.round(h - pleine / 2));
   };
-  // Le jour lui-même s'il convient, sinon le suivant (au plus un an plus loin : absence posée sur toute l'année)
-  const suivant = test => ds => { let d = ds; for (let i = 0; i < UN_AN && !test(d); i++) d = addDays(d, 1); return d; };
-  const ouvreSuivant = suivant(ouvre), travailleSuivant = suivant(travaille);
+  const ouvreSuivant = jourSuivant(ouvre), travailleSuivant = jourSuivant(travaille);
   const ajouterOuvres = (ds, n) => { let d = ds; for (let k = 0; k < n; k++) d = ouvreSuivant(addDays(d, 1)); return d; };
   const ouvresEntre = (a, b) => { let n = 0; for (let d = a; d <= b; d = addDays(d, 1)) if (ouvre(d)) n++; return n; };
   // Pourquoi un jour n'est pas travaillé : { ferie: nom } | { jour: 'samedi' } | { absence: part } ; null s'il l'est
@@ -110,7 +114,7 @@ function calendrier(settings, absenceDe = () => null) {
     for (let d = ds, i = 0; i < UN_AN * 2; i++, d = addDays(d, 1)) if (ferie(d) && (!o.enSemaine || sem.includes(parseYmd(d).getDay()))) return d;
     return null;
   };
-  return { semaine: sem, horaire, journeePleine: pleine, totalSemaine, horaireDu, heuresPrevues, ferie, ouvre, absence, travaille, raison, prochainFerie, ouvreSuivant, travailleSuivant, ajouterOuvres, ouvresEntre };
+  return { semaine: sem, horaire, journeePleine: pleine, totalSemaine, horaireDu, enSemaineType, heuresPrevues, ferie, ouvre, absence, travaille, raison, prochainFerie, ouvreSuivant, travailleSuivant, ajouterOuvres, ouvresEntre };
 }
 // Échéance d'une occurrence de récurrence qui tombe un jour non travaillé, selon la règle des réglages :
 // 'suivant' (par défaut) le jour travaillé suivant, 'precedent' le précédent mais jamais avant aujourd'hui
@@ -182,12 +186,12 @@ function tempsPointe(jour, ds, aujourdhui, maintenant) {
 }
 // Semaine complète : semaine finie dont chaque jour à horaire > 0 a du temps pointé, sans absence ni férié, quel que soit le total.
 // Un jour à horaire 0 (samedi travaillé) ne change rien. Aujourd'hui n'est fini qu'une fois le départ pointé.
-// cal : le calendrier (horaireDu, ferie) ; o : { jour(ds) → jour pointé, aujourdhui, maintenant,
+// cal : le calendrier (enSemaineType, ferie) ; o : { jour(ds) → jour pointé, aujourdhui, maintenant,
 //       debut, fin : bornes facultatives de la période comptée (un jour hors d'elles rend la semaine incomplète) }
 function semaineComplete(lundiDs, cal, o) {
   for (let i = 0; i < 7; i++) {
     const ds = addDays(lundiDs, i);
-    if (!(cal.horaireDu(ds) > 0)) continue;
+    if (!cal.enSemaineType(ds)) continue;
     const j = o.jour(ds);
     if ((o.debut && ds < o.debut) || (o.fin && ds > o.fin)) return false;
     if (ds > o.aujourdhui || (ds === o.aujourdhui && !(j && j.out))) return false;
@@ -450,7 +454,7 @@ function historique(max = 50) {
   };
 }
 
-const api = { uid, nowIso, pad, ymd, parseYmd, addDays, isDate, parseDur, SEMAINE_TYPE, horaireDe, journeePleine, lundi, semaineIso, feries, calendrier, decaler, prochaineEcheance, tempsPointe, semaineComplete, DECALAGES, echeancesLes, blank, normSubject, normTask, migrate,
+const api = { uid, nowIso, pad, ymd, parseYmd, addDays, diffDays, isDate, parseDur, SEMAINE_TYPE, jourSuivant, horaireDe, journeePleine, lundi, semaineIso, feries, calendrier, decaler, prochaineEcheance, tempsPointe, semaineComplete, DECALAGES, echeancesLes, blank, normSubject, normTask, migrate,
   isOpen, remaining, bucket, taskCmp, setTaskField, parentOf, childrenOf, estPremierNiveau, peutEtreRange, peutRanger, ranger, archiverSujet, subjectStats,
   photo, remettre, horodater, memesDonnees, historique };
 if (typeof module === 'object' && module.exports) module.exports = api;

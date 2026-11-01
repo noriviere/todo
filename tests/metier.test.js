@@ -112,6 +112,30 @@ test('migration : dimension « Projet » renommée « Code », données vides co
 const NOEL = [0, 465, 465, 465, 465, 240, 0];
 const calNoel = (absences = {}, reglages = {}) => M.calendrier(Object.assign(M.blank().settings, { horaire: NOEL }, reglages), ds => absences[ds] || null);
 
+test('écart en jours entre deux dates : négatif si la première est avant, juste au passage à l\'heure d\'hiver', () => {
+  assert.equal(M.diffDays('2026-11-09', '2026-11-02'), 7);
+  assert.equal(M.diffDays('2026-11-02', '2026-11-09'), -7);
+  assert.equal(M.diffDays('2026-10-26', '2026-10-24'), 2, 'heure d\'hiver le 25 octobre 2026');
+  assert.equal(M.diffDays('2026-11-02', '2026-11-02'), 0);
+});
+
+test('jour suivant qui passe un test : le jour lui-même s\'il le passe, jamais plus d\'un an plus loin', () => {
+  const samedi = M.jourSuivant(ds => M.parseYmd(ds).getDay() === 6);
+  assert.equal(samedi('2026-11-07'), '2026-11-07');
+  assert.equal(samedi('2026-11-02'), '2026-11-07');
+  assert.equal(M.jourSuivant(() => false)('2026-11-02'), M.addDays('2026-11-02', 366), 'borne d\'un an');
+});
+
+test('jour de la semaine type : horaire non nul, férié et absence compris', () => {
+  const cal = M.calendrier({ horaire: [0, 420, 420, 420, 0, 240, 0] }, ds => ds === '2026-11-10' ? 'full' : null);
+  assert.equal(cal.enSemaineType('2026-11-02'), true, 'lundi');
+  assert.equal(cal.enSemaineType('2026-11-05'), false, 'jeudi à 0h');
+  assert.equal(cal.enSemaineType('2026-11-06'), true, 'vendredi à 4h');
+  assert.equal(cal.enSemaineType('2026-11-07'), false, 'samedi');
+  assert.equal(cal.enSemaineType('2026-11-11'), true, 'mercredi 11 novembre férié');
+  assert.equal(cal.enSemaineType('2026-11-10'), true, 'mardi d\'absence');
+});
+
 test('heures prévues d\'un jour : l\'horaire de la semaine type, 0 hors semaine type et les jours fériés', () => {
   const c = calNoel();
   assert.equal(c.heuresPrevues('2026-11-09'), 465, 'lundi');
@@ -353,8 +377,8 @@ const OBJ = { 1: 465, 2: 465, 3: 465, 4: 465, 5: 240, 6: 0, 0: 0 };
 const JOURNEE = { in: '08:00', lunchOut: '12:00', lunchIn: '13:00', out: '16:45' };
 function semaine(jours = {}, { feries = {}, aujourdhui = TODAY, debut, fin } = {}) {
   const pointes = Object.assign({ '2026-10-19': JOURNEE, '2026-10-20': JOURNEE, '2026-10-21': JOURNEE, '2026-10-22': JOURNEE, '2026-10-23': { in: '08:00', lunchOut: '12:00' } }, jours);
-  // Calendrier réduit à ce que la règle lit : l'horaire du jour et les fériés
-  const cal = { horaireDu: ds => OBJ[M.parseYmd(ds).getDay()], ferie: ds => feries[ds] || null };
+  // Calendrier réduit à ce que la règle lit : la semaine type et les fériés
+  const cal = { enSemaineType: ds => OBJ[M.parseYmd(ds).getDay()] > 0, ferie: ds => feries[ds] || null };
   return M.semaineComplete(LUN, cal, { jour: ds => pointes[ds] || null, aujourdhui, maintenant: MAINTENANT, debut, fin });
 }
 

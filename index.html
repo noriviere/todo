@@ -388,9 +388,8 @@ const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const M = window.todoMetier;
 const { uid, nowIso } = M;
-const { pad, ymd, parseYmd, addDays, isDate } = M;
+const { pad, ymd, parseYmd, addDays, diffDays, isDate } = M;
 const today = () => ymd(new Date());
-const diffDays = (a, b) => Math.round((parseYmd(a) - parseYmd(b)) / 86400000);
 // Calendrier commun (CONTEXT.md « Calendrier ») : semaine type et fériés des réglages, absences fournies par le Pointage.
 // Absence d'un jour : { part: 'full' | 'am' | 'pm', label } donnée par un module (hooks.absence), ou null
 function absenceDu(ds) {
