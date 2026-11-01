@@ -14,14 +14,14 @@ const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); return new D
 const addDays = (s, n) => { const d = parseYmd(s); d.setDate(d.getDate() + n); return ymd(d); };
 const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
-// Durées en minutes : "1h30", "1.5h", "45min", "45m", "2" (= heures), "1j" (= une journée pleine) ; vide = null, illisible = NaN
-function parseDur(s, workdayMin = 420) {
+// Durées en minutes : "1h30", "1.5h", "45min", "45m", "2" (= heures), "1j" (= une journée pleine, journee minutes) ; vide = null, illisible = NaN
+function parseDur(s, journee = JOURNEE_DEFAUT) {
   s = String(s ?? '').trim().toLowerCase().replace(',', '.').replace(/\s+/g, '');
   if (!s) return null;
   let m;
   if ((m = s.match(/^(\d+(?:\.\d+)?)h(\d{1,2})?(?:m|min|mn)?$/))) return Math.round(parseFloat(m[1]) * 60 + (m[2] ? +m[2] : 0));
   if ((m = s.match(/^(\d+)(?:m|min|mn)$/))) return +m[1];
-  if ((m = s.match(/^(\d+(?:\.\d+)?)j$/))) return Math.round(parseFloat(m[1]) * workdayMin);
+  if ((m = s.match(/^(\d+(?:\.\d+)?)j$/))) return Math.round(parseFloat(m[1]) * journee);
   if ((m = s.match(/^\d+(?:\.\d+)?$/))) return Math.round(parseFloat(s) * 60);
   return NaN;
 }
@@ -34,7 +34,8 @@ const UN_AN = 366;   // borne des recherches de jour : on ne cherche jamais plus
 const JOURS_LONGS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 // Horaire de la semaine type : minutes prévues pour chaque jour, indexé par getDay() (0 = dimanche) ; un jour à 0 n'en fait pas partie
 const horaireValide = h => Array.isArray(h) && h.length === 7 && h.every(m => Number.isFinite(m) && m >= 0) && h.some(m => m > 0);
-const horaireSur = (jours, min) => [0, 1, 2, 3, 4, 5, 6].map(wd => jours.includes(wd) ? min : 0);
+// Horaire où chaque jour de jours prend duree(jour) minutes, les autres 0
+const horaireSur = (jours, duree) => [0, 1, 2, 3, 4, 5, 6].map(wd => jours.includes(wd) ? duree(wd) : 0);
 // Horaire des réglages ; sinon (données d'avant l'horaire commun) chaque jour de l'ancienne semaine type (workDays) prend
 // l'Objectif par jour du Pointage (dayMin) s'il est > 0, sinon l'ancienne capacité d'une journée (workdayMin) ; les autres jours, 0
 function horaireDe(settings, pointage) {
@@ -43,9 +44,8 @@ function horaireDe(settings, pointage) {
   const jours = Array.isArray(s.workDays) && s.workDays.length ? s.workDays : SEMAINE_TYPE;
   const capacite = s.workdayMin > 0 ? s.workdayMin : JOURNEE_DEFAUT, dm = pointage && pointage.dayMin;
   const duree = wd => { const m = dm && typeof dm === 'object' ? Math.round(+dm[wd] || 0) : 0; return m > 0 ? m : capacite; };
-  return [0, 1, 2, 3, 4, 5, 6].map(wd => jours.includes(wd) ? duree(wd) : 0);
+  return horaireSur(jours, duree);
 }
-const semaineType = settings => horaireDe(settings).map((m, wd) => m > 0 ? wd : -1).filter(wd => wd >= 0).sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7));
 // Journée pleine : le plus long horaire de la semaine type, ce que vaut « 1j »
 const journeePleine = settings => Math.max(...horaireDe(settings));
 const lundi = ds => addDays(ds, -((parseYmd(ds).getDay() + 6) % 7));
@@ -73,7 +73,10 @@ function feries(y) {
 // Calendrier d'après les réglages (semaine type, fériés automatiques) et les absences de Noel :
 // absenceDe(jour) → 'full' | 'am' | 'pm' | null, fourni par le module Pointage quand il est actif.
 function calendrier(settings, absenceDe = () => null) {
-  const horaire = horaireDe(settings), sem = semaineType(settings), pleine = journeePleine(settings), avecFeries = !settings || settings.feries !== false;
+  const horaire = horaireDe(settings), avecFeries = !settings || settings.feries !== false;
+  // Semaine type : les jours dont l'horaire n'est pas nul, du lundi au dimanche ; total de la semaine : la somme de l'horaire
+  const sem = horaire.map((m, wd) => m > 0 ? wd : -1).filter(wd => wd >= 0).sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7));
+  const pleine = Math.max(...horaire), totalSemaine = horaire.reduce((a, m) => a + m, 0);
   const ferie = ds => avecFeries ? feries(+ds.slice(0, 4))[ds] || null : null;
   const ouvre = ds => sem.includes(parseYmd(ds).getDay()) && !ferie(ds);
   const absence = ds => absenceDe(ds) || null;
@@ -107,7 +110,7 @@ function calendrier(settings, absenceDe = () => null) {
     for (let d = ds, i = 0; i < UN_AN * 2; i++, d = addDays(d, 1)) if (ferie(d) && (!o.enSemaine || sem.includes(parseYmd(d).getDay()))) return d;
     return null;
   };
-  return { semaine: sem, horaire, journeePleine: pleine, horaireDu, heuresPrevues, ferie, ouvre, absence, travaille, raison, prochainFerie, ouvreSuivant, travailleSuivant, ajouterOuvres, ouvresEntre };
+  return { semaine: sem, horaire, journeePleine: pleine, totalSemaine, horaireDu, heuresPrevues, ferie, ouvre, absence, travaille, raison, prochainFerie, ouvreSuivant, travailleSuivant, ajouterOuvres, ouvresEntre };
 }
 // Échéance d'une occurrence de récurrence qui tombe un jour non travaillé, selon la règle des réglages :
 // 'suivant' (par défaut) le jour travaillé suivant, 'precedent' le précédent mais jamais avant aujourd'hui
@@ -200,7 +203,7 @@ function blank() {
     version: 1,
     subjects: [],
     tasks: [],
-    settings: { theme: 'auto', lastExport: null, modules: {}, horaire: horaireSur(SEMAINE_TYPE, JOURNEE_DEFAUT), feries: true, decalage: 'suivant' },
+    settings: { theme: 'auto', lastExport: null, modules: {}, horaire: horaireSur(SEMAINE_TYPE, () => JOURNEE_DEFAUT), feries: true, decalage: 'suivant' },
     ui: { expanded: [], showClosed: false, search: '', dims: { code: '', secteur: '', produit: '' } }
   };
 }
@@ -352,7 +355,7 @@ const taskCmp = d => (a, b) => {
 const DUR_ERR = 'Durée non comprise. Exemples : 1h30, 45min, 2 (heures)';
 // Modifie un champ d'une tâche : true si changé, false si champ inconnu, ou le texte de l'erreur (rien n'est modifié)
 function setTaskField(t, f, v, d) {
-  const wd = journeePleine(d && d.settings);
+  const pleine = journeePleine(d && d.settings);
   switch (f) {
     case 'title': t.title = v.trim(); break;
     case 'notes': t.notes = v; break;
@@ -366,12 +369,12 @@ function setTaskField(t, f, v, d) {
     case 'startDate': t.startDate = isDate(v) ? v : null; break;
     case 'subjectId': t.subjectId = v || null; break;
     case 'estimate': {
-      const m = parseDur(v, wd);
+      const m = parseDur(v, pleine);
       if (Number.isNaN(m)) return DUR_ERR;
       t.estimateMin = m; break;
     }
     case 'real': {
-      const m = parseDur(v, wd);
+      const m = parseDur(v, pleine);
       if (Number.isNaN(m)) return DUR_ERR;
       t.realMin = m || 0; break;
     }
@@ -389,7 +392,7 @@ function setTaskField(t, f, v, d) {
     }
     case 'planMode': t.plan = Object.assign({}, t.plan, { mode: v }); break;
     case 'planDaily': {
-      const m = parseDur(v, wd);
+      const m = parseDur(v, pleine);
       if (Number.isNaN(m)) return DUR_ERR;
       t.plan = Object.assign({}, t.plan, { dailyMin: m }); break;
     }

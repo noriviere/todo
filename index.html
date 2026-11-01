@@ -1088,7 +1088,7 @@ function calendrierCard() {
       <div class="cal-row"><b id="cal-jours-l">Semaine type</b>
         <div class="cal-hor"><span class="cal-days" role="group" aria-labelledby="cal-jours-l">${JOURS_SEMAINE.map(([n, , l]) =>
           `<label class="${h[n] ? '' : 'off'}">${jourCourt(l)}<input class="inline" data-cal-horaire data-wd="${n}" data-k="cal-hor-${n}" value="${esc(fmtHoraire(h[n]))}" aria-label="Horaire du ${l}" title="Horaire du ${l} (ex. 7h45, 4h, 0)" autocomplete="off"></label>`).join('')}</span>
-        <span class="hint">Soit ${esc(fmtDur(h.reduce((a, m) => a + m, 0)) || '0')} par semaine · journée pleine (« 1j ») : ${esc(fmtDur(cal.journeePleine))}</span></div></div>
+        <span class="hint">Soit ${esc(fmtDur(cal.totalSemaine) || '0')} par semaine · journée pleine (« 1j ») : ${esc(fmtDur(cal.journeePleine))}</span></div></div>
       <div class="cal-row"><label class="cal-tog"><input type="checkbox" data-cal-feries data-k="cal-feries" ${st.feries !== false ? 'checked' : ''}> Jours fériés français automatiques</label>
         <span class="hint">${proch ? `Prochain : ${esc(longDate(proch))} (${esc(cal.ferie(proch))})` : 'Les jours fériés sont traités comme des jours ouvrés.'}</span></div>
       ${modOn('recurrence') ? `<div class="cal-row"><label class="cal-dec"><span>Échéance de récurrence qui tombe un jour non travaillé</span>

@@ -38,7 +38,8 @@ function P() {
   if (!p.defaults || typeof p.defaults !== 'object') p.defaults = { cp: 25 };  // droits annuels par défaut
   // Le congé paternité se décompte en jours calendaires (week-ends compris)
   if (!p.calV) { p.types.forEach(t => { if (t.id === 'paternite' && t.calendar === undefined) t.calendar = true; }); p.calV = 1; }
-  // L'ancien « Objectif par jour » (p.dayMin) reste dans les données, non lu : l'objectif vient de l'horaire de la semaine type
+  // L'ancien « Objectif par jour » (p.dayMin) reste dans les données : le Pointage ne le lit plus (l'objectif vient de l'horaire
+  // de la semaine type), seule la migration le lit encore pour reprendre l'horaire
   return p;
 }
 const day = ds => P().days[ds] || null;
@@ -50,9 +51,8 @@ function cleanDay(ds) {
 const type = id => P().types.find(t => t.id === id) || { id, label: id, short: id, color: '#9aa1b2', counted: false };
 // Semaine type et fériés : calendrier commun du noyau (Données › Calendrier)
 const cal = () => A.calendrier();
-const workDays = () => cal().semaine;
-// Objectif d'une semaine sans absence ni férié, en minutes : la somme de l'horaire de la semaine type (Données › Calendrier)
-const weekTarget = () => cal().horaire.reduce((a, m) => a + m, 0);
+// Objectif d'une semaine sans absence ni férié, en minutes : le total de la semaine type (Données › Calendrier)
+const weekTarget = () => cal().totalSemaine;
 
 
 /* ---------- Calculs d'heures ---------- */
@@ -146,8 +146,8 @@ function weekRows(mon) {
   let tot = 0, exp = 0;
   const rows = [], c = cal();   // temps attendu d'un jour : ses heures prévues au calendrier commun
   for (let i = 0; i < 7; i++) {
-    const ds = addDays(mon, i), d = day(ds) || {}, w = worked(ds), h = cal().ferie(ds);
-    const off = !workDays().includes(parseYmd(ds).getDay());
+    const ds = addDays(mon, i), d = day(ds) || {}, w = worked(ds), h = c.ferie(ds);
+    const off = !c.semaine.includes(parseYmd(ds).getDay());
     const full = d.abs && d.abs.part === 'full';
     tot += w.min; exp += c.heuresPrevues(ds);
     const tcol = d.abs ? type(d.abs.type).color : '';

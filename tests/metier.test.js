@@ -153,6 +153,13 @@ test('Récurrence et Gantt suivent la semaine type déduite de l\'horaire : le v
   assert.equal(c.ouvresEntre('2026-11-09', '2026-11-15'), 4, 'semaine du 9 : lundi, mardi, jeudi, vendredi (mercredi férié)');
 });
 
+test('total de la semaine : la somme de l\'horaire de la semaine type, absences et fériés non comptés', () => {
+  assert.equal(calNoel().totalSemaine, 4 * 465 + 240, '7h45 du lundi au jeudi, 4h le vendredi');
+  assert.equal(calNoel({ '2026-11-10': 'full' }).totalSemaine, 4 * 465 + 240, 'une absence ne change pas le total');
+  assert.equal(M.calendrier(M.blank().settings).totalSemaine, 5 * 420, 'par défaut : 7h du lundi au vendredi');
+  assert.equal(M.calendrier({ workDays: [1, 2, 3], workdayMin: 480 }).totalSemaine, 3 * 480, 'données d\'avant l\'horaire commun');
+});
+
 test('journée pleine : le plus long horaire de la semaine type ; « 1j » la vaut', () => {
   assert.equal(calNoel().journeePleine, 465);
   assert.equal(M.journeePleine({ horaire: NOEL }), 465);

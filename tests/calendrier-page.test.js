@@ -13,7 +13,14 @@ const carte = page => page.locator('#main #calendrier');
 const jour = (page, n) => carte(page).locator(`[data-cal-horaire][data-wd="${n}"]`);
 // Horaire de Noel, indexé par getDay() (0 = dimanche) : 7h45 du lundi au jeudi, 4h le vendredi
 const NOEL = [0, 465, 465, 465, 465, 240, 0];
-const saisir = async (page, n, v) => { await jour(page, n).fill(v); await jour(page, n).press('Enter'); await page.waitForTimeout(50); };
+// Saisit l'horaire d'un jour, puis attend que la case montre l'horaire enregistré (accepté ou remis)
+const saisir = async (page, n, v) => {
+  await jour(page, n).fill(v); await jour(page, n).press('Enter');
+  await page.waitForFunction(n => {
+    const el = document.querySelector(`#main #calendrier [data-cal-horaire][data-wd="${n}"]`), A = window.todoApp, m = A.calendrier().horaire[n];
+    return el && el.value === (m ? A.fmtDur(m) : '0');
+  }, n);
+};
 // Texte d'un élément sur une ligne (les listes en flex sont lues avec des retours à la ligne)
 const texte = loc => loc.innerText().then(t => t.replace(/\s+/g, ' '));
 // Détail d'un jour de la vue Charge
