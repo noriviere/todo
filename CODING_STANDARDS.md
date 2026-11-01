@@ -10,6 +10,7 @@ Read at review time. Judgement calls only: anything mechanical belongs in a test
 - Assert on what the code decides (`data-*` attributes, saved data) rather than on rendered box sizes, which CSS such as `min-width` can clamp.
 
 - Each acceptance criterion of the ticket has a test that proves it; the PR body ticks each criterion with that test's name. An unticked criterion is a review finding.
+- Each story of the spec that describes a behaviour the diff changes or protects has a test, even when the ticket left it out of its criteria; a story without a test is a review finding.
 - Red-first evidence for a test lives in the PR body (the test's output before the fix): the pre-commit hook rejects a commit with a failing test, so history never shows the red run.
 
 ## Domain rules

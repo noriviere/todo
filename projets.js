@@ -1,4 +1,4 @@
-/* Gestion de projet : projets, étapes (sujets rattachés), dépendances, jalons, Gantt et export PDF.
+/* Gestion de projet : projets, étapes (sujets rangés dans le projet), dépendances, jalons, Gantt et export PDF.
    Module séparé de index.html : il s'appuie sur window.todoApp, ses points d'accroche et sur projets-plan.js (calculs). */
 (function () {
 'use strict';
@@ -462,7 +462,7 @@ document.addEventListener('change', e => {
     () => { c.poser(s, v, { coche: el.checked, debut }); });
 });
 
-// Nouvelle étape depuis un projet : un sujet rattaché, ouvert dans l'onglet Sujets
+// Nouvelle étape depuis un projet : un sujet rangé dans le projet, ouvert dans l'onglet Sujets
 let goTo = null;
 function newStep(p) {
   const title = (prompt('Nom de la nouvelle étape ?') || '').trim();
