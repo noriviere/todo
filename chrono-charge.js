@@ -4,7 +4,7 @@
 'use strict';
 const A = window.todoApp;
 if (!A || !A.hooks) { console.warn('chrono-charge.js : index.html ne fournit pas les points d\'accroche attendus.'); return; }
-const { esc, fmtDur, parseDur, today, addDays, diffDays, parseYmd, longDate, uid, nowIso, ymd, toast } = A;
+const { esc, fmtDur, parseDur, today, addDays, parseYmd, longDate, uid, nowIso, ymd, toast } = A;
 const db = () => A.getData();
 // Modules activables (Données › Modules actifs) : chrono et charge se masquent séparément
 const on = id => !A.modOn || A.modOn(id);
@@ -30,48 +30,6 @@ function slots() {
   if (!Array.isArray(d.fixedSlots)) d.fixedSlots = [];
   return d.fixedSlots;
 }
-// Jour de la semaine type (calendrier commun) et sa capacité : l'horaire de ce jour (Données › Calendrier).
-// Un jour férié garde sa capacité, prise par un créneau « Férié »
-const isWorkDay = ds => A.calendrier().semaine.includes(parseYmd(ds).getDay());
-const capacity = ds => A.calendrier().horaireDu(ds);
-// Fériés (calendrier commun) et absences (fournies par le Pointage) d'un jour de la semaine type, en créneaux virtuels :
-// ils prennent ce que le calendrier retire de l'horaire du jour (heures prévues)
-function joursPris(ds) {
-  if (!isWorkDay(ds)) return [];
-  const virtuel = (id, title, durMin) => [{ id: id + ds, title, durMin, freq: 'once', start: ds, days: [], virtual: true }];
-  const cal = A.calendrier(), f = cal.ferie(ds), pris = cal.horaireDu(ds) - cal.heuresPrevues(ds);
-  if (f) return virtuel('cal-fer-', 'Férié : ' + f, pris);
-  const a = A.absenceDu(ds);
-  return a ? virtuel('cal-abs-', a.label || 'Absence', pris) : [];
-}
-function slotOn(sl, ds) {
-  if (sl.archived || !sl.durMin) return false;
-  if (sl.start && ds < sl.start) return false;
-  if (sl.end && ds > sl.end) return false;
-  const d = parseYmd(ds), wd = d.getDay();
-  const st = sl.start ? parseYmd(sl.start) : null;
-  switch (sl.freq) {
-    case 'once': return ds === sl.start;
-    case 'daily': return isWorkDay(ds);
-    case 'weekly': return (sl.days || []).includes(wd);
-    case 'biweekly':
-      if (!(sl.days || []).includes(wd)) return false;
-      return Math.round(diffDays(A.lundi(ds), A.lundi(sl.start || ds)) / 7) % 2 === 0;
-    case 'monthday': return !!st && d.getDate() === st.getDate();
-    case 'monthweek': return !!st && wd === st.getDay() && Math.ceil(d.getDate() / 7) === Math.ceil(st.getDate() / 7);
-  }
-  return false;
-}
-// Créneaux fixes du jour, plus les fériés et les absences
-// Un jour entièrement pris (congé, férié) ne reçoit pas les créneaux fixes : la réunion n'a pas lieu sans toi
-function slotsOn(ds) {
-  const off = joursPris(ds);
-  if (off.length && off.reduce((a, sl) => a + sl.durMin, 0) >= capacity(ds)) return off;
-  return slots().filter(sl => slotOn(sl, ds)).concat(off);
-}
-const fixedMin = ds => slotsOn(ds).reduce((a, sl) => a + sl.durMin, 0);
-// Jour où l'on peut placer du travail : jour travaillé pas entièrement pris par des créneaux fixes (congés…)
-const canWork = ds => isWorkDay(ds) && fixedMin(ds) < capacity(ds);
 function describeSlot(sl) {
   const days = (sl.days || []).slice().sort((a, b) => WD_ORDER.indexOf(a) - WD_ORDER.indexOf(b)).map(x => WD_LONG[x]).join(', ');
   const st = sl.start ? parseYmd(sl.start) : null;
@@ -143,79 +101,13 @@ function stopTimer(t, quiet) {
 /* ---------- Prévision de charge ---------- */
 // Temps restant : règle unique de metier.js, la même que la carte sujet
 const remaining = A.remaining;
-function lastWorkDay(ds, floor) {
-  let d = ds;
-  for (let i = 0; i < 14 && d > floor && !canWork(d); i++) d = addDays(d, -1);
-  return d;
-}
-function firstWorkDay(ds) {
-  let d = ds;
-  for (let i = 0; i < 14 && !canWork(d); i++) d = addDays(d, 1);
-  return canWork(d) ? d : ds;
-}
-function allocate(t, td) {
-  const rem = remaining(t);
-  const res = { rem, parts: [], overdue: false, late: false, unplanned: false };
-  if (!rem) return res;
-  const mode = (t.plan && t.plan.mode) || 'deadline';
-  const dl = t.deadline;
-  const from = t.startDate && t.startDate > td ? t.startDate : td;
-  if (mode === 'daily' && t.plan.dailyMin > 0) {
-    let left = rem, d = from;
-    for (let i = 0; left > 0 && i < 400; i++, d = addDays(d, 1)) {
-      if (!canWork(d)) continue;
-      const m = Math.min(left, t.plan.dailyMin);
-      res.parts.push({ date: d, min: m }); left -= m;
-    }
-    res.late = !!dl && res.parts.length > 0 && res.parts[res.parts.length - 1].date > dl;
-    res.overdue = !!dl && dl < td;
-    return res;
-  }
-  if (!dl) { res.unplanned = true; return res; }
-  if (dl < td) { res.overdue = true; res.parts.push({ date: firstWorkDay(td), min: rem }); return res; }
-  if (mode === 'spread') {
-    const days = [];
-    for (let d = from; d <= dl; d = addDays(d, 1)) if (canWork(d)) days.push(d);
-    if (days.length) {
-      const base = Math.floor(rem / days.length);
-      let extra = rem - base * days.length;
-      days.forEach(d => { const m = base + (extra-- > 0 ? 1 : 0); if (m > 0) res.parts.push({ date: d, min: m }); });
-      return res;
-    }
-  }
-  res.parts.push({ date: lastWorkDay(dl, td), min: rem });
-  return res;
-}
+// Prévision sur n jours (calcul pur de charge-plan.js) : la page choisit les tâches comptées (visibles, ouvertes, filtres)
+// avec la priorité de leur sujet, et lui donne les créneaux fixes et le calendrier commun
 function forecast(n) {
-  const td = today();
-  const days = [], idx = {};
-  for (let i = 0; i < n; i++) {
-    const ds = addDays(td, i);
-    const fx = slotsOn(ds);
-    const day = { date: ds, cap: capacity(ds), work: isWorkDay(ds), fixed: fx, fixedMin: fx.reduce((a, s) => a + s.durMin, 0), items: [], byPrio: { 1: 0, 2: 0, 3: 0, 0: 0 }, taskMin: 0 };
-    days.push(day); idx[ds] = day;
-  }
-  const unplanned = [], noEst = [];
-  let after = 0;
-  for (const t of db().tasks) {
-    if (!A.visible(t) || !A.isOpen(t) || !A.dimOk(t)) continue;
-    if (!t.estimateMin) { noEst.push(t); continue; }
-    const al = allocate(t, td);
-    if (al.unplanned) { unplanned.push(t); continue; }
-    const pr = A.subj(t.subjectId)?.priority || 0;
-    for (const p of al.parts) {
-      const day = idx[p.date];
-      if (!day) { after += p.min; continue; }
-      day.items.push({ t, min: p.min, pr, al });
-      day.byPrio[pr] += p.min; day.taskMin += p.min;
-    }
-  }
-  for (const d of days) {
-    d.load = d.fixedMin + d.taskMin;
-    d.free = d.cap - d.load;
-    d.items.sort((a, b) => (a.pr || 4) - (b.pr || 4) || b.min - a.min);
-  }
-  return { days, unplanned, noEst, after };
+  const taches = db().tasks.filter(t => A.visible(t) && A.isOpen(t) && A.dimOk(t))
+    .map(t => ({ t, pr: A.subj(t.subjectId)?.priority || 0 }));
+  return window.chargePlan.prevision({ taches, creneaux: slots(), cal: A.calendrier(), jour: today(), n,
+    libelleAbsence: ds => { const a = A.absenceDu(ds); return a && a.label; } });
 }
 
 /* ---------- Rendu : ligne de tâche et panneau détails ---------- */
