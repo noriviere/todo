@@ -228,3 +228,86 @@ test('le mode démo ne synchronise rien', async () => {
   assert.equal(await etat(page), '');
   assert.deepEqual(page.errors, []);
 });
+
+/* ---------- Texte en cours de saisie (histoire 17) ---------- */
+// Version qui arrive sans clic : retour en ligne (un clic sur « Synchroniser maintenant » ferait sortir du champ)
+const versionArrive = async page => { await page.evaluate(() => window.dispatchEvent(new Event('online'))); await synchroFinie(page); };
+// Attend une condition côté test (faux dépôt, boîtes répondues)
+async function attendre(page, cond) {
+  for (let i = 0; i < 80 && !(await cond()); i++) await page.waitForTimeout(50);
+  assert.ok(await cond(), 'condition attendue');
+}
+const champTitre = (page, id) => ligne(page, id).locator('[data-field="title"]');
+
+test('texte en cours de saisie : la version reçue attend, rien n\'est redessiné ; à la sortie du champ, le texte validé part après la question de conflit', async () => {
+  const depot = fauxDepot();
+  const { pc, tel } = await deuxAppareils(depot);
+  await cocher(pc, 'a');
+  await synchroniser(pc);
+  await aller(tel, 'dashboard');
+  const champ = champTitre(tel, 'b');
+  await champ.click();
+  await champ.fill('');
+  await tel.keyboard.type('Titre tapé sur le téléphone');
+  await champ.evaluate(el => { el.__marque = true; });
+  const lectures = depot.lectures;
+  const textes = repondre(tel, true);
+  await versionArrive(tel);
+  assert.ok(depot.lectures > lectures, 'la Synchro a bien lu GitHub');
+  assert.deepEqual(textes, [], 'aucune question pendant la saisie');
+  assert.equal(await champ.evaluate(el => el.__marque === true && el === document.activeElement), true, 'le champ n\'est pas redessiné et garde le focus');
+  assert.equal(await champ.inputValue(), 'Titre tapé sur le téléphone');
+  assert.equal(tacheDe(await tel.db(), 'a').status, 'todo', 'la version reçue attend');
+  await ailleurs(tel);
+  await attendre(tel, () => textes.length === 1 && tacheDe(depot.donnees(), 'b').title === 'Titre tapé sur le téléphone');
+  await synchroFinie(tel);
+  assert.match(textes[0], /modifiées sur cet appareil ET sur un autre depuis la dernière synchro/);
+  assert.equal(tacheDe(await tel.db(), 'b').title, 'Titre tapé sur le téléphone');
+  assert.deepEqual([...pc.errors, ...tel.errors], []);
+});
+
+test('champ quitté sans rien changer : la version reçue pendant le focus s\'applique à la sortie, sans question', async () => {
+  const depot = fauxDepot();
+  const { pc, tel } = await deuxAppareils(depot);
+  await cocher(pc, 'a');
+  await synchroniser(pc);
+  await aller(tel, 'dashboard');
+  await champTitre(tel, 'b').click();
+  const textes = repondre(tel);
+  await versionArrive(tel);
+  assert.equal(tacheDe(await tel.db(), 'a').status, 'todo', 'la version reçue attend');
+  await ailleurs(tel);
+  await tel.waitForFunction(() => window.todoApp.getData().tasks.find(t => t.id === 'a').status === 'done');
+  await synchroFinie(tel);
+  assert.deepEqual(textes, []);
+  assert.doesNotMatch(await etat(tel), /à envoyer|⚠/);
+  assert.equal(depot.versions.length, 2, 'rien n\'est renvoyé');
+});
+
+test('le guide, ouvert par le « i » de la carte Synchro, dit que le texte tapé n\'est jamais perdu et que OK garde cet appareil', async () => {
+  const pc = await appareil(fauxDepot(), base(), { hash: 'donnees', viewport: { width: 390, height: 800 }, touch: true });
+  const carte = await pc.locator('#main #sync-card .card').boundingBox();
+  assert.ok(carte.x >= 0 && carte.x + carte.width <= 390, 'la carte Synchro branchée tient à 390 px');
+  assert.ok(await pc.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'pas de débordement de la page');
+  await pc.click('#main #sync-card .gd-i[data-help="synchro"]');
+  const section = pc.locator('#gd-synchro');
+  await section.waitFor();
+  const texte = (await section.innerText()).replace(/\s+/g, ' ');
+  assert.match(texte, /Le texte que tu es en train de taper n'est jamais perdu quand une version arrive de GitHub/);
+  assert.match(texte, /le bouton OK garde toujours la version de cet appareil et l'envoie sur GitHub/);
+  assert.deepEqual(pc.errors, []);
+});
+
+test('sans champ en cours de saisie, une version reçue s\'applique tout de suite', async () => {
+  const depot = fauxDepot();
+  const { pc, tel } = await deuxAppareils(depot);
+  await aller(pc, 'dashboard');
+  await champTitre(pc, 'a').fill('Titre changé sur le PC');
+  await ailleurs(pc);
+  await synchroniser(pc);
+  await aller(tel, 'dashboard');
+  await ailleurs(tel);
+  await versionArrive(tel);
+  assert.equal(tacheDe(await tel.db(), 'a').title, 'Titre changé sur le PC');
+  assert.equal(await champTitre(tel, 'a').inputValue(), 'Titre changé sur le PC', 'l\'écran est redessiné');
+});

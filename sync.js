@@ -15,7 +15,14 @@
   // cfg : { owner, repo, path, token, sha (version distante connue), synced (empreinte des données à cette version), at }
   let cfg = null;
   try { cfg = JSON.parse(localStorage.getItem(CFG_KEY)) || null; } catch (e) {}
-  let busy = false, again = false, timer = null, lastError = null, applying = false;
+  let busy = false, again = false, timer = null, lastError = null, applying = false, enAttente = false;
+  // Champ où l'on tape (texte, nombre, date, zone de texte), hors formulaire de branchement de la Synchro
+  const SANS_TEXTE = /^(checkbox|radio|button|submit|reset|range|color|file|hidden)$/;
+  const enSaisie = () => {
+    const el = document.activeElement;
+    if (!el || el.closest('#sync-form')) return false;
+    return el.tagName === 'TEXTAREA' || el.isContentEditable || (el.tagName === 'INPUT' && !SANS_TEXTE.test(el.type));
+  };
 
   const saveCfg = () => { try { cfg ? localStorage.setItem(CFG_KEY, JSON.stringify(cfg)) : localStorage.removeItem(CFG_KEY); } catch (e) {} };
   const ready = () => !!(cfg && cfg.owner && cfg.repo && cfg.token);
@@ -117,6 +124,9 @@
       const local = app.getData();
       let d = D.decider({ local, distant, derniere: derniere() });
       if (d.raison === 'illisible') throw new Error('le fichier sur GitHub est illisible, rien n\'a été changé ici');
+      // Texte en cours de saisie : recevoir (ou demander) redessinerait l'écran et le ferait perdre.
+      // On attend la sortie du champ ; la Synchro reprend alors avec la valeur validée.
+      if ((d.action === 'recevoir' || d.action === 'demander') && enSaisie()) { enAttente = true; d = { action: 'rien' }; }
       // Les questions : OK garde toujours cet appareil et l'envoie, Annuler reçoit la version de GitHub
       if (d.action === 'demander') d = confirm(question(d.question, local, distant.donnees)) ? d.ok : d.annuler;
       if (d.action === 'envoyer') await push(d.depuis);
@@ -255,6 +265,10 @@
   window.addEventListener('todo:saved', () => { if (!applying && ready() && dirty()) { schedule(); paint(); } });
   window.addEventListener('todo:rendered', paint);
   window.addEventListener('online', () => sync());
+  // Sortie du champ : la valeur validée est enregistrée (événement « change »), puis la version mise en attente repasse par la décision
+  document.addEventListener('focusout', () => setTimeout(() => {
+    if (enAttente && !enSaisie()) { enAttente = false; sync(); }
+  }, 0), true);
   document.addEventListener('visibilitychange', () => {
     if (!ready()) return;
     // En quittant l'appli on envoie tout de suite ; en y revenant on récupère les changements
