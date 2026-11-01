@@ -1,7 +1,7 @@
 // Chrono, Charge et Pointage passent par le point unique de modification : tout s'annule avec Ctrl+Z / ↶ (ticket #27)
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { openApp, closeAll, day } = require('./helpers');
+const { openApp, closeAll, day, ctrl, ailleurs } = require('./helpers');
 after(closeAll);
 
 const base = (extra = {}) => Object.assign({
@@ -13,8 +13,6 @@ const base = (extra = {}) => Object.assign({
 }, extra);
 const tache = async (page, id) => (await page.db()).tasks.find(t => t.id === id);
 const ligne = (page, id) => page.locator(`#main .task[data-tid="${id}"]`).first();
-const ctrl = (page, k) => page.keyboard.press('Control+' + k);
-const ailleurs = page => page.locator('body').click({ position: { x: 5, y: 5 } });
 const peutAnnuler = page => page.evaluate(() => !document.querySelector('#hist [data-act="hist-undo"]').disabled);
 
 test('chrono démarré puis Ctrl+Z : arrêté et la tâche revient « À faire » ; Ctrl+Y le relance', async () => {

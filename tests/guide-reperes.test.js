@@ -10,10 +10,11 @@ after(closeAll);
 
 const ZONE = { main: '#main', drawer: '#drawer' };
 
-// Un « i » décrit par sa partie de l'aide et l'élément qui le contient (texte pour un titre, une case, un libellé)
+// Un « i » décrit par sa partie de l'aide et l'élément qui le contient (texte pour un titre, une case, un libellé).
+// Le texte s'arrête au premier chiffre : les durées et compteurs de la démo (demo.js) ou l'année ne figent pas la liste.
 const releve = (page, zone) => page.$$eval(ZONE[zone] + ' .gd-i', bs => bs.map(b => {
   const p = b.parentElement, tag = p.tagName.toLowerCase();
-  const texte = /^(h1|h2|h3|summary|label|span)$/.test(tag) ? ' « ' + p.textContent.trim().replace(/\s+/g, ' ').slice(0, 24) + ' »' : '';
+  const texte = /^(h1|h2|h3|summary|label|span)$/.test(tag) ? ' « ' + p.textContent.trim().replace(/\s+/g, ' ').replace(/\s*\d.*$/, '').slice(0, 24) + ' »' : '';
   return `${b.dataset.help} ← ${tag}${p.className ? '.' + p.className.split(' ')[0] : ''}${texte}`;
 }));
 
@@ -28,13 +29,13 @@ const reperes = (page, zone) => page.$$eval(ZONE[zone] + ' [data-repere]', els =
 
 // Liste figée sur le code d'avant les repères (table de sélecteurs du guide), démo, tous modules allumés
 const DEMO = {
-  dashboard: ['dashboard ← h1 « Tableau de bord »', 'saisie ← form.qa', 'pointer ← div.pt-today-l', 'filtres ← div.org-filters', "taches ← summary « Aujourd'hui43h50 estimée »"],
+  dashboard: ['dashboard ← h1 « Tableau de bord »', 'saisie ← form.qa', 'pointer ← div.pt-today-l', 'filtres ← div.org-filters', "taches ← summary « Aujourd'hui »"],
   sujets: ['sujets ← h1 « Sujets »', 'priorites ← div.prio-title'],
   projets: ['projets ← h1 « Projets »'],
   'projet ouvert': ['projets ← h3 « Jalons »'],
   charge: ['charge ← h1 « Charge de travail »', 'charge ← div.cc-legend', 'charge ← summary « Non comptées dans la cha »', 'creneaux ← h3 « Créneaux fixes »', 'creneaux ← h3 « Ma semaine type »'],
   'pointage semaine': ['pointer ← h1 « Pointage »', 'pointer ← span « Jour »'],
-  'pointage conges': ['pointer ← h1 « Pointage »', 'conges ← h3 « Poser une absence »', 'compteurs ← h3 « Congés payés 2026 »', 'compteurs ← h3 « RTT 2026 »', 'conges ← h3 « Absences 2026 »', "types-absence ← summary « Types d'absence et droit »"],
+  'pointage conges': ['pointer ← h1 « Pointage »', 'conges ← h3 « Poser une absence »', 'compteurs ← h3 « Congés payés »', 'compteurs ← h3 « RTT »', 'conges ← h3 « Absences »', "types-absence ← summary « Types d'absence et droit »"],
   'pointage bilan': ['pointer ← h1 « Pointage »', 'bilan ← h3 « Heures par semaine »', 'bilan ← h3 « Par mois »', 'bilan ← h3 « Réglages »', 'pointage-import ← h3 « Importer un historique E »'],
   inbox: ['inbox ← h1 « Boîte de réception »', 'saisie ← form.qa'],
   archives: ['archives ← h1 « Archives »'],
@@ -46,10 +47,20 @@ const HORS_DEMO = {
   donnees: ['donnees ← h1 « Données »', 'demo ← h3 « Mode démo »', 'modules ← h3 « Modules actifs »', 'calendrier ← h3 « Calendrier »', 'sauvegarde-auto ← h3 « Sauvegarde automatique »', 'synchro ← h3 « Synchro PC ↔ téléphone »', 'export ← h3 « Sauvegarde manuelle (exp »', 'export ← h3 « Restaurer (import JSON) »', 'excel ← h3 « Import depuis Excel »']
 };
 
+// Attend que l'écran voulu soit dessiné (son onglet allumé, ou absent quand son module est éteint) et que le guide
+// ait posé ses « i » (image suivante) : un délai fixe ne suffit pas sur une machine lente (CI)
+async function pret(page, ecran) {
+  if (ecran) await page.waitForFunction(e => {
+    const on = document.querySelector('#nav a.on');
+    return on && (on.getAttribute('href') === '#' + e || !document.querySelector(`#nav a[href="#${e}"]`));
+  }, ecran);
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+}
+
 // Ouvre chaque écran et panneau, et appelle voir(nom, zone) sur chacun
 async function tour(page, voir, { demo = true } = {}) {
-  const attendre = () => page.waitForTimeout(80);
-  for (const e of demo ? ['dashboard', 'sujets', 'projets', 'charge', 'inbox', 'archives', 'donnees'] : ['donnees']) { await aller(page, e); await attendre(); await voir(e, 'main'); }
+  const attendre = () => pret(page);
+  for (const e of demo ? ['dashboard', 'sujets', 'projets', 'charge', 'inbox', 'archives', 'donnees'] : ['donnees']) { await aller(page, e); await pret(page, e); await voir(e, 'main'); }
   if (!demo) return;
   await aller(page, 'projets'); await page.click('#main [data-pj="open-project"]'); await attendre(); await voir('projet ouvert', 'main');
   for (const t of ['semaine', 'conges', 'bilan']) {
@@ -123,10 +134,10 @@ test('les « i » d\'un module éteint disparaissent avec lui et reviennent quan
   const page = await openApp(fictif(), { hash: 'donnees' });
   const aides = async () => {
     const ids = [];
-    for (const e of ['dashboard', 'sujets', 'projets', 'charge', 'pointage', 'inbox', 'archives', 'donnees']) { await aller(page, e); await page.waitForTimeout(50); ids.push(...await page.$$eval('#main .gd-i', bs => bs.map(b => b.dataset.help))); }
+    for (const e of ['dashboard', 'sujets', 'projets', 'charge', 'pointage', 'inbox', 'archives', 'donnees']) { await aller(page, e); await pret(page, e); ids.push(...await page.$$eval('#main .gd-i', bs => bs.map(b => b.dataset.help))); }
     await aller(page, 'sujets');
     await page.locator('#main [data-act="details"]').first().click();
-    await page.waitForTimeout(50);
+    await pret(page);
     ids.push(...await page.$$eval('#drawer .gd-i', bs => bs.map(b => b.dataset.help)));
     await page.keyboard.press('Escape');
     return new Set(ids);
