@@ -61,9 +61,17 @@ test('modifiés des deux côtés et différents : Conflit de synchro', () => {
   assert.deepEqual(decider(B, github(C, 'v7'), apres(A)), question('conflit', 'v7'));
 });
 
-test('fichier GitHub de forme invalide : rien ne change ici, et la raison est donnée', () => {
+test('fichier GitHub de forme invalide : décision « illisible », rien ne change ici', () => {
   for (const mauvais of [null, 'texte', { subjects: [] }, { subjects: {}, tasks: [] }])
-    assert.deepEqual(decider(A, github(mauvais), apres(A)), { action: 'rien', raison: 'illisible' });
+    assert.deepEqual(decider(A, github(mauvais), apres(A)), { action: 'illisible' });
+});
+
+test('« à envoyer » : modifié depuis la Dernière synchro ou jamais synchronisé, sauf si cet appareil est vide', () => {
+  assert.equal(D.aEnvoyer(B, apres(A)), true);
+  assert.equal(D.aEnvoyer(A, null), true);
+  assert.equal(D.aEnvoyer(A, apres(A)), false);
+  assert.equal(D.aEnvoyer(VIDE, apres(A)), false, 'un appareil vidé n\'est pas à envoyer : il n\'envoie jamais rien');
+  assert.equal(D.aEnvoyer(VIDE, null), false);
 });
 
 test('empreinte : l\'affichage propre à l\'appareil et la date d\'export sont ignorés', () => {

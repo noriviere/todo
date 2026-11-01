@@ -1,7 +1,8 @@
 // Synchro PC ↔ téléphone de bout en bout : deux appareils (contextes de navigateur séparés) partagent un faux dépôt (spec #52)
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { closeAll, day, ctrl, ailleurs, aller, fauxDepot, appareil, synchroFinie, synchroniser } = require('./helpers');
+const { closeAll, day, ctrl, ailleurs, aller, fauxDepot, SYNC_CFG, appareil, synchroFinie, synchroniser } = require('./helpers');
+const D = require('../sync-decision.js');
 after(closeAll);
 
 const VIEUX = '2000-01-01T00:00:00.000Z';
@@ -17,6 +18,8 @@ const autre = () => ({ version: 1, subjects: [sujet('p', 'Sujet P'), sujet('q', 
 const IMPORT_KEY = 'todo-noel-v1-avant-import';
 const POINT_IMPORT = { [IMPORT_KEY]: JSON.stringify({ subjects: [sujet('i', 'Copie d\'avant import')], tasks: [] }), [IMPORT_KEY + '-date']: '2026-10-01T08:00:00.000Z' };
 const pointImport = page => page.evaluate(k => [localStorage.getItem(k), localStorage.getItem(k + '-date')], IMPORT_KEY);
+// Copie « avant la dernière synchro reçue » de l'appareil
+const copieAvantSynchro = page => page.evaluate(() => JSON.parse(localStorage.getItem('todo-noel-v1-avant-synchro')));
 
 const tacheDe = (d, id) => d.tasks.find(t => t.id === id);
 const ligne = (page, id) => page.locator(`#main .task[data-tid="${id}"]`).first();
@@ -75,6 +78,18 @@ test('un appareil vide n\'envoie jamais rien, et un fichier GitHub illisible ne 
   assert.deepEqual(tel.errors, []);
 });
 
+test('appareil vidé alors que GitHub n\'a pas changé : rien ne part, et rien n\'est affiché « à envoyer »', async () => {
+  const depot = fauxDepot(base());
+  // Dernière synchro sur la version v1 de GitHub, quand cet appareil avait encore les données de base()
+  const tel = await appareil(depot, null, { cfg: SYNC_CFG({ sha: 'v1', synced: D.empreinte(base()), at: VIEUX }), hash: 'donnees' });
+  await synchroniser(tel);
+  assert.equal(depot.versions.length, 1, 'un appareil vide n\'envoie jamais rien');
+  assert.equal((await tel.db()).tasks.length, 0);
+  assert.doesNotMatch(await etat(tel), /à envoyer|⚠/);
+  assert.doesNotMatch(await tel.locator('#main #sync-card').innerText(), /attendent d'être envoyées/);
+  assert.deepEqual(tel.errors, []);
+});
+
 test('Conflit de synchro : OK garde cet appareil et l\'envoie ; l\'autre version reste dans l\'historique du dépôt', async () => {
   const depot = fauxDepot();
   const { pc, tel } = await deuxAppareils(depot);
@@ -124,10 +139,28 @@ test('GitHub vide alors que cet appareil a des données : OK renvoie cet apparei
   const textes = repondre(tel, true);
   await synchroniser(tel);
   assert.equal(textes.length, 1);
-  assert.match(textes[0], /Le fichier sur GitHub est vide, alors que cet appareil a 1 sujets et 3 tâches/);
+  assert.match(textes[0], /Le fichier sur GitHub est vide, alors que cet appareil a 1 sujets, 3 tâches\./);
   assert.match(textes[0], /OK = renvoyer les données de cet appareil sur GitHub/);
   assert.equal(depot.donnees().tasks.length, 3);
   assert.equal((await tel.db()).tasks.length, 3);
+});
+
+test('GitHub vide alors que cet appareil a des données : Annuler vide cet appareil comme GitHub, et la copie d\'avant garde ses données', async () => {
+  const depot = fauxDepot();
+  const { tel } = await deuxAppareils(depot);
+  depot.pousser({ version: 1, subjects: [], tasks: [], settings: {} });
+  const textes = repondre(tel, false);
+  await synchroniser(tel);
+  assert.equal(textes.length, 1);
+  assert.match(textes[0], /Annuler = vider cet appareil comme GitHub/);
+  const d = await tel.db();
+  assert.deepEqual([d.subjects.length, d.tasks.length], [0, 0], 'cet appareil est vidé comme GitHub');
+  assert.equal(depot.versions.length, 2, 'rien n\'est envoyé');
+  assert.doesNotMatch(await etat(tel), /à envoyer|⚠/);
+  const copie = await copieAvantSynchro(tel);
+  assert.deepEqual(copie.tasks.map(t => t.title), ['Tâche A', 'Tâche B', 'Tâche C'], 'la copie « avant la dernière synchro reçue » garde les données d\'avant');
+  await tel.click('#main [data-act="sync-undo"]');
+  assert.equal((await tel.db()).tasks.length, 3, 'le bouton de retour rend les données d\'avant');
 });
 
 test('premier branchement d\'un appareil rempli : sa propre question, avec les nombres des deux côtés ; OK l\'envoie', async () => {
@@ -162,9 +195,12 @@ test('premier branchement avec les mêmes données que GitHub : aucune question,
   assert.match(await etat(tel), /☁ Synchro · \d\d:\d\d$/);
 });
 
-test('une modification faite pendant un envoi part juste après', async () => {
+test('une modification faite pendant un envoi part juste après, sans attendre le minuteur de 3 s', async () => {
   const depot = fauxDepot();
   const { pc } = await deuxAppareils(depot);
+  // Heure de fin de chaque écriture dans le dépôt
+  const ecrire = depot.ecrire, ecritures = [];
+  depot.ecrire = async (...a) => { const r = await ecrire(...a); ecritures.push(Date.now()); return r; };
   await cocher(pc, 'a');
   // Pendant l'envoi de « A faite », on archive B sur le même appareil
   depot.avantEcriture = () => archiver(pc, 'b');
@@ -174,6 +210,9 @@ test('une modification faite pendant un envoi part juste après', async () => {
   const fin = depot.donnees();
   assert.equal(tacheDe(fin, 'a').status, 'done');
   assert.equal(tacheDe(fin, 'b').archived, true, 'la modification faite pendant l\'envoi est partie');
+  assert.equal(ecritures.length, 2);
+  // La modification faite pendant l'envoi a aussi lancé le minuteur de 3 s (todo:saved) : le second envoi part bien avant
+  assert.ok(ecritures[1] - ecritures[0] < 2000, `second envoi ${ecritures[1] - ecritures[0]} ms après le premier`);
 });
 
 test('conflit d\'écriture (l\'autre appareil écrit entre la lecture et l\'écriture) : nouvelle tentative, rien n\'est perdu', async () => {
@@ -193,6 +232,26 @@ test('conflit d\'écriture (l\'autre appareil écrit entre la lecture et l\'écr
   const fin = depot.donnees();
   assert.equal(tacheDe(fin, 'a').status, 'done', 'la version du PC est partie');
   assert.ok(depot.versions.some(v => tacheDe(v.donnees, 'c').status === 'done'), 'la version du téléphone reste dans l\'historique');
+});
+
+test('deux conflits d\'écriture de suite : l\'erreur s\'affiche, rien n\'est perdu, et la synchro suivante envoie cet appareil', async () => {
+  const depot = fauxDepot();
+  const { pc } = await deuxAppareils(depot);
+  await cocher(pc, 'a');
+  // Le téléphone écrit avant chacune des deux écritures du PC (C faite, puis B faite)
+  const ecrireDAilleurs = id => { const d = depot.donnees(); tacheDe(d, id).status = 'done'; depot.pousser(d); };
+  depot.avantEcriture = () => { ecrireDAilleurs('c'); depot.avantEcriture = () => ecrireDAilleurs('b'); };
+  const textes = repondre(pc, true, true);
+  await synchroniser(pc);
+  assert.equal(textes.length, 1, 'une question après la première relecture');
+  assert.match(await etat(pc), /⚠ Synchro : conflit d'écriture/);
+  assert.equal(tacheDe(await pc.db(), 'a').status, 'done', 'la modification reste sur cet appareil');
+  assert.deepEqual(depot.versions.map(v => ['a', 'b', 'c'].map(id => tacheDe(v.donnees, id).status)),
+    [['todo', 'todo', 'todo'], ['todo', 'todo', 'done'], ['todo', 'done', 'done']], 'les versions de l\'autre appareil sont toutes dans le dépôt');
+  await synchroniser(pc);
+  assert.equal(textes.length, 2);
+  assert.doesNotMatch(await etat(pc), /⚠/);
+  assert.equal(tacheDe(depot.donnees(), 'a').status, 'done', 'la synchro suivante envoie cet appareil');
 });
 
 test('un dépôt public est refusé, l\'erreur s\'affiche et rien ne part', async () => {
