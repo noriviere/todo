@@ -18,6 +18,7 @@ Communication to and from subagents should be sparse. Communicate primarily thro
 
 - The spec is a GitHub issue on `noriviere/todo`; its tickets are its sub-issues, and a ticket's blockers are its native issue dependencies (or a `Blocked by:` line). See `docs/agents/issue-tracker.md`.
 - The PR branch is the session's designated branch. Every subagent pointer includes `AGENTS.md` (standing rules: modules off, guide and demo, phone width, French, `ui-ux-pro-max` for interface changes).
+- Each implementer's brief starts with: in its worktree, run `git merge --ff-only <PR branch>` before anything else. The worktree can start from an older commit than the PR branch head (glossary or spec commits pushed since).
 - Each implementer works the way `/mattpocock-skills:implement` does: `/mattpocock-skills:tdd` at the seams agreed in the spec, single test files while working, the full suite (`node --test tests/*.test.js`) before handing back.
 - Each implementer's brief says: every story of the spec that the ticket touches has a test, even when the ticket's criteria leave it out (`CODING_STANDARDS.md` › Tests).
 - Each implementer's brief also says: a criterion that cannot be tested at the planned seam is tested at a lower one (prior art: `tests/depot-github.test.js` intercepts GitHub with `page.route`, even from a `file://` page); a criterion left untested is reported back as a gap, never as done.
@@ -37,7 +38,7 @@ Communication to and from subagents should be sparse. Communicate primarily thro
 
 6. If this changes the **frontier** of available tickets, kick off more **implementer subagents** to work on the new tickets. This allows for maximum concurrency.
 
-7. Once all tickets are complete, update the PR body with the evidence (each ticket's acceptance criteria ticked with their tests, screenshots at desktop and phone width for interface changes, using demo mode `index.html?demo`). Then run `/mattpocock-skills:code-review` on the PR branch (never the bare `/code-review`), giving the reviewers the PR body, the diff, the spec and the tickets. Fix all issues raised by the code review in a single **implementer subagent**.
+7. Once all tickets are complete, update the PR body with the evidence (each ticket's acceptance criteria ticked with their tests, screenshots at desktop and phone width for interface changes, using demo mode: `node tests/captures.js <folder> <screen>…`). Then run `/mattpocock-skills:code-review` on the PR branch (never the bare `/code-review`), giving the reviewers the PR body, the diff, the spec and the tickets. Fix all issues raised by the code review in a single **implementer subagent**.
 
 8. Push, and mark the PR as ready for review. Never merge it: Noel merges.
 
