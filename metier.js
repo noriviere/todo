@@ -35,18 +35,15 @@ const JOURS_LONGS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendred
 // Horaire de la semaine type : minutes prévues pour chaque jour, indexé par getDay() (0 = dimanche) ; un jour à 0 n'en fait pas partie
 const horaireValide = h => Array.isArray(h) && h.length === 7 && h.every(m => Number.isFinite(m) && m >= 0) && h.some(m => m > 0);
 const horaireSur = (jours, min) => [0, 1, 2, 3, 4, 5, 6].map(wd => jours.includes(wd) ? min : 0);
-// Horaire des réglages ; sinon (données d'avant l'horaire commun) l'Objectif par jour du Pointage s'il existe,
-// puis l'ancienne capacité d'une journée (workdayMin) sur chaque jour de l'ancienne semaine type (workDays)
+// Horaire des réglages ; sinon (données d'avant l'horaire commun) chaque jour de l'ancienne semaine type (workDays) prend
+// l'Objectif par jour du Pointage (dayMin) s'il est > 0, sinon l'ancienne capacité d'une journée (workdayMin) ; les autres jours, 0
 function horaireDe(settings, pointage) {
   const s = settings || {};
   if (horaireValide(s.horaire)) return s.horaire;
-  const dm = pointage && pointage.dayMin;
-  if (dm && typeof dm === 'object') {
-    const h = [0, 1, 2, 3, 4, 5, 6].map(wd => Math.max(0, Math.round(+dm[wd] || 0)));
-    if (horaireValide(h)) return h;
-  }
   const jours = Array.isArray(s.workDays) && s.workDays.length ? s.workDays : SEMAINE_TYPE;
-  return horaireSur(jours, s.workdayMin > 0 ? s.workdayMin : JOURNEE_DEFAUT);
+  const capacite = s.workdayMin > 0 ? s.workdayMin : JOURNEE_DEFAUT, dm = pointage && pointage.dayMin;
+  const duree = wd => { const m = dm && typeof dm === 'object' ? Math.round(+dm[wd] || 0) : 0; return m > 0 ? m : capacite; };
+  return [0, 1, 2, 3, 4, 5, 6].map(wd => jours.includes(wd) ? duree(wd) : 0);
 }
 const semaineType = settings => horaireDe(settings).map((m, wd) => m > 0 ? wd : -1).filter(wd => wd >= 0).sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7));
 // Journée pleine : le plus long horaire de la semaine type, ce que vaut « 1j »
@@ -90,7 +87,7 @@ function calendrier(settings, absenceDe = () => null) {
     const a = absence(ds), h = horaireDu(ds);
     if (a === 'full') return 0;
     if (!a) return h;
-    return h <= pleine * 3 / 4 ? 0 : Math.max(0, h - Math.round(pleine / 2));
+    return h <= pleine * 3 / 4 ? 0 : Math.max(0, Math.round(h - pleine / 2));
   };
   // Le jour lui-même s'il convient, sinon le suivant (au plus un an plus loin : absence posée sur toute l'année)
   const suivant = test => ds => { let d = ds; for (let i = 0; i < UN_AN && !test(d); i++) d = addDays(d, 1); return d; };
@@ -180,18 +177,18 @@ function tempsPointe(jour, ds, aujourdhui, maintenant) {
   if (repas) min -= Math.max(0, enMin(jour.lunchIn) - enMin(jour.lunchOut));
   return { min: Math.max(0, min), live, open: !jour.out };
 }
-// Semaine complète : semaine finie dont chaque jour à objectif > 0 a du temps pointé, sans absence ni férié, quel que soit le total.
-// Un jour à objectif 0 (samedi travaillé) ne change rien. Aujourd'hui n'est fini qu'une fois le départ pointé.
-// o : { jour(ds) → jour pointé, objectif(ds) → minutes de la semaine type, ferie(ds), aujourdhui, maintenant,
+// Semaine complète : semaine finie dont chaque jour à horaire > 0 a du temps pointé, sans absence ni férié, quel que soit le total.
+// Un jour à horaire 0 (samedi travaillé) ne change rien. Aujourd'hui n'est fini qu'une fois le départ pointé.
+// cal : le calendrier (horaireDu, ferie) ; o : { jour(ds) → jour pointé, aujourdhui, maintenant,
 //       debut, fin : bornes facultatives de la période comptée (un jour hors d'elles rend la semaine incomplète) }
-function semaineComplete(lundiDs, o) {
+function semaineComplete(lundiDs, cal, o) {
   for (let i = 0; i < 7; i++) {
     const ds = addDays(lundiDs, i);
-    if (!(o.objectif(ds) > 0)) continue;
+    if (!(cal.horaireDu(ds) > 0)) continue;
     const j = o.jour(ds);
     if ((o.debut && ds < o.debut) || (o.fin && ds > o.fin)) return false;
     if (ds > o.aujourdhui || (ds === o.aujourdhui && !(j && j.out))) return false;
-    if (o.ferie(ds) || (j && j.abs)) return false;
+    if (cal.ferie(ds) || (j && j.abs)) return false;
     if (!(tempsPointe(j, ds, o.aujourdhui, o.maintenant).min > 0)) return false;
   }
   return true;

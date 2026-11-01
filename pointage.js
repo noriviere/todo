@@ -51,11 +51,8 @@ const type = id => P().types.find(t => t.id === id) || { id, label: id, short: i
 // Semaine type et fériés : calendrier commun du noyau (Données › Calendrier)
 const cal = () => A.calendrier();
 const workDays = () => cal().semaine;
-// Objectif de temps par jour de la semaine (index = getDay()), en minutes : l'horaire de la semaine type (Données › Calendrier)
-const WD_ORDER = [1, 2, 3, 4, 5, 6, 0];
-const WD_SHORT = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
-const dayTarget = wd => cal().horaire[wd];
-const weekTarget = () => WD_ORDER.reduce((a, wd) => a + dayTarget(wd), 0);
+// Objectif d'une semaine sans absence ni férié, en minutes : la somme de l'horaire de la semaine type (Données › Calendrier)
+const weekTarget = () => cal().horaire.reduce((a, m) => a + m, 0);
 
 
 /* ---------- Calculs d'heures ---------- */
@@ -65,9 +62,6 @@ const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMin
 // aujourd'hui, une journée pas encore terminée compte jusqu'à maintenant (live).
 const worked = ds => A.tempsPointe(day(ds), ds, today(), nowMin());
 const absFrac = d => d && d.abs ? (d.abs.part === 'am' || d.abs.part === 'pm' ? 0.5 : 1) : 0;
-// Temps attendu d'un jour (objectif) : ses heures prévues au calendrier commun, nulles les jours fériés ou non travaillés,
-// diminuées des absences (une demi-journée retire la moitié d'une journée pleine)
-const expected = (ds, c = cal()) => c.heuresPrevues(ds);
 const median = arr => { if (!arr.length) return 0; const s = arr.slice().sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2); };
 const avg = arr => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
 const fmtH = min => (min < 0 ? '-' : '') + (fmtDur(Math.abs(min)) || '0h');
@@ -150,12 +144,12 @@ let weekStart = null, year = null;
 
 function weekRows(mon) {
   let tot = 0, exp = 0;
-  const rows = [];
+  const rows = [], c = cal();   // temps attendu d'un jour : ses heures prévues au calendrier commun
   for (let i = 0; i < 7; i++) {
     const ds = addDays(mon, i), d = day(ds) || {}, w = worked(ds), h = cal().ferie(ds);
     const off = !workDays().includes(parseYmd(ds).getDay());
     const full = d.abs && d.abs.part === 'full';
-    tot += w.min; exp += expected(ds);
+    tot += w.min; exp += c.heuresPrevues(ds);
     const tcol = d.abs ? type(d.abs.type).color : '';
     rows.push(`<div class="pt-row${ds === today() ? ' td' : ''}${off ? ' off' : ''}${h ? ' hol' : ''}${full ? ' absd' : ''}" data-d="${ds}"${tcol ? ` style="--tc:${tcol}"` : ''}>
       <span class="pt-date"><b>${parseYmd(ds).toLocaleDateString('fr-FR', { weekday: 'short' }).replace('.', '')}</b> ${parseYmd(ds).getDate()} ${MONTHS[parseYmd(ds).getMonth()]}${h ? `<span class="pt-hol" title="Jour férié">${esc(h)}</span>` : ''}</span>
@@ -286,7 +280,7 @@ function stats(y) {
   const start = !first ? addDays(end, 1) : first > `${y}-01-01` ? first : `${y}-01-01`;
   const c = cal();
   for (let ds = start; ds <= end; ds = addDays(ds, 1)) {
-    const w = worked(ds), e = expected(ds, c), mi = parseYmd(ds).getMonth();
+    const w = worked(ds), e = c.heuresPrevues(ds), mi = parseYmd(ds).getMonth();
     const wk = A.lundi(ds);
     if (!weeks[wk]) weeks[wk] = { min: 0, exp: 0, days: 0 };
     weeks[wk].min += w.min; weeks[wk].exp += e;
@@ -297,8 +291,8 @@ function stats(y) {
   const list = Object.keys(weeks).sort().map(k => Object.assign({ mon: k }, weeks[k]));
   // Semaine complète (règle de metier.js) : seules elles entrent dans la moyenne et la médiane.
   // Les jours hors de l'année affichée (ou d'avant le premier jour saisi) rendent la semaine incomplète.
-  const opt = { jour: day, objectif: ds => dayTarget(parseYmd(ds).getDay()), ferie: ds => c.ferie(ds), aujourdhui: today(), maintenant: nowMin(), debut: start, fin: end };
-  list.forEach(w => { w.full = A.semaineComplete(w.mon, opt); });
+  const opt = { jour: day, aujourdhui: today(), maintenant: nowMin(), debut: start, fin: end };
+  list.forEach(w => { w.full = A.semaineComplete(w.mon, c, opt); });
   const vals = list.filter(w => w.full && w.min > 0).map(w => w.min);
   const dayVals = [];
   for (let ds = start; ds <= end; ds = addDays(ds, 1)) { const m = worked(ds).min; if (m) dayVals.push(m); }
@@ -327,7 +321,7 @@ function viewStats() {
       <div class="stat"><div class="v">${fmtH(median(s.vals))}</div><div class="l">médiane par semaine complète</div></div>
       <div class="stat ${ecart < 0 ? 'late' : ''}"><div class="v">${ecart >= 0 ? '+' : ''}${fmtH(ecart)}</div><div class="l">écart à l'objectif (${fmtH(s.exp)} attendues)</div></div>
     </div>
-    <p class="hint pt-complete">Moyenne et médiane : semaines complètes seulement, où chaque jour de l'horaire de la semaine type (${esc(WD_ORDER.filter(wd => dayTarget(wd) > 0).map(wd => WD_SHORT[wd] + ' ' + fmtDur(dayTarget(wd))).join(', '))}) a des heures pointées, sans absence ni férié. <a href="#donnees" data-act="cal-voir">Régler dans Données › Calendrier</a></p>
+    <p class="hint pt-complete">Moyenne et médiane : semaines complètes seulement, où chaque jour de l'horaire de la semaine type (${A.fmtSemaineType()}) a des heures pointées, sans absence ni férié. <a href="#donnees" data-act="cal-voir">Régler dans Données › Calendrier</a></p>
     <div class="card"><h3 data-repere="bilan">Heures par semaine</h3>
       <p class="hint">Trait : objectif de la semaine (diminué des absences et fériés). Barres pâles : semaines incomplètes (congé, absence, férié), hors moyenne et médiane. Clique une semaine pour l'ouvrir.</p>
       ${chart}
@@ -340,7 +334,7 @@ function viewStats() {
     </div>
     <div class="card"><h3 data-repere="bilan">Réglages</h3>
       <div class="cc-settings">
-        <span>Objectif par jour : l'horaire de la semaine type, ${WD_ORDER.filter(wd => dayTarget(wd) > 0).map(wd => `<span class="pt-dmin">${WD_SHORT[wd]} <b>${esc(fmtDur(dayTarget(wd)))}</b></span>`).join('')} <span class="hint">soit ${fmtH(weekTarget())} par semaine</span></span>
+        <span>L'objectif de chaque jour vient de la semaine type : ${A.fmtSemaineType()} <span class="hint">soit ${fmtH(weekTarget())} par semaine</span></span>
         <span class="hint"><a href="#donnees" data-act="cal-voir">Régler dans Données › Calendrier</a> (avec les jours fériés)</span>
       </div>
     </div>

@@ -142,7 +142,7 @@ function data(td) {
     if (d === td) { days[d] = { in: hm(inn) }; continue; }
     // Vendredi dernier : pointé le matin seulement (« Pause déjeuner » sans retour ni départ), il compte jusqu'au début du repas
     if (d === add(monday, -3)) { days[d] = { in: hm(inn), lunchOut: hm(inn + 240 + Math.round((r2 - 0.5) * 30)) }; continue; }
-    if (wd(d) === 5) { days[d] ={ in: hm(inn), out: hm(inn + 240 + Math.round((r2 - 0.5) * 30)) }; continue; }
+    if (wd(d) === 5) { days[d] = { in: hm(inn), out: hm(inn + 240 + Math.round((r2 - 0.5) * 30)) }; continue; }
     const lo = 12 * 60 + Math.round(r2 * 25), li = lo + 45 + Math.round(r * 20);
     const out = inn + 465 + (li - lo) + Math.round((r2 - 0.4) * 50);
     days[d] = { in: hm(inn), lunchOut: hm(lo), lunchIn: hm(li), out: hm(out) };

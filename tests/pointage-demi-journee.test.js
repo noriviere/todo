@@ -8,11 +8,8 @@ after(closeAll);
 const JOURNEE = { in: '08:00', lunchOut: '12:00', lunchIn: '13:00', out: '16:45' };   // 7h45
 const VENDREDI = { in: '08:00', lunchOut: '12:00' };                                  // 4h, sans retour ni départ
 const days = {};
-for (const lun of ['2026-10-12', '2026-10-19']) {
-  const d0 = +lun.slice(8);
-  for (let i = 0; i < 4; i++) days[lun.slice(0, 8) + String(d0 + i).padStart(2, '0')] = Object.assign({}, JOURNEE);
-  days[lun.slice(0, 8) + String(d0 + 4).padStart(2, '0')] = Object.assign({}, VENDREDI);
-}
+for (const ds of ['2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22']) days[ds] = Object.assign({}, JOURNEE);
+for (const ds of ['2026-10-16', '2026-10-23']) days[ds] = Object.assign({}, VENDREDI);
 const base = (ui = {}) => ({
   version: 1, subjects: [{ id: 'p', title: 'Sujet P', priority: 1 }], tasks: [],
   settings: { modules: {} }, ui, pointage: { days }

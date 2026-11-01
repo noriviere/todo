@@ -136,10 +136,10 @@ test('heures prévues d\'un jour d\'absence : journée → 0, demi-journée → 
   const c = calNoel({ '2026-11-12': 'full', '2026-11-10': 'am', '2026-11-13': 'pm', '2026-11-20': 'full' });
   assert.equal(c.heuresPrevues('2026-11-12'), 0, 'congé d\'une journée un jeudi');
   assert.equal(c.heuresPrevues('2026-11-20'), 0, 'congé d\'une journée un vendredi : les 4h prévues sont retirées');
-  assert.equal(c.heuresPrevues('2026-11-10'), 465 - 233, 'demi-journée un mardi : moins la moitié de 7h45 (arrondie)');
+  assert.equal(c.heuresPrevues('2026-11-10'), 233, 'demi-journée un mardi : la moitié de 7h45, arrondie (232,5 → 233)');
   assert.equal(c.heuresPrevues('2026-11-13'), 0, 'demi-journée un vendredi à 4h, déjà une demi-journée : le jour est entièrement libéré');
   const long = calNoel({ '2026-11-13': 'am' }, { horaire: [0, 465, 465, 465, 465, 360, 0] });
-  assert.equal(long.heuresPrevues('2026-11-13'), 360 - 233, 'vendredi à 6h, plus près d\'une journée : moins la moitié d\'une journée pleine');
+  assert.equal(long.heuresPrevues('2026-11-13'), 128, 'vendredi à 6h, plus près d\'une journée : moins la moitié d\'une journée pleine (360 − 232,5, arrondi)');
   assert.equal(c.travaille('2026-11-13'), true, 'une demi-journée ne fait pas un jour non travaillé');
 });
 
@@ -173,6 +173,15 @@ test('migration de l\'horaire : repris de l\'Objectif par jour du Pointage, les 
   assert.equal(d.settings.workdayMin, 420, 'ancienne capacité gardée');
   assert.deepEqual(d.settings.workDays, [1, 2, 3, 4, 5], 'ancienne semaine type gardée');
   assert.deepEqual(d.pointage.dayMin, { 1: 465, 2: 465, 3: 465, 4: 465, 5: 240, 6: 0, 0: 0 }, 'ancien objectif gardé');
+});
+
+test('migration de l\'horaire : les jours viennent de l\'ancienne semaine type, leur durée de l\'Objectif par jour sinon de l\'ancienne capacité', () => {
+  const dayMinDefaut = { 1: 465, 2: 465, 3: 465, 4: 465, 5: 240, 6: 0, 0: 0 };
+  assert.deepEqual(M.migrate({ settings: { workdayMin: 420, workDays: [1, 2, 3, 4, 5, 6] }, pointage: { dayMin: dayMinDefaut } }).settings.horaire,
+    [0, 465, 465, 465, 465, 240, 420], 'samedi coché, Objectif par jour à 0 : il garde l\'ancienne capacité');
+  assert.deepEqual(M.migrate({ settings: { workdayMin: 420, workDays: [1, 2, 3, 4] }, pointage: { dayMin: dayMinDefaut } }).settings.horaire,
+    [0, 465, 465, 465, 465, 0, 0], 'vendredi décoché, Objectif par jour à 4h : il reste hors semaine type');
+  assert.deepEqual(M.migrate({ pointage: { dayMin: dayMinDefaut } }).settings.horaire, NOEL, 'cas de Noel : semaine type par défaut, 7h45 et 4h');
 });
 
 test('migration de l\'horaire sans Pointage : l\'ancienne capacité sur chaque jour de la semaine type cochée', () => {
@@ -337,9 +346,9 @@ const OBJ = { 1: 465, 2: 465, 3: 465, 4: 465, 5: 240, 6: 0, 0: 0 };
 const JOURNEE = { in: '08:00', lunchOut: '12:00', lunchIn: '13:00', out: '16:45' };
 function semaine(jours = {}, { feries = {}, aujourdhui = TODAY, debut, fin } = {}) {
   const pointes = Object.assign({ '2026-10-19': JOURNEE, '2026-10-20': JOURNEE, '2026-10-21': JOURNEE, '2026-10-22': JOURNEE, '2026-10-23': { in: '08:00', lunchOut: '12:00' } }, jours);
-  return M.semaineComplete(LUN, {
-    jour: ds => pointes[ds] || null, objectif: ds => OBJ[M.parseYmd(ds).getDay()], ferie: ds => feries[ds] || null,
-    aujourdhui, maintenant: MAINTENANT, debut, fin });
+  // Calendrier réduit à ce que la règle lit : l'horaire du jour et les fériés
+  const cal = { horaireDu: ds => OBJ[M.parseYmd(ds).getDay()], ferie: ds => feries[ds] || null };
+  return M.semaineComplete(LUN, cal, { jour: ds => pointes[ds] || null, aujourdhui, maintenant: MAINTENANT, debut, fin });
 }
 
 test('semaine complète : le vendredi pointé le matin seulement la rend complète', () => {

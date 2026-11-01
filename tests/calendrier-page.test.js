@@ -25,6 +25,7 @@ test('carte Calendrier : une durée par jour, visible avec Charge et Pointage d�
   assert.equal(await carte(page).locator('[data-act="cal-jour"]').count(), 0, 'plus de cases à cocher');
   assert.equal(await jour(page, 1).inputValue(), '7h', 'sans Pointage : l\'ancienne capacité (7h) sur chaque jour');
   assert.equal(await jour(page, 6).inputValue(), '0');
+  assert.equal(await texte(carte(page).locator('.cal-days')), 'lun. mar. mer. jeu. ven. sam. dim.', 'mêmes noms de jour que la Charge et le Pointage');
   assert.match(await carte(page).innerText(), /Prochain : .*1er novembre \(Toussaint\)/);
   assert.match(await carte(page).innerText(), /Soit 35h par semaine · journée pleine \(« 1j »\) : 7h/);
   await saisir(page, 6, '4h');
@@ -86,7 +87,7 @@ test('Charge : un congé d\'une journée ou d\'une demi-journée un vendredi à 
     pointage: { days: { '2026-11-06': { abs: { type: 'cp', part: 'full' } }, '2026-11-13': { abs: { type: 'cp', part: 'am' } }, '2026-11-12': { abs: { type: 'rtt', part: 'pm' } } } } }), { hash: 'charge' });
   assert.match(await detailCharge(page, '2026-11-06'), /4h prévues sur 4h/, 'journée un vendredi : les 4h sont prises');
   assert.match(await detailCharge(page, '2026-11-13'), /4h prévues sur 4h/, 'demi-journée un vendredi : tout le vendredi est pris');
-  assert.match(await detailCharge(page, '2026-11-12'), /3h53 prévues sur 7h45 · libre 3h52/, 'demi-journée un jeudi : la moitié de 7h45 retirée');
+  assert.match(await detailCharge(page, '2026-11-12'), /3h52 prévues sur 7h45 · libre 3h53/, 'demi-journée un jeudi : la moitié de 7h45 retirée');
   assert.deepEqual(page.errors, []);
 });
 
@@ -100,15 +101,16 @@ test('Pointage : l\'objectif vient de l\'horaire de la semaine type, sans saisie
   const n = await page.evaluate(() => window.todoApp.pointage.counter('cp', 2026));
   assert.equal(n.n1.planned + n.n.planned, 1.5, 'jours posés : 1 + 0,5');
   await page.click('#main [data-act="pt-tab"][data-t="bilan"]');
-  assert.equal(await page.locator('#main [data-pt-set="day"]').count(), 0, 'plus de saisie « Objectif par jour »');
-  assert.match(await texte(page.locator('#main')), /Objectif par jour : l'horaire de la semaine type, Lun 7h45 Mar 7h45 Mer 7h45 Jeu 7h45 Ven 4h/);
+  assert.equal(await page.locator('#main [data-pt-set="day"]').count(), 0, 'plus de saisie propre au Pointage');
+  assert.match(await texte(page.locator('#main')), /L'objectif de chaque jour vient de la semaine type : lun\. 7h45 mar\. 7h45 mer\. 7h45 jeu\. 7h45 ven\. 4h soit 35h par semaine/);
+  assert.doesNotMatch(await texte(page.locator('#main')), /objectif par jour/i, 'terme à éviter (CONTEXT.md › Semaine type)');
   assert.deepEqual(page.errors, []);
 });
 
 test('Bilan : à côté de la moyenne, les semaines complètes se jugent sur l\'horaire de la semaine type, avec le lien vers ce réglage', async () => {
   const page = await openApp(base({ settings: { modules: {}, horaire: NOEL }, ui: { ptTab: 'bilan' } }), { hash: 'pointage' });
   const mention = page.locator('#main .pt-complete');
-  assert.match(await texte(mention), /semaines complètes seulement, où chaque jour de l'horaire de la semaine type \(Lun 7h45, Mar 7h45, Mer 7h45, Jeu 7h45, Ven 4h\)/);
+  assert.match(await texte(mention), /semaines complètes seulement, où chaque jour de l'horaire de la semaine type \( ?lun\. 7h45 mar\. 7h45 mer\. 7h45 jeu\. 7h45 ven\. 4h ?\)/);
   await mention.locator('[data-act="cal-voir"]').click();
   await page.waitForFunction(() => location.hash === '#donnees');
   await carte(page).waitFor();

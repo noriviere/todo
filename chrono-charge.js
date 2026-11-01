@@ -33,7 +33,7 @@ function slots() {
 // Jour de la semaine type (calendrier commun) et sa capacité : l'horaire de ce jour (Données › Calendrier).
 // Un jour férié garde sa capacité, prise par un créneau « Férié »
 const isWorkDay = ds => A.calendrier().semaine.includes(parseYmd(ds).getDay());
-const capacity = ds => isWorkDay(ds) ? A.calendrier().horaireDu(ds) : 0;
+const capacity = ds => A.calendrier().horaireDu(ds);
 // Fériés (calendrier commun) et absences (fournies par le Pointage) d'un jour de la semaine type, en créneaux virtuels :
 // ils prennent ce que le calendrier retire de l'horaire du jour (heures prévues)
 function joursPris(ds) {
@@ -328,7 +328,6 @@ function slotRow(sl) {
 }
 
 A.views.charge = () => {
-  const horaire = A.calendrier().horaire;
   const n = db().ui.ccRange || 14;
   const fc = forecast(n);
   if (!selDay || !fc.days.some(d => d.date === selDay)) selDay = today();
@@ -373,7 +372,7 @@ A.views.charge = () => {
     </div>
     <div class="card"><h3 data-repere="creneaux">Ma semaine type</h3>
       <div class="cc-settings">
-        <span>Capacité de chaque jour : <span class="cc-horaire">${WD_ORDER.filter(x => horaire[x] > 0).map(x => `<span>${WD_LONG[x].slice(0, 3)}. <b>${esc(fmtDur(horaire[x]))}</b></span>`).join('')}</span> <a href="#donnees" class="cc-cal-lien" data-act="cal-voir">Régler dans Données › Calendrier</a></span>
+        <span>Capacité de chaque jour : ${A.fmtSemaineType()} <a href="#donnees" class="cc-cal-lien" data-act="cal-voir">Régler dans Données › Calendrier</a></span>
       </div>
     </div>`;
 };
