@@ -502,8 +502,8 @@ if (side && !side.querySelector('.gd-open')) {
 const iBtn = id => `<button type="button" class="gd-i" data-help="${id}" title="Aide : ${esc(byId(id).title)}" aria-label="Aide : ${esc(byId(id).title)}">${I_INFO}</button>`;
 function addInfo() {
   document.querySelectorAll('#main [data-repere], #drawer [data-repere]').forEach(el => {
-    const [id, ou] = el.dataset.repere.split(' ');
-    if (ou === 'après') {
+    const [id, place] = el.dataset.repere.split(' ');
+    if (place === 'après') {
       if (!(el.nextElementSibling && el.nextElementSibling.classList.contains('gd-i'))) el.insertAdjacentHTML('afterend', iBtn(id));
     } else if (!el.querySelector(':scope > .gd-i')) el.insertAdjacentHTML('beforeend', iBtn(id));
   });

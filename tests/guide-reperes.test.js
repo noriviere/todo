@@ -4,11 +4,10 @@ const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { openApp, closeAll, day } = require('./helpers');
+const { openApp, closeAll, day, aller } = require('./helpers');
 
 after(closeAll);
 
-const aller = (page, ecran) => page.goto(page.url().replace(/#.*$/, '') + '#' + ecran);
 const ZONE = { main: '#main', drawer: '#drawer' };
 
 // Un « i » décrit par sa partie de l'aide et l'élément qui le contient (texte pour un titre, une case, un libellé)
@@ -61,7 +60,7 @@ async function tour(page, voir, { demo = true } = {}) {
 
 const fictif = () => ({
   version: 1,
-  subjects: [{ id: 's1', title: 'Dossier fictif', priority: 1 }],
+  subjects: [{ id: 's1', title: 'Sujet fictif', priority: 1 }],
   tasks: [{ id: 't1', subjectId: 's1', title: 'Tâche fictive', deadline: day(1), estimateMin: 60 }],
   settings: { modules: { projet: true } }, ui: { expanded: ['s1'] }
 });
@@ -113,9 +112,15 @@ test('cliquer un « i » ouvre la partie de l\'aide qui lui correspond, sur chaq
   assert.deepEqual(page.errors, []);
 });
 
-test('les « i » de la Charge disparaissent avec le module et reviennent quand il est rallumé', async () => {
+// Parties de l'aide de chaque module, lues dans les sections du guide (champ mod)
+const PARTIES_DU_MODULE = (() => {
+  const guide = fs.readFileSync(path.resolve(__dirname, '..', 'guide.js'), 'utf8'), parMod = {};
+  for (const [, id, mod] of guide.matchAll(/\{ id: '([^']+)', mod: '([^']+)'/g)) (parMod[mod] = parMod[mod] || []).push(id);
+  return parMod;
+})();
+
+test('les « i » d\'un module éteint disparaissent avec lui et reviennent quand il est rallumé, pour chaque module', async () => {
   const page = await openApp(fictif(), { hash: 'donnees' });
-  const CHARGE = ['charge', 'creneaux', 'repartition'];
   const aides = async () => {
     const ids = [];
     for (const e of ['dashboard', 'sujets', 'projets', 'charge', 'pointage', 'inbox', 'archives', 'donnees']) { await aller(page, e); await page.waitForTimeout(50); ids.push(...await page.$$eval('#main .gd-i', bs => bs.map(b => b.dataset.help))); }
@@ -124,13 +129,22 @@ test('les « i » de la Charge disparaissent avec le module et reviennent quand 
     await page.waitForTimeout(50);
     ids.push(...await page.$$eval('#drawer .gd-i', bs => bs.map(b => b.dataset.help)));
     await page.keyboard.press('Escape');
-    return ids;
+    return new Set(ids);
   };
-  await page.locator('#main [data-mod="charge"]').uncheck();
-  assert.deepEqual((await aides()).filter(id => CHARGE.includes(id)), []);
-  await aller(page, 'donnees');
-  await page.locator('#main [data-mod="charge"]').check();
-  assert.deepEqual([...new Set((await aides()).filter(id => CHARGE.includes(id)))].sort(), CHARGE);
+  const tousAllumes = await aides();
+  for (const mod of ['chrono', 'charge', 'pointage', 'recurrence', 'projet']) {
+    const parties = PARTIES_DU_MODULE[mod];
+    const avant = parties.filter(id => tousAllumes.has(id));
+    assert.ok(avant.length, mod + ' : au moins un « i » quand le module est allumé');
+    await aller(page, 'donnees');
+    await page.locator(`#main [data-mod="${mod}"]`).uncheck();
+    const eteint = await aides();
+    assert.deepEqual(parties.filter(id => eteint.has(id)), [], mod + ' éteint : ses « i » ont disparu');
+    await aller(page, 'donnees');
+    await page.locator(`#main [data-mod="${mod}"]`).check();
+    const rallume = await aides();
+    assert.deepEqual(parties.filter(id => rallume.has(id)), avant, mod + ' rallumé : ses « i » sont revenus');
+  }
   assert.deepEqual(page.errors, []);
 });
 

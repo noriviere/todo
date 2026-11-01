@@ -54,4 +54,6 @@ async function deplier(page, id) {
   if (!(await sujet.evaluate(el => el.classList.contains('open')))) await sujet.locator('.s-head [data-act="toggle-subject"]').click();
   await page.locator(`#main .subject.open[data-sid="${id}"]`).waitFor();
 }
-module.exports = { openApp, closeAll, day, ppd, TODAY, ctrl, ailleurs, glisserPoignee, deplier };
+// Ouvre un écran (onglet) de la page déjà chargée, par son adresse #<écran>
+const aller = (page, ecran) => page.goto(page.url().replace(/#.*$/, '') + '#' + ecran);
+module.exports = { openApp, closeAll, day, ppd, TODAY, ctrl, ailleurs, glisserPoignee, deplier, aller };

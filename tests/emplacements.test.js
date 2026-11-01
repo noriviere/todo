@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { openApp, closeAll, day } = require('./helpers');
+const { openApp, closeAll, day, aller } = require('./helpers');
 after(closeAll);
 
 const TOUS = ['dashboard', 'sujets', 'projets', 'charge', 'pointage', 'inbox', 'archives', 'donnees'];
@@ -30,7 +30,6 @@ const donnees = (modules = { projet: true }, extra = {}) => Object.assign({
 }, extra);
 
 const onglets = page => page.$$eval('#nav a', as => as.map(a => a.getAttribute('href').slice(1)));
-const aller = async (page, ecran) => { await page.goto(page.url().replace(/#.*$/, '') + '#' + ecran); await page.waitForTimeout(30); };
 
 /* ---------- Ordre des onglets ---------- */
 test('tous modules allumés, le menu montre dans l\'ordre : Tableau de bord, Sujets, Projets, Charge, Pointage, Boîte de réception, Archives, Données', async () => {
@@ -65,11 +64,14 @@ test('un onglet de module garde sa place quel que soit l\'ordre de chargement de
     .replace('<head>', `<head><base href="file://${racine}/">`);
   const dossier = fs.mkdtempSync(path.join(os.tmpdir(), 'todo-ordre-'));
   const fichier = path.join(dossier, 'index.html');
-  fs.writeFileSync(fichier, copie);
-  const page = await openApp(donnees(), { url: 'file://' + fichier });
-  assert.deepEqual(await onglets(page), TOUS);
-  assert.deepEqual(page.errors, []);
-  fs.rmSync(dossier, { recursive: true, force: true });
+  try {
+    fs.writeFileSync(fichier, copie);
+    const page = await openApp(donnees(), { url: 'file://' + fichier });
+    assert.deepEqual(await onglets(page), TOUS);
+    assert.deepEqual(page.errors, []);
+  } finally {
+    fs.rmSync(dossier, { recursive: true, force: true });
+  }
 });
 
 /* ---------- Bandeau Charge du tableau de bord ---------- */
@@ -121,6 +123,23 @@ test('le ↗ d\'une tâche du tableau de bord amène sur sa ligne surlignée dan
   await page.locator('#main .subject.open[data-sid="c"] .task[data-tid="b"].flash').waitFor();
   const d = await page.db();
   assert.ok(d.ui.expanded.includes('c') && d.ui.expanded.includes('p'));
+  assert.deepEqual(page.errors, []);
+});
+
+test('le ↗ centre la ligne visée dans la fenêtre de l\'onglet Sujets', async () => {
+  // Assez de tâches pour que l'onglet Sujets défile ; la ligne visée est la dernière du sujet q
+  const remplissage = Array.from({ length: 30 }, (_, i) => ({ id: 'f' + i, subjectId: 'q', title: 'Tâche de remplissage ' + i, deadline: day(10) }));
+  const d = donnees(undefined, { ui: { expanded: ['p', 'c', 'q'] } });
+  d.tasks.push(...remplissage, { id: 'y', subjectId: 'q', title: 'Tâche visée', deadline: day(2) });
+  const page = await openApp(d);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.click('#main .task[data-tid="y"] [data-org-goto]');
+  await page.locator('#main .task[data-tid="y"].flash').waitFor();
+  const ecart = await page.locator('#main .task[data-tid="y"]').evaluate(el => {
+    const r = el.getBoundingClientRect();
+    return Math.abs(r.top + r.height / 2 - innerHeight / 2);
+  });
+  assert.ok(ecart < 40, 'ligne à ' + Math.round(ecart) + ' px du centre');
   assert.deepEqual(page.errors, []);
 });
 

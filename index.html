@@ -758,8 +758,8 @@ function peindreHist() {
 }
 // Amène à un endroit { vue, tid | sid } : l'écran, puis la ligne (dépliée, centrée, brève surbrillance) si elle est visible.
 // Sert à Annuler / Rétablir et aux modules (↗ d'Organisation, étapes de Gestion de projet).
-// o.signalerFiltre : prévient quand la ligne existe mais qu'un filtre la cache (pas pour Annuler, dont le message reste affiché)
-function allerA(l, o = {}) {
+// options.signalerFiltre : prévient quand un filtre cache le sujet visé (pas pour Annuler, dont le message reste affiché)
+function allerA(l, options = {}) {
   if (!l) return;
   const montrer = () => {
     const sel = l.tid ? `#main [data-tid="${CSS.escape(l.tid)}"]` : l.sid ? `#main [data-sid="${CSS.escape(l.sid)}"]` : null;
@@ -775,7 +775,10 @@ function allerA(l, o = {}) {
         enregistrerAffichage();
         render();
         el = $(sel);
-        if (!el && o.signalerFiltre) toast('Ce sujet est masqué par un filtre');
+        // Tâche introuvable dans un sujet affiché : on montre le sujet ; sujet introuvable : un filtre le cache
+        const boite = $(`#main [data-sid="${CSS.escape(sid)}"]`);
+        if (!el && boite) el = boite;
+        if (!el && options.signalerFiltre) toast('Ce sujet est masqué par un filtre');
       }
     }
     if (!el) return;
