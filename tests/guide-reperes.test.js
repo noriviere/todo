@@ -47,10 +47,20 @@ const HORS_DEMO = {
   donnees: ['donnees ← h1 « Données »', 'demo ← h3 « Mode démo »', 'modules ← h3 « Modules actifs »', 'calendrier ← h3 « Calendrier »', 'sauvegarde-auto ← h3 « Sauvegarde automatique »', 'synchro ← h3 « Synchro PC ↔ téléphone »', 'export ← h3 « Sauvegarde manuelle (exp »', 'export ← h3 « Restaurer (import JSON) »', 'excel ← h3 « Import depuis Excel »']
 };
 
+// Attend que l'écran voulu soit dessiné (son onglet allumé, ou absent quand son module est éteint) et que le guide
+// ait posé ses « i » (image suivante) : un délai fixe ne suffit pas sur une machine lente (CI)
+async function pret(page, ecran) {
+  if (ecran) await page.waitForFunction(e => {
+    const on = document.querySelector('#nav a.on');
+    return on && (on.getAttribute('href') === '#' + e || !document.querySelector(`#nav a[href="#${e}"]`));
+  }, ecran);
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+}
+
 // Ouvre chaque écran et panneau, et appelle voir(nom, zone) sur chacun
 async function tour(page, voir, { demo = true } = {}) {
-  const attendre = () => page.waitForTimeout(80);
-  for (const e of demo ? ['dashboard', 'sujets', 'projets', 'charge', 'inbox', 'archives', 'donnees'] : ['donnees']) { await aller(page, e); await attendre(); await voir(e, 'main'); }
+  const attendre = () => pret(page);
+  for (const e of demo ? ['dashboard', 'sujets', 'projets', 'charge', 'inbox', 'archives', 'donnees'] : ['donnees']) { await aller(page, e); await pret(page, e); await voir(e, 'main'); }
   if (!demo) return;
   await aller(page, 'projets'); await page.click('#main [data-pj="open-project"]'); await attendre(); await voir('projet ouvert', 'main');
   for (const t of ['semaine', 'conges', 'bilan']) {
@@ -124,10 +134,10 @@ test('les « i » d\'un module éteint disparaissent avec lui et reviennent quan
   const page = await openApp(fictif(), { hash: 'donnees' });
   const aides = async () => {
     const ids = [];
-    for (const e of ['dashboard', 'sujets', 'projets', 'charge', 'pointage', 'inbox', 'archives', 'donnees']) { await aller(page, e); await page.waitForTimeout(50); ids.push(...await page.$$eval('#main .gd-i', bs => bs.map(b => b.dataset.help))); }
+    for (const e of ['dashboard', 'sujets', 'projets', 'charge', 'pointage', 'inbox', 'archives', 'donnees']) { await aller(page, e); await pret(page, e); ids.push(...await page.$$eval('#main .gd-i', bs => bs.map(b => b.dataset.help))); }
     await aller(page, 'sujets');
     await page.locator('#main [data-act="details"]').first().click();
-    await page.waitForTimeout(50);
+    await pret(page);
     ids.push(...await page.$$eval('#drawer .gd-i', bs => bs.map(b => b.dataset.help)));
     await page.keyboard.press('Escape');
     return new Set(ids);
