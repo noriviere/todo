@@ -1,7 +1,7 @@
 // Chrono, Charge et Pointage passent par le point unique de modification : tout s'annule avec Ctrl+Z / ↶ (ticket #27)
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { openApp, closeAll, day, ctrl, ailleurs } = require('./helpers');
+const { openApp, closeAll, lireTache, day, ctrl, ailleurs } = require('./helpers');
 after(closeAll);
 
 const base = (extra = {}) => Object.assign({
@@ -11,37 +11,36 @@ const base = (extra = {}) => Object.assign({
     { id: 'b', subjectId: 'p', title: 'Tâche B', deadline: day(0) }],
   settings: { modules: {} }, ui: { expanded: ['p'] }
 }, extra);
-const tache = async (page, id) => (await page.db()).tasks.find(t => t.id === id);
 const ligne = (page, id) => page.locator(`#main .task[data-tid="${id}"]`).first();
 const peutAnnuler = page => page.evaluate(() => !document.querySelector('#hist [data-act="hist-undo"]').disabled);
 
 test('chrono démarré puis Ctrl+Z : arrêté et la tâche revient « À faire » ; Ctrl+Y le relance', async () => {
   const page = await openApp(base());
   await ligne(page, 'a').locator('[data-act="cc-timer"]').click();
-  const t = await tache(page, 'a');
+  const t = await lireTache(page, 'a');
   assert.ok(t.timerStart);
   assert.equal(t.status, 'doing');
   await ailleurs(page);
   await ctrl(page, 'z');
-  const u = await tache(page, 'a');
+  const u = await lireTache(page, 'a');
   assert.equal(u.timerStart, null);
   assert.equal(u.status, 'todo');
   await ctrl(page, 'y');
-  assert.equal((await tache(page, 'a')).timerStart, t.timerStart);
+  assert.equal((await lireTache(page, 'a')).timerStart, t.timerStart);
 });
 
 test('annuler l\'arrêt du chrono le relance depuis son heure de départ, sans perdre de temps', async () => {
   const page = await openApp(base());
   await ligne(page, 'a').locator('[data-act="cc-timer"]').click();
-  const depart = (await tache(page, 'a')).timerStart;
+  const depart = (await lireTache(page, 'a')).timerStart;
   await page.clock.fastForward('10:00');
   await ligne(page, 'a').locator('[data-act="cc-timer"]').click();
-  const arrete = await tache(page, 'a');
+  const arrete = await lireTache(page, 'a');
   assert.equal(arrete.timerStart, null);
   assert.ok(arrete.realMin >= 10);
   await ailleurs(page);
   await ctrl(page, 'z');
-  const t = await tache(page, 'a');
+  const t = await lireTache(page, 'a');
   assert.equal(t.timerStart, depart, 'chrono relancé à son heure d\'origine');
   assert.equal(t.realMin, 0);
   assert.equal(t.timeLogs.length, 0);
@@ -52,9 +51,9 @@ test('temps retiré : le bandeau « Annuler » passe par l\'historique', async (
     timeLogs: [{ id: 'l1', date: day(0), min: 30, kind: 'manual' }] }] }));
   await ligne(page, 'a').locator('[data-act="details"]').click();
   await page.click('#drawer [data-act="cc-log-del"]');
-  assert.equal((await tache(page, 'a')).realMin, 0);
+  assert.equal((await lireTache(page, 'a')).realMin, 0);
   await page.click('#toast [data-act="undo"]');
-  const t = await tache(page, 'a');
+  const t = await lireTache(page, 'a');
   assert.equal(t.realMin, 30);
   assert.deepEqual(t.timeLogs.map(l => l.id), ['l1']);
   assert.match(await page.locator('#toast').innerText(), /Annulé/);
@@ -119,7 +118,7 @@ test('chaque module coupé : l\'appli marche et Ctrl+Z aussi', async () => {
     await ligne(page, 'a').locator('[data-act="archive-task"]').click();
     await ailleurs(page);
     await ctrl(page, 'z');
-    assert.equal((await tache(page, 'a')).archived, false, m);
+    assert.equal((await lireTache(page, 'a')).archived, false, m);
     assert.deepEqual(page.errors, [], m);
   }
 });
@@ -153,10 +152,10 @@ test('chrono masqué pendant qu\'il tourne : l\'arrêt ne s\'annule pas, aucun c
   await page.evaluate(() => { const A = window.todoApp; A.modifier('Chrono démarré', d => { d.tasks[0].timerStart = A.nowIso(); }); });
   await page.locator('#main [data-mod="chrono"]').uncheck({ force: true });
   await page.waitForTimeout(50);
-  assert.equal((await tache(page, 'a')).timerStart, null, 'arrêté en masquant le module');
+  assert.equal((await lireTache(page, 'a')).timerStart, null, 'arrêté en masquant le module');
   await ailleurs(page);
   await ctrl(page, 'z');
-  assert.equal((await tache(page, 'a')).timerStart, null, 'Ctrl+Z ne relance pas un chrono invisible');
+  assert.equal((await lireTache(page, 'a')).timerStart, null, 'Ctrl+Z ne relance pas un chrono invisible');
 });
 
 test('allumer un module pour la première fois ne vide pas l\'historique', async () => {
@@ -171,5 +170,5 @@ test('allumer un module pour la première fois ne vide pas l\'historique', async
   assert.equal(await peutAnnuler(page), true);
   await ailleurs(page);
   await ctrl(page, 'z');
-  assert.equal((await tache(page, 'a')).archived, false);
+  assert.equal((await lireTache(page, 'a')).archived, false);
 });
