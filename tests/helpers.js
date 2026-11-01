@@ -9,7 +9,9 @@ const noon = ymd => new Date(ymd + 'T12:00:00');
 
 let browser;
 // url : une autre page que index.html (par exemple une copie aux scripts réordonnés)
-async function openApp(data, { hash = '', viewport = { width: 1280, height: 900 }, touch = false, query = '', today = TODAY, url = URL } = {}) {
+// avant(page) : appelé avant le chargement de la page (accroches de test, comme le faux dépôt de la Synchro)
+// Boîtes confirm()/alert() : acceptées, sauf si page.__dialogue(d) est posé (le test répond alors lui-même)
+async function openApp(data, { hash = '', viewport = { width: 1280, height: 900 }, touch = false, query = '', today = TODAY, url = URL, avant } = {}) {
   browser = browser || await chromium.launch();
   const ctx = await browser.newContext({ viewport, hasTouch: touch, isMobile: touch });
   const page = await ctx.newPage();
@@ -18,7 +20,8 @@ async function openApp(data, { hash = '', viewport = { width: 1280, height: 900 
   await page.clock.install({ time: new Date(today + 'T09:00:00') });
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
-  page.on('dialog', d => d.accept(page.__prompt || undefined));
+  page.on('dialog', d => page.__dialogue ? page.__dialogue(d) : d.accept(page.__prompt || undefined));
+  if (avant) await avant(page);
   if (data) await page.addInitScript(([k, v]) => { if (!sessionStorage.getItem('seeded')) { localStorage.setItem(k, v); sessionStorage.setItem('seeded', '1'); } }, [KEY, JSON.stringify(data)]);
   await page.goto(url + query + (hash ? '#' + hash : ''));
   page.errors = errors;
@@ -56,4 +59,64 @@ async function deplier(page, id) {
 }
 // Ouvre un écran (onglet) de la page déjà chargée, par son adresse #<écran>
 const aller = (page, ecran) => page.goto(page.url().replace(/#.*$/, '') + '#' + ecran);
-module.exports = { openApp, closeAll, day, ppd, TODAY, ctrl, ailleurs, glisserPoignee, deplier, aller };
+
+/* ---------- Synchro : faux dépôt partagé par plusieurs appareils ---------- */
+// Faux dépôt tenu par le test (en mémoire, côté Node), à la place de GitHub : il garde toutes ses versions,
+// refuse une écriture faite sur une version périmée (comme le 409/422 de GitHub) et peut se dire public (prive = false).
+// avantEcriture : fonction appelée une fois juste avant la prochaine écriture (pour écrire d'ailleurs entre lecture et écriture,
+// ou faire attendre l'envoi).
+function fauxDepot(donnees = null) {
+  const copie = x => x == null ? x : JSON.parse(JSON.stringify(x));
+  const depot = {
+    prive: true, versions: [], lectures: 0, avantEcriture: null,
+    dernier: () => depot.versions[depot.versions.length - 1] || null,
+    donnees: () => depot.dernier() && copie(depot.dernier().donnees),
+    // Écriture faite par un autre appareil, sans passer par une page
+    pousser(d) { const version = 'v' + (depot.versions.length + 1); depot.versions.push({ version, donnees: copie(d) }); return version; },
+    async lire() { depot.lectures++; return copie(depot.dernier()); },
+    async ecrire(d, depuis) {
+      if (depot.avantEcriture) { const f = depot.avantEcriture; depot.avantEcriture = null; await f(); }
+      if ((depot.dernier() ? depot.dernier().version : null) !== depuis) return { conflit: true };
+      return { version: depot.pousser(d) };
+    }
+  };
+  if (donnees) depot.pousser(donnees);
+  return depot;
+}
+// Configuration de Synchro d'un appareil déjà branché (dépôt et jeton fictifs) ; derniere : { sha, synced, at } d'une Dernière synchro
+const SYNC_CFG = (derniere = {}) => Object.assign({ owner: 'exemple', repo: 'donnees-fictives', path: 'donnees.json', token: 'jeton-fictif', sha: null, synced: null, at: null }, derniere);
+// Ouvre un appareil (contexte de navigateur à part, son propre localStorage) branché sur le faux dépôt.
+// cfg : configuration de Synchro déjà enregistrée (null : pas encore branché) ; stockage : autres clés du localStorage
+async function appareil(depot, data, { cfg = SYNC_CFG(), stockage = {}, dialogue, ...opts } = {}) {
+  const page = await openApp(data, Object.assign({}, opts, {
+    avant: async p => {
+      if (dialogue) p.__dialogue = dialogue;
+      await p.exposeFunction('__fauxDepot', (op, ...a) => op === 'lire' ? depot.lire() : op === 'ecrire' ? depot.ecrire(...a) : depot.prive);
+      await p.addInitScript(([cles]) => {
+        if (!sessionStorage.getItem('seeded-sync')) { for (const k in cles) localStorage.setItem(k, cles[k]); sessionStorage.setItem('seeded-sync', '1'); }
+        // Accroche de test : la Synchro parle à ce dépôt au lieu de GitHub
+        window.__depotDeTest = {
+          lire: () => window.__fauxDepot('lire'),
+          ecrire: async (d, depuis) => {
+            const r = await window.__fauxDepot('ecrire', d, depuis);
+            if (r.conflit) { const e = new Error('conflit d\'écriture'); e.conflit = true; throw e; }
+            return r.version;
+          },
+          estPrive: () => window.__fauxDepot('prive')
+        };
+      }, [Object.assign(cfg ? { 'todo-noel-sync': JSON.stringify(cfg) } : {}, stockage)]);
+    }
+  }));
+  await synchroFinie(page);
+  return page;
+}
+// Attend la fin de la synchro en cours (☁ Synchro… disparaît de la barre latérale)
+const synchroFinie = page => page.waitForFunction(() => { const el = document.getElementById('sync-side'); return !el || !el.textContent.includes('…'); });
+// « Synchroniser maintenant » dans l'écran Données, puis attend la fin
+async function synchroniser(page) {
+  if (!page.url().endsWith('#donnees')) await aller(page, 'donnees');
+  await synchroFinie(page);
+  await page.click('#main [data-act="sync-now"]');
+  await synchroFinie(page);
+}
+module.exports = { openApp, closeAll, day, ppd, TODAY, ctrl, ailleurs, glisserPoignee, deplier, aller, fauxDepot, SYNC_CFG, appareil, synchroFinie, synchroniser };

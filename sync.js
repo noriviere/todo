@@ -8,7 +8,6 @@
   if (!window.todoApp || window.todoApp.demo) return;
   const app = window.todoApp;
   const CFG_KEY = 'todo-noel-sync';
-  const BACKUP_KEY = 'todo-noel-v1-avant-import';
   // Copie de l'appareil juste avant d'appliquer une version reçue de GitHub
   const SYNC_BACKUP_KEY = 'todo-noel-v1-avant-synchro';
   const API = 'https://api.github.com';
@@ -22,74 +21,81 @@
   const ready = () => !!(cfg && cfg.owner && cfg.repo && cfg.token);
 
   /* ---------- Données ---------- */
-  // L'état d'affichage (ui) reste propre à chaque appareil
-  function shared(data) {
-    const d = Object.assign({}, data);
-    delete d.ui;
-    delete d.exportedAt;
-    return d;
-  }
-  const fingerprint = data => JSON.stringify(shared(data));
-  const isEmpty = d => !(d.subjects || []).length && !(d.tasks || []).length && !Object.keys((d.pointage && d.pointage.days) || {}).length;
-  const validShape = d => !!d && typeof d === 'object' && Array.isArray(d.subjects) && Array.isArray(d.tasks);
+  // Règles de données et décision « qui gagne » : sync-decision.js (fonctions pures)
+  const D = window.todoSyncDecision;
+  const fingerprint = D.empreinte;
   const dirty = () => !cfg.synced || fingerprint(app.getData()) !== cfg.synced;
+  // Dernière synchro : version de GitHub envoyée ou reçue, et empreinte des données à ce moment-là
+  const derniere = () => cfg.sha ? { version: cfg.sha, empreinte: cfg.synced } : null;
 
   const toB64 = s => { const b = new TextEncoder().encode(s); let r = ''; for (let i = 0; i < b.length; i += 0x8000) r += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(r); };
   const fromB64 = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g, '')), c => c.charCodeAt(0)));
 
-  /* ---------- API GitHub ---------- */
-  async function gh(method, body) {
-    const url = `${API}/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${cfg.path.split('/').map(encodeURIComponent).join('/')}`;
-    const r = await fetch(method === 'GET' ? url + '?t=' + Date.now() : url, {
-      method,
-      cache: 'no-store',
-      headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
-      body: body ? JSON.stringify(body) : undefined
-    });
-    if (method === 'GET' && r.status === 404) return null;
-    if (!r.ok) {
-      const err = new Error(r.status === 401 ? 'jeton refusé ou expiré' : r.status === 403 ? 'accès refusé à ce dépôt' : r.status === 404 ? 'dépôt introuvable' : 'erreur GitHub ' + r.status);
-      err.status = r.status;
-      throw err;
+  /* ---------- Dépôt ---------- */
+  // La Synchro ne parle au dépôt qu'à travers cet adaptateur :
+  //   lire() → null (pas de fichier) ou { version, donnees } (donnees à null si le fichier n'est pas du JSON) ;
+  //   ecrire(donnees, depuis, message) → nouvelle version, ou erreur { conflit: true } si le dépôt a changé depuis la version « depuis » ;
+  //   estPrive() → vrai si le dépôt est privé.
+  // L'appli utilise toujours GitHub ; seuls les tests branchent un faux dépôt (window.__depotDeTest), avant le chargement de la page.
+  function depotGitHub() {
+    const headers = () => ({ Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' });
+    const repoUrl = () => `${API}/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}`;
+    const erreur = (status, msg) => { const err = new Error(msg); err.status = status; if (status === 409 || status === 422) err.conflit = true; return err; };
+    async function gh(method, body) {
+      const url = `${repoUrl()}/contents/${cfg.path.split('/').map(encodeURIComponent).join('/')}`;
+      const r = await fetch(method === 'GET' ? url + '?t=' + Date.now() : url, { method, cache: 'no-store', headers: headers(), body: body ? JSON.stringify(body) : undefined });
+      if (method === 'GET' && r.status === 404) return null;
+      if (!r.ok) throw erreur(r.status, r.status === 401 ? 'jeton refusé ou expiré' : r.status === 403 ? 'accès refusé à ce dépôt' : r.status === 404 ? 'dépôt introuvable' : 'erreur GitHub ' + r.status);
+      return r.json();
     }
-    return r.json();
+    return {
+      async lire() {
+        const f = await gh('GET');
+        if (!f) return null;
+        let text = f.content ? fromB64(f.content) : '';
+        // Fichier > 1 Mo : l'API ne renvoie pas le contenu, on passe par le lien de téléchargement
+        if (!text && f.download_url) text = await (await fetch(f.download_url, { cache: 'no-store', headers: { Authorization: 'Bearer ' + cfg.token } })).text();
+        let donnees = null;
+        try { donnees = JSON.parse(text); } catch (e) {}
+        return { version: f.sha, donnees };
+      },
+      async ecrire(donnees, depuis, message) {
+        const body = { message, content: toB64(JSON.stringify(donnees, null, 1)) };
+        if (depuis) body.sha = depuis;
+        return (await gh('PUT', body)).content.sha;
+      },
+      async estPrive() {
+        const r = await fetch(repoUrl(), { cache: 'no-store', headers: headers() });
+        if (!r.ok) throw erreur(r.status, r.status === 401 ? 'jeton refusé ou expiré' : r.status === 404 ? 'dépôt introuvable' : 'erreur GitHub ' + r.status);
+        return !!(await r.json()).private;
+      }
+    };
   }
-  async function pull() {
-    const f = await gh('GET');
-    if (!f) return null;
-    let text = f.content ? fromB64(f.content) : '';
-    // Fichier > 1 Mo : l'API ne renvoie pas le contenu, on passe par le lien de téléchargement
-    if (!text && f.download_url) text = await (await fetch(f.download_url, { cache: 'no-store', headers: { Authorization: 'Bearer ' + cfg.token } })).text();
-    return { sha: f.sha, data: JSON.parse(text) };
-  }
+  const depot = window.__depotDeTest || depotGitHub();
+
   async function push(sha) {
     // Empreinte prise sur ce qui part réellement : une modification faite pendant l'envoi
     // reste « à envoyer » au lieu d'être marquée comme synchronisée
     const fp = fingerprint(app.getData());
-    const body = { message: 'Synchro ' + new Date().toLocaleString('fr-FR') + ' (' + deviceName() + ')', content: toB64(JSON.stringify(Object.assign({ exportedAt: new Date().toISOString() }, JSON.parse(fp)), null, 1)) };
-    if (sha) body.sha = sha;
-    const res = await gh('PUT', body);
-    cfg.sha = res.content.sha;
+    const contenu = Object.assign({ exportedAt: new Date().toISOString() }, JSON.parse(fp));
+    cfg.sha = await depot.ecrire(contenu, sha || null, 'Synchro ' + new Date().toLocaleString('fr-FR') + ' (' + deviceName() + ')');
     cfg.synced = fp;
     cfg.at = new Date().toISOString();
     saveCfg();
     if (dirty()) again = true;
   }
-  function apply(remote, sha, keepUndo) {
-    const prev = localStorage.getItem(BACKUP_KEY), prevAt = localStorage.getItem(BACKUP_KEY + '-date');
+  // Version reçue : copie « avant la dernière synchro reçue », puis remplacement des données en gardant l'affichage de l'appareil.
+  // Le point de retour « avant le dernier import » n'est pas touché.
+  function apply(remote, sha) {
     try {
       localStorage.setItem(SYNC_BACKUP_KEY, JSON.stringify(app.getData()));
       localStorage.setItem(SYNC_BACKUP_KEY + '-date', new Date().toISOString());
     } catch (e) {}
     applying = true;
-    try { app.replaceData(Object.assign({}, remote, { ui: app.getData().ui })); } finally { applying = false; }
-    // Une synchro normale ne doit pas remplacer le point de retour « avant import »
-    if (!keepUndo) {
-      try {
-        prev === null ? localStorage.removeItem(BACKUP_KEY) : localStorage.setItem(BACKUP_KEY, prev);
-        prevAt === null ? localStorage.removeItem(BACKUP_KEY + '-date') : localStorage.setItem(BACKUP_KEY + '-date', prevAt);
-      } catch (e) {}
-    }
+    try { app.replaceData(Object.assign({}, remote, { ui: app.getData().ui }), { copie: false }); } finally { applying = false; }
+    noter(sha);
+  }
+  function noter(sha) {
     cfg.sha = sha;
     cfg.synced = fingerprint(app.getData());
     cfg.at = new Date().toISOString();
@@ -107,50 +113,40 @@
     busy = true; paint();
     try {
       if (!cfg.private) await checkPrivate();
-      const remote = await pull();
-      if (remote && !validShape(remote.data)) throw new Error('le fichier sur GitHub est illisible, rien n\'a été changé ici');
-      const localDirty = dirty();
+      const distant = await depot.lire();
       const local = app.getData();
-      if (!remote) {
-        // Premier envoi : le fichier n'existe pas encore dans le dépôt
-        if (!isEmpty(local)) await push(null);
-      } else if (remote.sha === cfg.sha) {
-        if (localDirty && !isEmpty(local)) await push(cfg.sha);
-      } else if (!cfg.sha && isEmpty(local)) {
-        apply(remote.data, remote.sha, false);
-        app.toast && app.toast('Données récupérées depuis GitHub.');
-      } else if (isEmpty(remote.data) && !isEmpty(local)) {
-        // GitHub vide alors que cet appareil a des données : on ne vide jamais sans demander
-        const msg = `Le fichier sur GitHub est vide, alors que cet appareil a ${local.subjects.length} sujets et ${local.tasks.length} tâches.\n\n` +
-          `OK = renvoyer les données de cet appareil sur GitHub (conseillé)\nAnnuler = vider cet appareil comme GitHub`;
-        if (confirm(msg)) await push(remote.sha);
-        else apply(remote.data, remote.sha, true);
-      } else if (isEmpty(local)) {
-        apply(remote.data, remote.sha, true);
-      } else if (!localDirty) {
-        apply(remote.data, remote.sha, false);
-      } else if (fingerprint(remote.data) === fingerprint(local)) {
-        cfg.sha = remote.sha; cfg.synced = fingerprint(local); saveCfg();
-      } else {
-        // Les deux côtés ont changé depuis la dernière synchro : on demande
-        const rw = remote.data.exportedAt ? new Date(remote.data.exportedAt).toLocaleString('fr-FR') : 'date inconnue';
-        const msg = `Tes données ont été modifiées sur cet appareil ET sur un autre depuis la dernière synchro.\n\n` +
-          `GitHub (${rw}) : ${(remote.data.subjects || []).length} sujets, ${(remote.data.tasks || []).length} tâches\n` +
-          `Cet appareil : ${local.subjects.length} sujets, ${local.tasks.length} tâches\n\n` +
-          `OK = garder la version de GitHub (la version de cet appareil reste récupérable via « Revenir à l'état d'avant le dernier import » dans Données)\n` +
-          `Annuler = garder la version de cet appareil et l'envoyer sur GitHub (l'ancienne reste dans l'historique GitHub)`;
-        if (confirm(msg)) apply(remote.data, remote.sha, true);
-        else await push(remote.sha);
+      let d = D.decider({ local, distant, derniere: derniere() });
+      if (d.raison === 'illisible') throw new Error('le fichier sur GitHub est illisible, rien n\'a été changé ici');
+      // Les questions : OK garde toujours cet appareil et l'envoie, Annuler reçoit la version de GitHub
+      if (d.action === 'demander') d = confirm(question(d.question, local, distant.donnees)) ? d.ok : d.annuler;
+      if (d.action === 'envoyer') await push(d.depuis);
+      else if (d.action === 'adopter') noter(distant.version);
+      else if (d.action === 'recevoir') {
+        const neuf = D.vide(local);
+        apply(distant.donnees, distant.version);
+        if (neuf) app.toast && app.toast('Données récupérées depuis GitHub.');
       }
       lastError = null;
     } catch (e) {
       // 409/422 : quelqu'un a écrit entre notre lecture et notre écriture, on recommence
-      if ((e.status === 409 || e.status === 422) && !opts.retried) { busy = false; return sync({ retried: true }); }
+      if (e.conflit && !opts.retried) { busy = false; return sync({ retried: true }); }
       lastError = e.message || String(e);
     }
     busy = false;
     paint();
     if (again) { again = false; schedule(500); }
+  }
+  const compte = d => `${(d.subjects || []).length} sujets, ${(d.tasks || []).length} tâches`;
+  const CHOIX = `OK = garder la version de cet appareil et l'envoyer sur GitHub (l'ancienne reste dans l'historique GitHub)\n` +
+    `Annuler = garder la version de GitHub (la version de cet appareil reste récupérable via « Revenir à l'état d'avant la dernière synchro reçue » dans Données)`;
+  function question(q, local, distant) {
+    if (q === 'vide') return `Le fichier sur GitHub est vide, alors que cet appareil a ${local.subjects.length} sujets et ${local.tasks.length} tâches.\n\n` +
+      `OK = renvoyer les données de cet appareil sur GitHub (conseillé)\nAnnuler = vider cet appareil comme GitHub`;
+    const date = distant.exportedAt ? new Date(distant.exportedAt).toLocaleString('fr-FR') : 'date inconnue';
+    const versions = `GitHub (${date}) : ${compte(distant)}\nCet appareil : ${compte(local)}\n\n`;
+    if (q === 'premier') return `Cet appareil a déjà des données, et GitHub aussi. Laquelle garder ?\n\n` + versions + CHOIX;
+    // Conflit de synchro : les deux côtés ont changé depuis la Dernière synchro
+    return `Tes données ont été modifiées sur cet appareil ET sur un autre depuis la dernière synchro.\n\n` + versions + CHOIX;
   }
   function schedule(delay = 3000) {
     clearTimeout(timer);
@@ -159,17 +155,7 @@
 
   // Les données ne doivent jamais partir dans un dépôt public (servi tel quel par GitHub Pages)
   async function checkPrivate() {
-    const r = await fetch(`${API}/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}`, {
-      cache: 'no-store',
-      headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }
-    });
-    if (!r.ok) {
-      const err = new Error(r.status === 401 ? 'jeton refusé ou expiré' : r.status === 404 ? 'dépôt introuvable' : 'erreur GitHub ' + r.status);
-      err.status = r.status;
-      throw err;
-    }
-    const repo = await r.json();
-    if (!repo.private) throw new Error(`le dépôt ${cfg.owner}/${cfg.repo} est public : synchro bloquée pour ne pas publier tes données`);
+    if (!(await depot.estPrive())) throw new Error(`le dépôt ${cfg.owner}/${cfg.repo} est public : synchro bloquée pour ne pas publier tes données`);
     cfg.private = true;
     saveCfg();
   }
