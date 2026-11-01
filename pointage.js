@@ -38,7 +38,8 @@ function P() {
   if (!p.defaults || typeof p.defaults !== 'object') p.defaults = { cp: 25 };  // droits annuels par défaut
   // Le congé paternité se décompte en jours calendaires (week-ends compris)
   if (!p.calV) { p.types.forEach(t => { if (t.id === 'paternite' && t.calendar === undefined) t.calendar = true; }); p.calV = 1; }
-  if (!p.dayMin || typeof p.dayMin !== 'object') p.dayMin = { 1: 465, 2: 465, 3: 465, 4: 465, 5: 240, 6: 0, 0: 0 };  // 7h45 du lundi au jeudi, 4h le vendredi                   // jours fériés français automatiques
+  // L'ancien « Objectif par jour » (p.dayMin) reste dans les données : le Pointage ne le lit plus (l'objectif vient de l'horaire
+  // de la semaine type), seule la migration le lit encore pour reprendre l'horaire
   return p;
 }
 const day = ds => P().days[ds] || null;
@@ -50,37 +51,17 @@ function cleanDay(ds) {
 const type = id => P().types.find(t => t.id === id) || { id, label: id, short: id, color: '#9aa1b2', counted: false };
 // Semaine type et fériés : calendrier commun du noyau (Données › Calendrier)
 const cal = () => A.calendrier();
-const workDays = () => cal().semaine;
-const workdayMin = () => db().settings.workdayMin || 420;
-// Objectif de temps par jour de la semaine (index = getDay()), en minutes
-const WD_ORDER = [1, 2, 3, 4, 5, 6, 0];
-const WD_SHORT = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
-const dayTarget = wd => { const m = P().dayMin && P().dayMin[wd]; return m != null ? m : workDays().includes(wd) ? workdayMin() : 0; };
-const weekTarget = () => WD_ORDER.reduce((a, wd) => a + dayTarget(wd), 0);
+// Objectif d'une semaine sans absence ni férié, en minutes : le total de la semaine type (Données › Calendrier)
+const weekTarget = () => cal().totalSemaine;
 
 
 /* ---------- Calculs d'heures ---------- */
-const toMin = s => { if (!s) return null; const [h, m] = s.split(':').map(Number); return h * 60 + m; };
 const nowHm = () => { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
-// Temps travaillé d'un jour. Pour aujourd'hui, une journée pas encore terminée compte jusqu'à maintenant (live).
-function worked(ds) {
-  const d = day(ds);
-  if (!d || !d.in) return { min: 0, live: false };
-  const i = toMin(d.in);
-  let end = toMin(d.out), live = false;
-  if (end == null) {
-    if (ds !== today()) return { min: 0, live: false, open: true };
-    end = d.lunchOut && !d.lunchIn ? toMin(d.lunchOut) : nowMin();
-    live = !(d.lunchOut && !d.lunchIn);
-  }
-  let min = end - i;
-  if (d.lunchOut && d.lunchIn) min -= Math.max(0, toMin(d.lunchIn) - toMin(d.lunchOut));
-  return { min: Math.max(0, min), live, open: !d.out };
-}
+// Temps pointé d'un jour (règle de metier.js) : un jour passé sans départ s'arrête au début du repas ;
+// aujourd'hui, une journée pas encore terminée compte jusqu'à maintenant (live).
+const worked = ds => A.tempsPointe(day(ds), ds, today(), nowMin());
 const absFrac = d => d && d.abs ? (d.abs.part === 'am' || d.abs.part === 'pm' ? 0.5 : 1) : 0;
-// Temps attendu d'un jour (objectif), diminué des absences et nul les jours fériés ou non travaillés
-const expected = ds => cal().ferie(ds) ? 0 : Math.round(dayTarget(parseYmd(ds).getDay()) * (1 - absFrac(day(ds))));
 const median = arr => { if (!arr.length) return 0; const s = arr.slice().sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2); };
 const avg = arr => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
 const fmtH = min => (min < 0 ? '-' : '') + (fmtDur(Math.abs(min)) || '0h');
@@ -163,12 +144,12 @@ let weekStart = null, year = null;
 
 function weekRows(mon) {
   let tot = 0, exp = 0;
-  const rows = [];
+  const rows = [], c = cal();   // temps attendu d'un jour : ses heures prévues au calendrier commun
   for (let i = 0; i < 7; i++) {
-    const ds = addDays(mon, i), d = day(ds) || {}, w = worked(ds), h = cal().ferie(ds);
-    const off = !workDays().includes(parseYmd(ds).getDay());
+    const ds = addDays(mon, i), d = day(ds) || {}, w = worked(ds), h = c.ferie(ds);
+    const off = !c.semaine.includes(parseYmd(ds).getDay());
     const full = d.abs && d.abs.part === 'full';
-    tot += w.min; exp += expected(ds);
+    tot += w.min; exp += c.heuresPrevues(ds);
     const tcol = d.abs ? type(d.abs.type).color : '';
     rows.push(`<div class="pt-row${ds === today() ? ' td' : ''}${off ? ' off' : ''}${h ? ' hol' : ''}${full ? ' absd' : ''}" data-d="${ds}"${tcol ? ` style="--tc:${tcol}"` : ''}>
       <span class="pt-date"><b>${parseYmd(ds).toLocaleDateString('fr-FR', { weekday: 'short' }).replace('.', '')}</b> ${parseYmd(ds).getDate()} ${MONTHS[parseYmd(ds).getMonth()]}${h ? `<span class="pt-hol" title="Jour férié">${esc(h)}</span>` : ''}</span>
@@ -297,8 +278,9 @@ function stats(y) {
   // On compte à partir du premier jour saisi, pour ne pas creuser l'écart avant le début du suivi
   const first = Object.keys(P().days).sort()[0];
   const start = !first ? addDays(end, 1) : first > `${y}-01-01` ? first : `${y}-01-01`;
+  const c = cal();
   for (let ds = start; ds <= end; ds = addDays(ds, 1)) {
-    const w = worked(ds), e = expected(ds), mi = parseYmd(ds).getMonth();
+    const w = worked(ds), e = c.heuresPrevues(ds), mi = parseYmd(ds).getMonth();
     const wk = A.lundi(ds);
     if (!weeks[wk]) weeks[wk] = { min: 0, exp: 0, days: 0 };
     weeks[wk].min += w.min; weeks[wk].exp += e;
@@ -307,12 +289,10 @@ function stats(y) {
     tot += w.min; exp += e;
   }
   const list = Object.keys(weeks).sort().map(k => Object.assign({ mon: k }, weeks[k]));
-  // Semaine complète : chaque jour qui a un objectif (lundi à vendredi) a des heures pointées.
-  // Une semaine avec un congé, une absence ou un férié, ou pas encore finie, n'entre pas dans la moyenne ni la médiane.
-  // Aujourd'hui ne compte que si la journée est terminée (heure de départ pointée) ; les jours hors de l'année affichée rendent la semaine incomplète.
-  const finished = ds => ds < today() || (ds === today() && !!(day(ds) && day(ds).out));
-  const complete = mon => [0, 1, 2, 3, 4, 5, 6].every(i => { const ds = addDays(mon, i); return !dayTarget(parseYmd(ds).getDay()) || (ds >= start && ds <= end && finished(ds) && worked(ds).min > 0 && !(day(ds) && day(ds).abs)); });
-  list.forEach(w => { w.full = complete(w.mon); });
+  // Semaine complète (règle de metier.js) : seules elles entrent dans la moyenne et la médiane.
+  // Les jours hors de l'année affichée (ou d'avant le premier jour saisi) rendent la semaine incomplète.
+  const opt = { jour: day, aujourdhui: today(), maintenant: nowMin(), debut: start, fin: end };
+  list.forEach(w => { w.full = A.semaineComplete(w.mon, c, opt); });
   const vals = list.filter(w => w.full && w.min > 0).map(w => w.min);
   const dayVals = [];
   for (let ds = start; ds <= end; ds = addDays(ds, 1)) { const m = worked(ds).min; if (m) dayVals.push(m); }
@@ -341,6 +321,7 @@ function viewStats() {
       <div class="stat"><div class="v">${fmtH(median(s.vals))}</div><div class="l">médiane par semaine complète</div></div>
       <div class="stat ${ecart < 0 ? 'late' : ''}"><div class="v">${ecart >= 0 ? '+' : ''}${fmtH(ecart)}</div><div class="l">écart à l'objectif (${fmtH(s.exp)} attendues)</div></div>
     </div>
+    <p class="hint pt-complete">Moyenne et médiane : semaines complètes seulement, où chaque jour de l'horaire de la semaine type (${A.fmtSemaineType()}) a des heures pointées, sans absence ni férié. <a href="#donnees" data-act="cal-voir">Régler dans Données › Calendrier</a></p>
     <div class="card"><h3 data-repere="bilan">Heures par semaine</h3>
       <p class="hint">Trait : objectif de la semaine (diminué des absences et fériés). Barres pâles : semaines incomplètes (congé, absence, férié), hors moyenne et médiane. Clique une semaine pour l'ouvrir.</p>
       ${chart}
@@ -353,8 +334,8 @@ function viewStats() {
     </div>
     <div class="card"><h3 data-repere="bilan">Réglages</h3>
       <div class="cc-settings">
-        <span>Objectif par jour ${WD_ORDER.map(wd => `<label class="pt-dmin">${WD_SHORT[wd]} <input class="inline est" data-pt-set="day" data-wd="${wd}" value="${esc(fmtDur(dayTarget(wd)) || '0')}" title="Ex. 7h45, 4h, 0"></label>`).join('')} <span class="hint">soit ${fmtH(weekTarget())} par semaine</span></span>
-        <span class="hint">Semaine type et jours fériés : <a href="#donnees" data-act="cal-voir">Données › Calendrier</a></span>
+        <span>L'objectif de chaque jour vient de la semaine type : ${A.fmtSemaineType()} <span class="hint">soit ${fmtH(weekTarget())} par semaine</span></span>
+        <span class="hint"><a href="#donnees" data-act="cal-voir">Régler dans Données › Calendrier</a> (avec les jours fériés)</span>
       </div>
     </div>
     <div id="pt-import"></div>`;
@@ -466,16 +447,10 @@ document.addEventListener('change', e => {
     });
     return;
   }
-  if (el.dataset.ptSet === 'day') {
-    const wd = +el.dataset.wd, v = el.value.trim();
-    const m = v === '' || v === '0' ? 0 : A.parseDur(v);
-    if (m == null || Number.isNaN(m)) { toast('Durée non comprise. Exemple : 7h45'); el.value = fmtDur(dayTarget(wd)) || '0'; return; }
-    A.modifier('Horaire de référence', () => { P().dayMin[wd] = m; });
-  }
 });
 document.addEventListener('keydown', e => {
   const el = e.target;
-  if (e.key === 'Enter' && (el.dataset.ptRight || el.dataset.ptType || el.dataset.ptSet || el.dataset.pt === 'note')) { e.preventDefault(); el.blur(); }
+  if (e.key === 'Enter' && (el.dataset.ptRight || el.dataset.ptType || el.dataset.pt === 'note')) { e.preventDefault(); el.blur(); }
 });
 
 // Le total du jour en cours avance tout seul (sans re-rendu, pour ne pas gêner une saisie)

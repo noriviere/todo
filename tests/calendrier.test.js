@@ -23,15 +23,17 @@ test('jour ouvré : semaine type, sans les fériés', () => {
   assert.equal(c.ouvre('2026-11-11'), false, 'férié');
   assert.equal(cal({ feries: false }).ouvre('2026-11-11'), true, 'fériés décochés');
   assert.equal(cal({ feries: false }).ferie('2026-11-11'), null);
-  const sam = cal({ workDays: [1, 2, 3, 4, 5, 6] });
+  const sam = cal({ horaire: [0, 420, 420, 420, 420, 420, 240] });
   assert.equal(sam.ouvre('2026-11-14'), true, 'samedi dans la semaine type');
-  assert.equal(cal({ workDays: [2, 3, 4, 5] }).ouvre('2026-11-09'), false, 'lundi hors semaine type');
+  assert.equal(cal({ horaire: [0, 0, 420, 420, 420, 420, 0] }).ouvre('2026-11-09'), false, 'lundi à 0h : hors semaine type');
 });
 
 test('semaine type par défaut : du lundi au vendredi', () => {
-  assert.deepEqual(M.blank().settings.workDays, [1, 2, 3, 4, 5]);
+  assert.deepEqual(M.blank().settings.horaire, [0, 420, 420, 420, 420, 420, 0]);
+  assert.deepEqual(M.calendrier(M.blank().settings).semaine, [1, 2, 3, 4, 5]);
   assert.equal(M.calendrier({}).ouvre('2026-11-14'), false, 'réglages vides');
-  assert.equal(M.calendrier({ workDays: [] }).ouvre('2026-11-10'), true, 'semaine type vide : défaut');
+  assert.equal(M.calendrier({ workDays: [] }).ouvre('2026-11-10'), true, 'ancienne semaine type vide : défaut');
+  assert.equal(M.calendrier({ workDays: [1, 2, 3] }).ouvre('2026-11-12'), false, 'données pas encore migrées : l\'ancienne semaine type');
 });
 
 test('jour travaillé : jour ouvré sans absence d\'une journée entière', () => {
@@ -80,7 +82,7 @@ test('migration : le choix des fériés du Pointage est repris', () => {
   assert.equal(M.migrate({ pointage: { holidays: false } }).settings.feries, false);
   assert.equal(M.migrate({ pointage: { holidays: true } }).settings.feries, true);
   assert.equal(M.migrate({ settings: { feries: true }, pointage: { holidays: false } }).settings.feries, true, 'déjà migré');
-  assert.deepEqual(M.migrate({ settings: { workDays: [1, 2, 3] } }).settings.workDays, [1, 2, 3]);
+  assert.deepEqual(M.migrate({ settings: { workDays: [1, 2, 3] } }).settings.workDays, [1, 2, 3], 'ancien champ gardé');
 });
 
 /* ---------- Décalage d'une échéance de récurrence (ticket #37) ---------- */

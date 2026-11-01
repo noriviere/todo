@@ -84,6 +84,7 @@ button.cc-col:hover{background:var(--surface-2)}
 .cc-settings{display:flex;flex-wrap:wrap;gap:12px 28px;align-items:center;color:var(--muted)}
 .cc-settings label,.cc-settings>span{display:inline-flex;align-items:center;gap:8px}
 .cc-settings .est{border:1px solid var(--border);width:70px}
+.cc-settings>span{flex-wrap:wrap}
 
 /* Pastille du chrono en cours */
 .cc-float{position:fixed;right:18px;bottom:18px;z-index:25;display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:8px 8px 8px 12px;box-shadow:0 8px 28px rgba(20,30,60,.18);max-width:calc(100vw - 36px)}

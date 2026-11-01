@@ -126,7 +126,7 @@ function data(td) {
     { id: 'f2', title: 'Comité projet', durMin: 90, freq: 'biweekly', days: [4], start: work(add(td, -14), 0), end: null, archived: false }
   ];
 
-  // Pointage : huit semaines d'heures, une semaine de congés, un jour de maladie, des congés posés à venir
+  // Pointage : huit semaines d'heures (dont un vendredi pointé le matin seulement), une semaine de congés, un jour de maladie, des congés posés à venir
   const days = {};
   const y = +td.slice(0, 4);
   const hol = new Set([...frHolidays(y), ...frHolidays(y - 1)]);
@@ -140,6 +140,8 @@ function data(td) {
     const r = rnd(d), r2 = rnd(d + 'x');
     const inn = 8 * 60 + 5 + Math.round(r * 40);
     if (d === td) { days[d] = { in: hm(inn) }; continue; }
+    // Vendredi dernier : pointé le matin seulement (« Pause déjeuner » sans retour ni départ), il compte jusqu'au début du repas
+    if (d === add(monday, -3)) { days[d] = { in: hm(inn), lunchOut: hm(inn + 240 + Math.round((r2 - 0.5) * 30)) }; continue; }
     if (wd(d) === 5) { days[d] = { in: hm(inn), out: hm(inn + 240 + Math.round((r2 - 0.5) * 30)) }; continue; }
     const lo = 12 * 60 + Math.round(r2 * 25), li = lo + 45 + Math.round(r * 20);
     const out = inn + 465 + (li - lo) + Math.round((r2 - 0.4) * 50);
@@ -155,13 +157,13 @@ function data(td) {
     subjects,
     tasks,
     fixedSlots,
-    settings: { theme: 'auto', workdayMin: 420, lastExport: null, modules: { projet: true } },
+    // Horaire de la semaine type (Données › Calendrier) : 7h45 du lundi au jeudi, 4h le vendredi
+    settings: { theme: 'auto', horaire: [0, 465, 465, 465, 465, 240, 0], lastExport: null, modules: { projet: true } },
     ui: { expanded: ['s1', 's3'], showClosed: false, search: '', dims: { code: '', secteur: '', produit: '' } },
     pointage: {
       days,
       rights: { cp: { [y]: { acq: 25, n1: 6 } }, rtt: { [y]: { acq: 10, n1: 0 } } },
-      defaults: { cp: 25, rtt: 10 },
-      dayMin: { 1: 465, 2: 465, 3: 465, 4: 465, 5: 240, 6: 0, 0: 0 }
+      defaults: { cp: 25, rtt: 10 }
     }
   };
 }
