@@ -1,7 +1,7 @@
 // Règles métier (metier.js) testées directement sous Node, sans navigateur
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const M = require('../metier.js');
+const M = require('../noyau/metier.js');
 const { TODAY, day, sujet, tache } = require('./helpers.js');
 
 const donnees = (subjects, tasks) => Object.assign(M.blank(), { subjects, tasks });

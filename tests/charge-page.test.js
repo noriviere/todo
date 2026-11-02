@@ -24,9 +24,9 @@ const titreDu = (page, ds) => page.locator(`#main .cc-col[data-act="cc-day"][dat
 
 test('charge-plan.js est chargé par la page avant chrono-charge.js', async () => {
   const html = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
-  const plan = html.indexOf('<script src="charge-plan.js"></script>'), module = html.indexOf('<script src="chrono-charge.js"></script>');
+  const plan = html.indexOf('<script src="modules/chrono-charge/charge-plan.js"></script>'), module = html.indexOf('<script src="modules/chrono-charge/chrono-charge.js"></script>');
   assert.ok(plan > 0 && plan < module, 'charge-plan.js avant chrono-charge.js');
-  assert.ok(plan > html.indexOf('<script src="metier.js"></script>'), 'après metier.js, dont il se sert');
+  assert.ok(plan > html.indexOf('<script src="noyau/metier.js"></script>'), 'après metier.js, dont il se sert');
   const page = await openApp(donnees(), { hash: 'charge' });
   assert.equal(await page.evaluate(() => typeof window.chargePlan.prevision), 'function');
   assert.deepEqual(page.errors, []);

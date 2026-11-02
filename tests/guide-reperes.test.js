@@ -125,7 +125,7 @@ test('cliquer un « i » ouvre la partie de l\'aide qui lui correspond, sur chaq
 
 // Parties de l'aide de chaque module, lues dans les sections du guide (champ mod)
 const PARTIES_DU_MODULE = (() => {
-  const guide = fs.readFileSync(path.resolve(__dirname, '..', 'guide.js'), 'utf8'), parMod = {};
+  const guide = fs.readFileSync(path.resolve(__dirname, '..', 'aide', 'guide.js'), 'utf8'), parMod = {};
   for (const [, id, mod] of guide.matchAll(/\{ id: '([^']+)', mod: '([^']+)'/g)) (parMod[mod] = parMod[mod] || []).push(id);
   return parMod;
 })();
@@ -160,7 +160,7 @@ test('les « i » d\'un module éteint disparaissent avec lui et reviennent quan
 });
 
 test('le guide ne garde plus de table de sélecteurs pour placer ses « i »', () => {
-  const guide = fs.readFileSync(path.resolve(__dirname, '..', 'guide.js'), 'utf8');
+  const guide = fs.readFileSync(path.resolve(__dirname, '..', 'aide', 'guide.js'), 'utf8');
   assert.doesNotMatch(guide, /\bSPOTS\b/);
   assert.doesNotMatch(guide, /\[\s*'#(main|drawer)\b/, 'sélecteur d\'écran écrit dans le guide');
 });

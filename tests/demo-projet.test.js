@@ -3,14 +3,14 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const P = require('../projets-plan.js');
-const M = require('../metier.js');
+const P = require('../modules/projets/projets-plan.js');
+const M = require('../noyau/metier.js');
 // Jours ouvrés comme dans la page : calendrier commun (semaine type, fériés)
 const ouvre = d => M.calendrier(M.migrate(JSON.parse(JSON.stringify(d))).settings);
 
 // demo.js est un script navigateur : on le charge avec un window factice pour appeler todoDemo.data(today)
-const ctx = { window: { todoMetier: require('../metier.js') } };
-vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../demo.js'), 'utf8'), ctx);
+const ctx = { window: { todoMetier: require('../noyau/metier.js') } };
+vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../aide/demo.js'), 'utf8'), ctx);
 const demo = ctx.window.todoDemo;
 const ymd = d => d.toISOString().slice(0, 10);
 

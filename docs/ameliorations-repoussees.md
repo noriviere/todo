@@ -15,7 +15,8 @@ on le barre (`~~…~~`) et on note la PR ou la raison dans « État » ; on ne s
 | 1 | ~~**Piste B** : la prévision de la Charge dans un fichier pur et testé, comme `projets-plan.js` ; `canWork` refait le calcul de `calendrier().travaille`~~ | Revue d'architecture du 01/11 | Fait, PR #66 : `charge-plan.js` testé sous Node, jours possibles = jours travaillés du calendrier commun |
 | 2 | **Piste C** : les compteurs de congés N/N-1 et les stats du Pointage (semaines complètes, médiane) en fonctions pures testées ; déjà corrigés deux fois (PR #4, #6) sans test direct | Revue d'architecture du 01/11 | À lancer |
 | 3 | **Piste D** : un seul lecteur Excel pour l'import de la to-do et celui du pointage (`serialDate`, `loadLib` copiés) | Revue d'architecture du 01/11 (spéculative) | À lancer ; en la faisant, retirer les deux lecteurs de `JOUR_MS_PERMIS` (`tests/outillage.test.js`) |
-| 4 | Ne plus changer à la main la version du cache hors connexion (`sw.js`, `todo-noel-app-v12`) à chaque mise en ligne | Revue d'architecture du 31/10, candidat 6 (spéculatif) | Vérifié, toujours manuel |
+| 4 | Ne plus changer à la main la version du cache hors connexion (`sw.js`, `todo-noel-app-v13` depuis le rangement en dossiers) à chaque mise en ligne | Revue d'architecture du 31/10, candidat 6 (spéculatif) | Vérifié, toujours manuel |
+| 27 | La **Récurrence** ne doit plus être un module activable : elle devient une fonction toujours active (retirée de « Modules actifs ») | Grill du rangement des fichiers, 01/11 (Q2, décision de Noel) | À lancer |
 
 ## Synchro
 
@@ -26,7 +27,7 @@ on le barre (`~~…~~`) et on note la PR ou la raison dans « État » ; on ne s
 | 7 | Données au-delà de 1 Mo : envoi jamais testé | Revue du code du 24/10 | Non testé |
 | 8 | Récurrence : une occurrence peut-elle être recréée en double quand une synchro arrive ? | Revue du code du 24/10 | À vérifier (le rattrapage après des données venues d'ailleurs existe depuis la piste 2) |
 | 9 | La date du dernier export est partagée entre PC et téléphone (elle part dans la synchro) | Revue du code du 24/10 | Vérifié, toujours là |
-| 25 | La question « GitHub vide » (et les messages de conflit) écrivent « 1 sujets » ou « 1 tâches » : `compte()` (`sync.js`) met toujours le pluriel | Rétro piste A, 01/11 | Repoussée |
+| 25 | La question « GitHub vide » (et les messages de conflit) écrivent « 1 sujets » ou « 1 tâches » : `compte()` (`donnees/sync.js`) met toujours le pluriel | Rétro piste A, 01/11 | Repoussée |
 
 ## Charge, Chrono, Pointage
 
@@ -44,7 +45,7 @@ on le barre (`~~…~~`) et on note la PR ou la raison dans « État » ; on ne s
 |---|---|---|---|
 | 14 | Déplier une étape dans le Gantt pour voir ses tâches datées (la structure le permet déjà) | Conception du Gantt, 25/10 (hors V1) | Repoussée |
 | 15 | Modèles de projet (étapes toutes prêtes) | Conception du Gantt, 25/10 (hors V1) | Repoussée |
-| 16 | Export PDF : un jalon sans date peut faire planter le tri | Revue PR #10, 25/10 | Vérifié, toujours là (`projets.js:510`) |
+| 16 | Export PDF : un jalon sans date peut faire planter le tri | Revue PR #10, 25/10 | Vérifié, toujours là (`modules/projets/projets.js:510`) |
 | 17 | Export PDF : graduations trop serrées pour un projet très lointain | Revue PR #10, 25/10 | À vérifier |
 
 ## Téléphone et confort
@@ -62,4 +63,5 @@ on le barre (`~~…~~`) et on note la PR ou la raison dans « État » ; on ne s
 | # | Amélioration | Origine | État |
 |---|---|---|---|
 | 23 | `setTaskField` rend `true`, `false` ou un texte d'erreur : un résultat `{ ok, erreur }` serait plus clair | Revue PR #24, 31/10 | Repoussée |
-| 24 | `organisation.js` reconnaît une tâche « jamais touchée » par `createdAt === updatedAt`, ce qui est fragile | Piste 2, 31/10 | À vérifier |
+| 24 | `modules/organisation/organisation.js` reconnaît une tâche « jamais touchée » par `createdAt === updatedAt`, ce qui est fragile | Piste 2, 31/10 | À vérifier |
+| 28 | Deux tests (`tests/emplacements.test.js`, `tests/annuler-orga-projets.test.js`) gardent chacun leur liste des scripts de modules : à lire depuis les balises de `index.html` ou à partager dans `tests/helpers.js` | Revue PR #70, 01/11 | Repoussée |

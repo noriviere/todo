@@ -1,8 +1,8 @@
 // Prévision de la Charge (charge-plan.js) : calcul pur testé sous Node avec le vrai calendrier commun de metier.js
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const C = require('../charge-plan.js');
-const M = require('../metier.js');
+const C = require('../modules/chrono-charge/charge-plan.js');
+const M = require('../noyau/metier.js');
 
 // Horaire de Noel : 7h45 du lundi au jeudi, 4h le vendredi ; fériés français (11 novembre 2026 : mercredi)
 const NOEL = [0, 465, 465, 465, 465, 240, 0];

@@ -1,7 +1,7 @@
 // Calendrier commun (metier.js) : jours fériés, ouvrés, travaillés — voir CONTEXT.md « Calendrier »
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const M = require('../metier.js');
+const M = require('../noyau/metier.js');
 
 const cal = (settings = {}, absences = {}) => M.calendrier(Object.assign(M.blank().settings, settings), ds => absences[ds] || null);
 

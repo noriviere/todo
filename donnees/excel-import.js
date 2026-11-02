@@ -15,7 +15,7 @@
   const STATE = { 'a faire': 'todo', 'à faire': 'todo', 'en cours': 'doing', 'en attente': 'waiting', 'fait': 'done', 'annulé': 'cancelled', 'annule': 'cancelled' };
   const COLS = { date: 'date', etat: 'etat', projet: 'projet', secteur: 'secteur', 'produit fini': 'produit', sujet: 'sujet', 'délais': 'delai', 'tx avcmt': 'avct', tps: 'tps', commentaires: 'comm' };
 
-  const { pad } = typeof window !== 'undefined' ? window.todoMetier : require('./metier.js');
+  const { pad } = typeof window !== 'undefined' ? window.todoMetier : require('../noyau/metier.js');
   const norm = v => String(v ?? '').trim().toLowerCase();
   const text = v => v == null ? '' : String(v).replace(/\r/g, '').trim();
   // Numéro de série Excel (jours depuis le 30/12/1899) → AAAA-MM-JJ

@@ -2,7 +2,7 @@
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { sujet, tache, closeAll, day, ctrl, ailleurs, aller, fauxDepot, SYNC_CFG, appareil, synchroFinie, synchroniser } = require('./helpers');
-const D = require('../sync-decision.js');
+const D = require('../donnees/sync-decision.js');
 after(closeAll);
 
 const VIEUX = '2000-01-01T00:00:00.000Z';

@@ -1,7 +1,7 @@
 // Décision de la Synchro (sync-decision.js) : qui gagne entre cet appareil et GitHub, cas par cas (spec #52)
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const D = require('../sync-decision.js');
+const D = require('../donnees/sync-decision.js');
 const { sujet, tache } = require('./helpers');
 
 const donnees = (...titres) => ({
