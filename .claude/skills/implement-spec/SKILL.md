@@ -38,7 +38,7 @@ Communication to and from subagents should be sparse. Communicate primarily thro
 
 6. If this changes the **frontier** of available tickets, kick off more **implementer subagents** to work on the new tickets. This allows for maximum concurrency.
 
-7. Once all tickets are complete, update the PR body with the evidence (each ticket's acceptance criteria ticked with their tests, screenshots at desktop and phone width for interface changes, using demo mode: `node tests/captures.js <folder> <screen>…`). Then run `/mattpocock-skills:code-review` on the PR branch (never the bare `/code-review`), giving the reviewers the PR body, the diff, the spec and the tickets. Fix all issues raised by the code review in a single **implementer subagent**.
+7. Once all tickets are complete, update the PR body with the evidence (each ticket's acceptance criteria ticked with their tests, screenshots at desktop and phone width for interface changes, using demo mode: `node tests/captures.js <folder> <screen>…`, saved in the project's shared folder that the body names). Then run `/mattpocock-skills:code-review` on the PR branch (never the bare `/code-review`), giving the reviewers the PR body, the diff, the spec and the tickets. Fix all issues raised by the code review in a single **implementer subagent**.
 
 8. Push, and mark the PR as ready for review. Never merge it: Noel merges.
 
