@@ -132,3 +132,27 @@ test('AGENTS.md renvoie à la liste des améliorations repoussées, qui existe',
   assert.ok(fs.existsSync(path.join(RACINE, 'docs/ameliorations-repoussees.md')));
   assert.ok(lignes('AGENTS.md').some(l => l.includes('docs/ameliorations-repoussees.md')));
 });
+
+// Un fichier déplacé ou renommé laisse des chemins périmés dans les textes de l'agent (rétro rangement) : chaque chemin
+// entre accents graves qui contient un « / » doit exister. Le « :ligne » final est ignoré ; les passages barrés (~~…~~),
+// les motifs (<module>, *), les commandes (/…, avec espaces), les adresses (https:, file:), les branches (origin/…)
+// et les dépôts GitHub (noriviere/…) ne sont pas lus.
+const TEXTES_AGENT = ['AGENTS.md', 'CODING_STANDARDS.md', 'docs/ameliorations-repoussees.md'];
+const PAS_UN_CHEMIN = /[<>*\s]|^\/|^[a-z]+:|^(origin|noriviere)\//;
+// Cités d'avance : docs/adr/ naît avec le premier ADR (docs/agents/domain.md).
+const A_VENIR = ['docs/adr/'];
+
+test('chaque chemin cité dans AGENTS.md, CODING_STANDARDS.md et la liste repoussée existe', () => {
+  const fautes = [];
+  let lus = 0;
+  for (const f of TEXTES_AGENT) lignes(f).forEach((l, i) => {
+    for (const [, cite] of l.replace(/~~.*?~~/g, '').matchAll(/`([^`]+)`/g)) {
+      if (!cite.includes('/') || PAS_UN_CHEMIN.test(cite) || A_VENIR.includes(cite)) continue;
+      lus++;
+      const chemin = cite.replace(/:\d+$/, '');
+      if (!fs.existsSync(path.join(RACINE, chemin))) fautes.push(`${f}:${i + 1} « ${cite} »`);
+    }
+  });
+  assert.ok(lus > 20, 'chemins lus : ' + lus);
+  assert.deepEqual(fautes, [], 'chemins absents (fichier déplacé ou renommé ?) :\n' + fautes.join('\n'));
+});

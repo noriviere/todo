@@ -162,7 +162,7 @@ Concrete evidence that the change works. Show a before and after.
 
 When the PR implements a ticket, open with its acceptance criteria: copy each one and tick it with the name of the test that proves it. A criterion with no test stays unticked, with the reason or the manual check, so the reviewer sees the gap.
 
-Screenshots are S-tier - when the environment is set up for it and the change is visual.
+Screenshots are S-tier - when the environment is set up for it and the change is visual. The GitHub tool cannot attach images: they go in the project's shared folder and the body names that folder (AGENTS.md, Tests).
 
 Execution-based evidence is A-tier. Test results, console output. Show the exact test that now fails and passes, using pseudocode.
 
